@@ -27,7 +27,7 @@ A JUCE-based MIDI plugin that generates 4-note chords controlled by dual-axis jo
 
 Plans:
 - [x] 01-01-PLAN.md — CMake build pipeline + basic PluginProcessor/Editor shell
-- [ ] 01-02-PLAN.md — Full APVTS parameters + build verification
+- [x] 01-02-PLAN.md — Full APVTS parameters + build verification
 
 
 ### Phase 2: Core MIDI Engine
@@ -90,7 +90,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Setup | 1/2 | In progress | 01-01 |
+| 1. Project Setup | 2/2 | Complete | 01-01, 01-02 |
 | 2. Core MIDI Engine | 0/N | Not started | - |
 | 3. Input Controls | 0/N | Not started | - |
 | 4. Trigger System | 0/N | Not started | - |
