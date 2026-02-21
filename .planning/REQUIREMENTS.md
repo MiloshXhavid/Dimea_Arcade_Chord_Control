@@ -99,44 +99,44 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MIDI-01 | Phase 2 | Pending |
-| MIDI-02 | Phase 2 | Pending |
-| MIDI-03 | Phase 2 | Pending |
-| MIDI-04 | Phase 2 | Pending |
-| MIDI-05 | Phase 4 | Pending |
-| SCAL-01 | Phase 2 | Pending |
-| SCAL-02 | Phase 2 | Pending |
-| SCAL-03 | Phase 2 | Pending |
-| SCAL-04 | Phase 2 | Pending |
-| JOYS-01 | Phase 3 | Pending |
-| JOYS-02 | Phase 3 | Pending |
-| JOYS-03 | Phase 3 | Pending |
-| JOYS-04 | Phase 3 | Pending |
-| INTV-01 | Phase 2 | Pending |
-| INTV-02 | Phase 2 | Pending |
-| INTV-03 | Phase 2 | Pending |
-| INTV-04 | Phase 2 | Pending |
-| OCTV-01 | Phase 2 | Pending |
-| OCTV-02 | Phase 2 | Pending |
-| OCTV-03 | Phase 2 | Pending |
-| OCTV-04 | Phase 2 | Pending |
-| TOUC-01 | Phase 3 | Pending |
-| TOUC-02 | Phase 3 | Pending |
-| TOUC-03 | Phase 3 | Pending |
-| TOUC-04 | Phase 3 | Pending |
-| TRIG-01 | Phase 4 | Pending |
-| TRIG-02 | Phase 4 | Pending |
-| TRIG-03 | Phase 4 | Pending |
-| TRIG-04 | Phase 4 | Pending |
-| CLOK-01 | Phase 2 | Pending |
-| CLOK-02 | Phase 2 | Pending |
-| CLOK-03 | Phase 2 | Pending |
-| LOOP-01 | Phase 4 | Pending |
-| LOOP-02 | Phase 4 | Pending |
-| LOOP-03 | Phase 4 | Pending |
-| LOOP-04 | Phase 4 | Pending |
-| LOOP-05 | Phase 4 | Pending |
-| LOOP-06 | Phase 4 | Pending |
+| MIDI-01 | Phase 2: Core MIDI Engine | Pending |
+| MIDI-02 | Phase 2: Core MIDI Engine | Pending |
+| MIDI-03 | Phase 2: Core MIDI Engine | Pending |
+| MIDI-04 | Phase 2: Core MIDI Engine | Pending |
+| MIDI-05 | Phase 4: Trigger System | Pending |
+| SCAL-01 | Phase 2: Core MIDI Engine | Pending |
+| SCAL-02 | Phase 2: Core MIDI Engine | Pending |
+| SCAL-03 | Phase 2: Core MIDI Engine | Pending |
+| SCAL-04 | Phase 2: Core MIDI Engine | Pending |
+| JOYS-01 | Phase 3: Input Controls | Pending |
+| JOYS-02 | Phase 3: Input Controls | Pending |
+| JOYS-03 | Phase 3: Input Controls | Pending |
+| JOYS-04 | Phase 3: Input Controls | Pending |
+| INTV-01 | Phase 2: Core MIDI Engine | Pending |
+| INTV-02 | Phase 2: Core MIDI Engine | Pending |
+| INTV-03 | Phase 2: Core MIDI Engine | Pending |
+| INTV-04 | Phase 2: Core MIDI Engine | Pending |
+| OCTV-01 | Phase 2: Core MIDI Engine | Pending |
+| OCTV-02 | Phase 2: Core MIDI Engine | Pending |
+| OCTV-03 | Phase 2: Core MIDI Engine | Pending |
+| OCTV-04 | Phase 2: Core MIDI Engine | Pending |
+| TOUC-01 | Phase 3: Input Controls | Pending |
+| TOUC-02 | Phase 3: Input Controls | Pending |
+| TOUC-03 | Phase 3: Input Controls | Pending |
+| TOUC-04 | Phase 3: Input Controls | Pending |
+| TRIG-01 | Phase 4: Trigger System | Pending |
+| TRIG-02 | Phase 4: Trigger System | Pending |
+| TRIG-03 | Phase 4: Trigger System | Pending |
+| TRIG-04 | Phase 4: Trigger System | Pending |
+| CLOK-01 | Phase 2: Core MIDI Engine | Pending |
+| CLOK-02 | Phase 2: Core MIDI Engine | Pending |
+| CLOK-03 | Phase 2: Core MIDI Engine | Pending |
+| LOOP-01 | Phase 5: Looper | Pending |
+| LOOP-02 | Phase 5: Looper | Pending |
+| LOOP-03 | Phase 5: Looper | Pending |
+| LOOP-04 | Phase 5: Looper | Pending |
+| LOOP-05 | Phase 5: Looper | Pending |
+| LOOP-06 | Phase 5: Looper | Pending |
 
 **Coverage:**
 - v1 requirements: 42 total
