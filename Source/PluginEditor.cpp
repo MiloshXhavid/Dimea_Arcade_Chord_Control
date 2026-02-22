@@ -70,21 +70,46 @@ void JoystickPad::paint(juce::Graphics& g)
 TouchPlate::TouchPlate(PluginProcessor& p, int voice, const juce::String& label)
     : proc_(p), voice_(voice), label_(label) {}
 
-void TouchPlate::mouseDown(const juce::MouseEvent&) { proc_.setPadState(voice_, true);  repaint(); }
-void TouchPlate::mouseUp  (const juce::MouseEvent&) { proc_.setPadState(voice_, false); repaint(); }
+void TouchPlate::mouseDown(const juce::MouseEvent&)
+{
+    const int src = static_cast<int>(
+        proc_.apvts.getRawParameterValue("triggerSource" + juce::String(voice_))->load());
+    if (src == 0)  // only active in PAD mode
+    {
+        proc_.setPadState(voice_, true);
+        repaint();
+    }
+}
+
+void TouchPlate::mouseUp(const juce::MouseEvent&)
+{
+    const int src = static_cast<int>(
+        proc_.apvts.getRawParameterValue("triggerSource" + juce::String(voice_))->load());
+    if (src == 0)
+        proc_.setPadState(voice_, false);
+    repaint();  // always repaint so dim state stays current
+}
 
 void TouchPlate::paint(juce::Graphics& g)
 {
-    const bool active = proc_.isGateOpen(voice_);
-    g.setColour(active ? Clr::gateOn : Clr::gateOff);
+    const int src = static_cast<int>(
+        proc_.apvts.getRawParameterValue("triggerSource" + juce::String(voice_))->load());
+    const bool isPadMode = (src == 0);  // 0 = TouchPlate
+    const bool active    = isPadMode && proc_.isGateOpen(voice_);
+
+    const juce::Colour fillClr = isPadMode
+        ? (active ? Clr::gateOn : Clr::gateOff)
+        : Clr::gateOff.darker(0.3f);  // dimmed in JOY or RND mode
+
+    g.setColour(fillClr);
     g.fillRoundedRectangle(getLocalBounds().toFloat(), 8.0f);
 
-    g.setColour(Clr::text);
+    g.setColour(isPadMode ? Clr::text : Clr::textDim);
     g.setFont(juce::Font(14.0f, juce::Font::bold));
     g.drawText(label_, getLocalBounds(), juce::Justification::centred);
 
-    g.setColour((active ? Clr::gateOn : Clr::accent).brighter(0.2f));
-    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1), 8.0f, 1.5f);
+    g.setColour((active ? Clr::gateOn : Clr::accent).brighter(isPadMode ? 0.2f : 0.0f));
+    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), 8.0f, 1.5f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -317,6 +342,17 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     filterXAttenAtt_ = std::make_unique<SliderAtt>(p.apvts, "filterXAtten", filterXAttenKnob_);
     filterYAttenAtt_ = std::make_unique<SliderAtt>(p.apvts, "filterYAtten", filterYAttenKnob_);
 
+    // ── Joystick threshold slider ─────────────────────────────────────────────
+    thresholdSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    thresholdSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    thresholdSlider_.setTooltip("Joystick motion threshold");
+    thresholdSlider_.setColour(juce::Slider::trackColourId,      Clr::highlight);
+    thresholdSlider_.setColour(juce::Slider::backgroundColourId, Clr::accent);
+    thresholdSlider_.setColour(juce::Slider::thumbColourId,      Clr::text);
+    addAndMakeVisible(thresholdSlider_);
+    thresholdSliderAtt_ = std::make_unique<juce::SliderParameterAttachment>(
+        *p.apvts.getParameter("joystickThreshold"), thresholdSlider_);
+
     // ── Looper ────────────────────────────────────────────────────────────────
     loopPlayBtn_.setButtonText("PLAY");  loopPlayBtn_.setClickingTogglesState(true);
     loopRecBtn_.setButtonText("REC");    loopRecBtn_.setClickingTogglesState(true);
@@ -433,6 +469,14 @@ void PluginEditor::resized()
     }
 
     right.removeFromTop(6);
+
+    // Threshold slider row (THRESH label + horizontal slider)
+    {
+        auto threshRow = right.removeFromTop(24);
+        thresholdSlider_.setBounds(threshRow);
+    }
+
+    right.removeFromTop(4);
 
     // Gamepad status
     gamepadStatusLabel_.setBounds(right.removeFromTop(16));
@@ -552,6 +596,16 @@ void PluginEditor::paint(juce::Graphics& g)
                    juce::Justification::left);
     };
     (void)drawSectionTitle;
+
+    // THRESH label above threshold slider
+    if (thresholdSlider_.isVisible())
+    {
+        g.setColour(Clr::textDim);
+        g.setFont(juce::Font(9.5f));
+        g.drawText("THRESH",
+                   thresholdSlider_.getX(), thresholdSlider_.getY() - 12,
+                   60, 12, juce::Justification::left);
+    }
 
     g.setColour(Clr::accent);
     g.drawRect(getLocalBounds().reduced(4), 1);

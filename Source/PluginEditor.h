@@ -103,6 +103,10 @@ private:
     juce::ComboBox randomSubdivBox_;
     juce::Label    randomSubdivLabel_;
 
+    // ── Joystick threshold ────────────────────────────────────────────────────
+    juce::Slider thresholdSlider_;
+    std::unique_ptr<juce::SliderParameterAttachment> thresholdSliderAtt_;
+
     // ── Filter (gamepad) ─────────────────────────────────────────────────────
     juce::Slider filterXAttenKnob_, filterYAttenKnob_;
     juce::Label  filterXAttenLabel_, filterYAttenLabel_;
