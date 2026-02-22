@@ -144,6 +144,17 @@ Load `build/ChordJoystick_artefacts/Debug/VST3/ChordJoystick.vst3` in Reaper wit
 4. Verify pitch changes correspond to in-scale degree boundaries only
 5. Release joystick to center — after ~50ms, observe `noteOff(pitch)` in MIDI monitor
 
+## Post-Plan Parameter Defaults Patch (commit d3db0eb)
+
+Applied per explicit user instruction after initial plan completion:
+
+- `joystickYAtten` default: 48 → **12** (one octave Y range), `NormalisableRange` interval set to 1.0f for whole-number editing
+- `joystickXAtten` default: 48 → **24** (two octave X range), same interval fix
+- `rootOctave / thirdOctave / fifthOctave / tensionOctave`: range changed from -3..3 → **0..12**, default changed from 0 → **2** (whole numbers, `AudioParameterInt`)
+- Default joystick position: `joystickY` initial value changed from `0.0f` → **-1.0f** (bottom = lowest pitch on plugin load); `joystickX` remains `0.0f` (center)
+- `ChordEngine::Params` struct defaults updated to match: `joystickY = -1.0f`, `xAtten = 24.0f`, `yAtten = 12.0f`, `octaves[4] = {2,2,2,2}`
+- Build: VST3 compiled and installed cleanly
+
 ---
 *Phase: 04-per-voice-trigger-sources-and-random-gate*
 *Plan: 01*
