@@ -9,21 +9,21 @@ Core value: Continuous harmonic navigation via joystick with per-voice sample-an
 ## Current Position
 
 - **Phase:** 02 of 7 — Core Engine Validation
-- **Plan:** 02-02 (not started)
+- **Plan:** 02-02 (complete — awaiting human checkpoint verification)
 - **Status:** in-progress
 
 ## Progress
 
 ```
 Phase 01 [████░░░░░░]   Build Foundation    (partial — plugin crashes in Ableton)
-Phase 02 [█░░░░░░░░░]   Engine Validation   (02-01 complete — ScaleQuantizer tests green)
+Phase 02 [██░░░░░░░░]   Engine Validation   (02-01+02-02 complete — ScaleQuantizer+ChordEngine 15 tests green)
 Phase 03 [░░░░░░░░░░]   Core MIDI Output
 Phase 04 [░░░░░░░░░░]   Trigger Sources
 Phase 05 [░░░░░░░░░░]   Looper Hardening
 Phase 06 [░░░░░░░░░░]   SDL2 Gamepad
 Phase 07 [░░░░░░░░░░]   Distribution
 
-Overall: [░░░░░░░░░░] ~15% (Phase 01 partial, Phase 02 in-progress 1/2 plans done)
+Overall: [░░░░░░░░░░] ~20% (Phase 01 partial, Phase 02 in-progress 2/2 plans done — awaiting checkpoint)
 ```
 
 ## What's Been Built
@@ -39,6 +39,7 @@ Overall: [░░░░░░░░░░] ~15% (Phase 01 partial, Phase 02 in-pr
 - **[NEW] PluginProcessor.cpp fixed: Ableton dummy bus, isBusesLayoutSupported updated (01-01)**
 - **[NEW] Build verified: ChordJoystick.vst3 compiled and installed (Visual Studio 18 2026)**
 - **[NEW] Catch2 v3.8.1 FetchContent added, ChordJoystickTests target, ScaleQuantizer 218 assertions green (02-01)**
+- **[NEW] ChordEngine 9-case test suite added; combined suite 15 tests, 0 failures; axis routing, transpose, octave offsets, MIDI clamping, scale quantization verified (02-02)**
 
 ## Key Decisions
 
@@ -56,6 +57,7 @@ Overall: [░░░░░░░░░░] ~15% (Phase 01 partial, Phase 02 in-pr
 | Catch2 placed after SDL2 MakeAvailable | Ensures static CRT setting already applied; prevents LNK2038 |
 | Test target compiles .cpp directly | Not linking ChordJoystick plugin target — avoids GUI/DAW deps in headless tests |
 | ASCII hyphens in Catch2 test names | Windows ctest garbles Unicode em-dash in filter arguments |
+| ScalePreset::Chromatic in baseParams() | Chromatic is 12-note pass-through — lets axis/transpose/octave tests get integer-exact values without quantization snap masking arithmetic bugs |
 
 ## Known Issues (Must Fix Before Shipping)
 
@@ -79,5 +81,5 @@ Overall: [░░░░░░░░░░] ~15% (Phase 01 partial, Phase 02 in-pr
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 02-01-PLAN.md — ScaleQuantizer test suite green (218 assertions, 6 test cases).
-Resume file: .planning/phases/02-core-engine-validation/02-02-PLAN.md
+Stopped at: 02-02-PLAN.md Task 1 complete — ChordEngine test suite green (9 test cases, 15 total). Awaiting checkpoint:human-verify.
+Resume file: .planning/phases/02-core-engine-validation/02-02-PLAN.md (checkpoint Task 2)
