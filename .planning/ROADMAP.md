@@ -1,102 +1,145 @@
-# Roadmap: ChordJoystick
+# ChordJoystick — Roadmap
 
-## Overview
-
-A JUCE-based MIDI plugin that generates 4-note chords controlled by dual-axis joystick, with touchplate triggers and looper for live performance. Journey: Build foundation → Core MIDI engine → UI controls → Advanced triggers → Looper.
-
-## Phases
-
-- [ ] **Phase 1: Project Setup** - Build pipeline, CMake, parameter infrastructure
-- [ ] **Phase 2: Core MIDI Engine** - MIDI output, scale system, interval/octave controls, clock sync
-- [ ] **Phase 3: Input Controls** - Joystick XY control, touchplate triggers, GUI components
-- [ ] **Phase 4: Trigger System** - Source selection, joystick triggers, random subdivision triggers
-- [ ] **Phase 5: Looper** - Transport controls, loop recording, sync to clock
-
-## Phase Details
-
-### Phase 1: Project Setup
-**Goal**: Establish JUCE build pipeline with CMake and define all APVTS parameters
-**Depends on**: Nothing (first phase)
-**Requirements**: None (foundational)
-**Success Criteria** (what must be TRUE):
-  1. Project builds via CMake with VST3, AUv3, and Standalone targets
-  2. Plugin loads in test DAW without crashes
-  3. All planned parameters exist in APVTS (velocity, channel routing, scales, intervals, octaves, transpose, attenuator, trigger source, clock, looper)
-  4. Basic PluginProcessor/PluginEditor shell compiles and runs
-**Plans:** 2 plans
-
-Plans:
-- [x] 01-01-PLAN.md — CMake build pipeline + basic PluginProcessor/Editor shell
-- [x] 01-02-PLAN.md — Full APVTS parameters + build verification
-
-
-### Phase 2: Core MIDI Engine
-**Goal**: Transform parameter inputs into quantized MIDI note output
-**Depends on**: Phase 1
-**Requirements**: MIDI-01, MIDI-02, MIDI-03, MIDI-04, SCAL-01, SCAL-02, SCAL-03, SCAL-04, INTV-01, INTV-02, INTV-03, INTV-04, OCTV-01, OCTV-02, OCTV-03, OCTV-04, CLOK-01, CLOK-02, CLOK-03
-**Success Criteria** (what must be TRUE):
-  1. Plugin outputs MIDI notes in VST3 format that appear in DAW
-  2. Plugin outputs MIDI notes in AUv3 format on macOS
-  3. Plugin runs in standalone mode without DAW
-  4. Notes are quantized to selected scale (Major, Minor, Pentatonic, etc.)
-  5. Global transpose shifts all output notes by specified semitones
-  6. Per-note octave adjustment changes individual voice octaves
-  7. MIDI velocity responds to touchplate trigger intensity
-  8. DAW clock sync receives MIDI clock and aligns output
-  9. Standalone clock runs at adjustable BPM
-**Plans**: TBD
-
-### Phase 3: Input Controls
-**Goal**: Interactive joystick and touchplate UI for real-time control
-**Depends on**: Phase 2
-**Requirements**: JOYS-01, JOYS-02, JOYS-03, JOYS-04, TOUC-01, TOUC-02, TOUC-03, TOUC-04
-**Success Criteria** (what must be TRUE):
-  1. Joystick X-axis visually controls Fifth and Tension interval selection
-  2. Joystick Y-axis visually controls Root and Third interval selection
-  3. XY attenuator knob scales the output range (e.g., 1 octave = 12)
-  4. Pitch updates in real-time as joystick moves
-  5. Four touchplates render in UI and respond to clicks
-  6. Each touchplate triggers its assigned note (note 1-4)
-  7. Touchplates latch: note sustains after finger leaves
-  8. Re-triggering touchplate updates pitch from current joystick position
-**Plans**: TBD
-
-### Phase 4: Trigger System
-**Goal**: Flexible trigger sources including joystick movement and random subdivision
-**Depends on**: Phase 3
-**Requirements**: TRIG-01, TRIG-02, TRIG-03, TRIG-04, MIDI-05
-**Success Criteria** (what must be TRUE):
-  1. UI selector allows choosing trigger source (touchplate / joystick movement)
-  2. Joystick movement triggers configured notes automatically
-  3. Random trigger option fires notes at subdivisions (1/4, 1/8, 1/16, etc.)
-  4. Subdivision clock selector configures random trigger timing
-  5. Per-note MIDI channel routing allows routing each voice to different channel
-**Plans**: TBD
-
-### Phase 5: Looper
-**Goal**: Record and loop gesture sequences synced to clock
-**Depends on**: Phase 4
-**Requirements**: LOOP-01, LOOP-02, LOOP-03, LOOP-04, LOOP-05, LOOP-06
-**Success Criteria** (what must be TRUE):
-  1. Start/Stop button controls looper playback
-  2. Record button captures gesture sequences
-  3. Reset button clears recorded loop
-  4. Loop subdivision selector works (3/4, 4/4, 5/4, 7/8, 9/8, 11/8)
-  5. Loop length selector sets 1-16 bars
-  6. Looper stays in sync with selected clock (DAW or standalone)
-**Plans**: TBD
-
-## Progress
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Project Setup | 2/2 | Complete | 01-01, 01-02 |
-| 2. Core MIDI Engine | 0/N | Not started | - |
-| 3. Input Controls | 0/N | Not started | - |
-| 4. Trigger System | 0/N | Not started | - |
-| 5. Looper | 0/N | Not started | - |
+**Milestone:** v1.0 — Paid Windows VST3 Release
 
 ---
 
-*Roadmap created: 2026-02-21*
-*Based on v1 requirements (42 total)*
+## Phase 01: Build Foundation and JUCE Version Lock
+
+**Goal:** Get the plugin compiling and loading in a DAW with pinned dependencies and correct build configuration.
+
+**Delivers:**
+- Reproducible build: JUCE pinned to `8.0.4` (not `origin/master`)
+- Plugin loads in Reaper without crashes
+- All APVTS parameters save/restore correctly
+- Static CRT configured for distribution (no MSVC runtime dependency)
+- `COPY_PLUGIN_AFTER_BUILD` set for dev builds
+
+**Status:** pending
+
+Plans:
+- [ ] 01-01: Fix CMakeLists.txt (pin JUCE tag, static CRT, validate plugin target)
+- [ ] 01-02: Smoke test — plugin loads in Reaper, APVTS round-trip verified
+
+---
+
+## Phase 02: Core Engine Validation
+
+**Goal:** Verify ChordEngine and ScaleQuantizer produce correct output via unit tests before wiring into the audio thread.
+
+**Delivers:**
+- Catch2 test suite: scale quantization (all presets, edge cases, tie-breaking), ChordEngine pitch computation across all 4 voices, custom 12-key scale entry
+- All tests passing in CI/build
+
+**Status:** pending
+
+Plans:
+- [ ] 02-01: Add Catch2 CMake target and ScaleQuantizer unit tests
+- [ ] 02-02: Add ChordEngine unit tests (all 4 voices, intervals, octave offsets, transpose)
+
+---
+
+## Phase 03: Core MIDI Output and Note-Off Guarantee
+
+**Goal:** Wire TriggerSystem into processBlock to produce sample-accurate MIDI note-on/off. Guarantee note-off on all exit paths.
+
+**Delivers:**
+- All 4 voices producing MIDI note-on/off via TouchPlate triggers
+- Note-off flushed on `releaseResources()`, transport stop, and bypass
+- Per-voice MIDI channel routing verified
+- Visual gate LED feedback in PluginEditor updating at 30 Hz
+
+**Status:** pending
+
+Plans:
+- [ ] 03-01: Wire TriggerSystem to processBlock (TouchPlate → MIDI note-on/off)
+- [ ] 03-02: Implement releaseResources() note-off flush and bypass handling
+- [ ] 03-03: Verify per-voice MIDI channel routing in Reaper
+
+---
+
+## Phase 04: Per-Voice Trigger Sources and Random Gate
+
+**Goal:** Complete the trigger source model — add joystick-motion and random subdivision sources on top of the working TouchPlate trigger.
+
+**Delivers:**
+- Per-voice trigger source selector (TouchPlate / Joystick Motion / Random) fully functional
+- Random gate: DAW-synced 1/4–1/32 subdivision with density control
+- Joystick motion trigger with configurable threshold
+- AudioPlayHead integration for ppqPosition-based timing
+
+**Status:** pending
+
+Plans:
+- [ ] 04-01: Joystick motion trigger (threshold-based, per voice)
+- [ ] 04-02: Random gate (ppqPosition subdivisions + density knob, all 4 subdivisions)
+
+---
+
+## Phase 05: LooperEngine Hardening and DAW Sync
+
+**Goal:** Replace the std::mutex in LooperEngine with a lock-free design. Validate beat-locked record/playback in Ableton and Reaper.
+
+**Delivers:**
+- Lock-free LooperEngine: AbstractFifo + fixed-size event array
+- Atomic flags for UI-side destructive ops (reset, delete)
+- ppqPosition anchor recorded at loop start (no drift)
+- Hard capacity cap preventing audio-thread allocation
+- Verified 1–16 bar loop in Ableton and Reaper
+
+**Research flag:** Needs /gsd:research-phase — lock-free buffer design has multiple valid approaches.
+
+**Status:** pending
+
+Plans:
+- [ ] 05-01: Replace LooperEngine mutex with lock-free AbstractFifo design
+- [ ] 05-02: DAW sync validation — record/play/stop in Ableton and Reaper
+
+---
+
+## Phase 06: SDL2 Gamepad Integration
+
+**Goal:** Fix SDL lifecycle bugs and validate gamepad control end-to-end.
+
+**Delivers:**
+- Process-level SDL singleton (reference-counted, no multi-instance SDL_Quit race)
+- `SDL_HINT_JOYSTICK_THREAD "1"` set before SDL_Init
+- Right stick → joystick XY, buttons → TouchPlate triggers, hot-plug confirmed
+- Left stick → CC74/CC71 gated on `isConnected()` (no CC flood when unplugged)
+- PS4 and Xbox controller confirmed working
+
+**Research flag:** Needs /gsd:research-phase — verify SDL_HINT_JOYSTICK_THREAD behavior in SDL2 2.30.9.
+
+**Status:** pending
+
+Plans:
+- [ ] 06-01: SDL singleton lifecycle + hint configuration
+- [ ] 06-02: Gamepad axis and button wiring + hot-plug test
+- [ ] 06-03: Filter CC gating (CC71/CC74 on isConnected() + value-change only)
+
+---
+
+## Phase 07: DAW Compatibility, Distribution, and Release
+
+**Goal:** Resolve Ableton MIDI routing, pass pluginval, and produce a signed installer ready for Gumroad distribution.
+
+**Delivers:**
+- Ableton Live 11/12 and Reaper 7 confirmed MIDI routing (VST3 category finalized)
+- pluginval passing at strictness level 5
+- Inno Setup installer placing bundle in `%COMMONPROGRAMFILES%\VST3\`
+- Code signing applied to DLL and installer
+- SmartScreen not blocking on clean Windows 11 VM
+
+**Research flag:** Needs /gsd:research-phase — correct IS_SYNTH / IS_MIDI_EFFECT / VST3_CATEGORIES combo for Ableton MIDI output routing is empirically determined.
+
+**Status:** pending
+
+Plans:
+- [ ] 07-01: VST3 category configuration and Ableton routing validation
+- [ ] 07-02: pluginval validation (strictness 5) and fix any reported issues
+- [ ] 07-03: Inno Setup installer + code signing
+
+---
+
+*Milestone goal: Shippable paid Windows VST3 on Gumroad*
+*Created: 2026-02-22*

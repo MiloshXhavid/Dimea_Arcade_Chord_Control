@@ -2,64 +2,73 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-21)
+**ChordJoystick** — XY joystick → 4-voice chord MIDI VST3, gamepad + looper, paid Windows release.
 
-**Core value:** Live performance chord controller — play expressive chords with one hand while the other triggers notes, all quantized to a selected scale.
-**Current focus:** Phase 1: Project Setup
+Core value: Continuous harmonic navigation via joystick with per-voice sample-and-hold gates — no competitor provides this.
 
 ## Current Position
 
-Phase: 1 of 5 (Project Setup)
-Plan: 01-02 complete, ready for 01-03
-Status: Plan 01-02 executed
-Last activity: 2026-02-21 — Completed plan 01-02: APVTS parameter layout with 6 groups
+- **Phase:** 01 of 7 — Build Foundation and JUCE Version Lock
+- **Plan:** 01-01 (not started)
+- **Status:** pending
 
-Progress: [▌░░░░░░░░░] 20%
+## Progress
 
-## Performance Metrics
+```
+Phase 01 [░░░░░░░░░░]   Build Foundation
+Phase 02 [░░░░░░░░░░]   Engine Validation
+Phase 03 [░░░░░░░░░░]   Core MIDI Output
+Phase 04 [░░░░░░░░░░]   Trigger Sources
+Phase 05 [░░░░░░░░░░]   Looper Hardening
+Phase 06 [░░░░░░░░░░]   SDL2 Gamepad
+Phase 07 [░░░░░░░░░░]   Distribution
 
-**Velocity:**
-- Total plans completed: 2
-- Average duration: 3 min
-- Total execution time: 0.10 hours
+Overall: [░░░░░░░░░░] 0% (0/7 phases complete)
+```
 
-**By Phase:**
+## What's Been Built
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1. Project Setup | 2 | 2 | 3min |
+- All 14 source files written (full implementation — not yet compiled or tested):
+  - ScaleQuantizer, ChordEngine, TriggerSystem, LooperEngine, GamepadInput
+  - PluginProcessor, PluginEditor
+- APVTS parameter layout (all 40+ params) previously committed
+- Scale quantization implementation committed in prior session
+- PROJECT.md with validated requirements
+- Full research completed (.planning/research/)
 
-**Recent Trend:**
-- Last 5 plans: 01-01, 01-02 completed
-- Trend: Starting
+## Key Decisions
 
-*Updated after each plan completion*
+| Decision | Outcome |
+|----------|---------|
+| JUCE 8 + CMake FetchContent | Locked — pin to 8.0.4, not origin/master (critical fix needed) |
+| SDL2 2.30.9 static | Locked — already correctly configured |
+| VST3 only (Windows) | Locked — v1 scope |
+| 4 voices on MIDI channels 1-4 | Default routing, user-configurable per voice |
+| Sample-and-hold pitch model | Pitch locked at trigger moment, not continuous |
+| Quantize ties → down | Deterministic behavior at equidistance |
+| Lock-free LooperEngine | Required before DAW testing — current mutex impl is unsafe |
 
-## Accumulated Context
+## Known Issues (Must Fix Before Shipping)
 
-### Decisions
+1. **JUCE pinned to `origin/master`** — Non-reproducible builds. Fix in Phase 01-01.
+2. **std::mutex in LooperEngine processBlock** — Blocks audio thread. Fix in Phase 05.
+3. **Filter CC (CC71/CC74) emitted unconditionally** — Floods synth at ~175 msgs/sec when no gamepad. Fix in Phase 06.
+4. **releaseResources() is empty** — Stuck notes on transport stop. Fix in Phase 03.
+5. **SDL_Init/SDL_Quit per instance** — Multi-instance race condition. Fix in Phase 06.
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+## Pending Todos
 
-- Roadmap: Structured into 5 phases based on natural delivery boundaries
-- Plan 01-01: Used JUCE 8.x via FetchContent, enabled VST3/AUv3/Standalone, C++17
-- Plan 01-02: Organized APVTS parameters in 6 groups (Quantizer, Intervals, Triggers, Joystick, Switches, Looper), used AudioProcessorParameterGroup
+(none)
 
-### Pending Todos
+## Blockers / Concerns
 
-[From .planning/todos/pending/ — ideas captured during sessions]
-
-None yet.
-
-### Blockers/Concerns
-
-[Issues that affect future work]
-
-- Build verification blocked: No MSVC/Visual Studio available in environment, MinGW not supported by JUCE 8.x
+- Build not yet verified — must compile before any other work
+- SDL2 testing: confirm SDL_INIT_GAMECONTROLLER works without video subsystem in DAW
+- Ableton MIDI routing: empirical testing required (no definitive documentation)
 
 ## Session Continuity
 
-Last session: 2026-02-21
-Stopped at: Completed plan 01-02
-Resume file: .planning/phases/01-project-setup/01-03-PLAN.md (when created)
+Last session: 2026-02-22
+Stopped at: new-project paused at step 7/9 (requirements); full implementation written but uncompiled
+Resumed: 2026-02-22 — ROADMAP.md and STATE.md reconstructed; ready to execute Phase 01
+Resume file: none
