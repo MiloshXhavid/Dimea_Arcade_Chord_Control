@@ -134,6 +134,10 @@ private:
     juce::Slider                                                     randomGateTimeKnob_;
     std::unique_ptr<juce::SliderParameterAttachment>                  randomGateTimeKnobAtt_;
     juce::Label    randomSubdivLabel_;
+    juce::TextButton                                                 randomSyncButton_;
+    juce::Slider                                                     randomFreeTempoKnob_;
+    std::unique_ptr<juce::ButtonParameterAttachment>                 randomSyncButtonAtt_;
+    std::unique_ptr<juce::SliderParameterAttachment>                 randomFreeTempoKnobAtt_;
 
     // ── Joystick threshold ────────────────────────────────────────────────────
     juce::Slider thresholdSlider_;

@@ -534,6 +534,27 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     randomGateTimeKnobAtt_ = std::make_unique<juce::SliderParameterAttachment>(
         *p.apvts.getParameter("randomGateTime"), randomGateTimeKnob_);
 
+    // Sync toggle
+    randomSyncButton_.setButtonText("SYNC");
+    randomSyncButton_.setClickingTogglesState(true);
+    randomSyncButton_.setToggleState(true, juce::dontSendNotification);
+    randomSyncButton_.setTooltip("When ON: random triggers only fire while DAW plays. When OFF: free tempo.");
+    styleButton(randomSyncButton_);
+    addAndMakeVisible(randomSyncButton_);
+    randomSyncButtonAtt_ = std::make_unique<juce::ButtonParameterAttachment>(
+        *p.apvts.getParameter("randomClockSync"), randomSyncButton_);
+
+    // Free tempo knob
+    randomFreeTempoKnob_.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    randomFreeTempoKnob_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    randomFreeTempoKnob_.setTooltip("Random free tempo (BPM, 30-240). Active when SYNC is OFF.");
+    randomFreeTempoKnob_.setColour(juce::Slider::rotarySliderFillColourId,  Clr::highlight);
+    randomFreeTempoKnob_.setColour(juce::Slider::rotarySliderOutlineColourId, Clr::accent);
+    randomFreeTempoKnob_.setColour(juce::Slider::thumbColourId,             Clr::text);
+    addAndMakeVisible(randomFreeTempoKnob_);
+    randomFreeTempoKnobAtt_ = std::make_unique<juce::SliderParameterAttachment>(
+        *p.apvts.getParameter("randomFreeTempo"), randomFreeTempoKnob_);
+
     // ── Filter attenuators ────────────────────────────────────────────────────
     styleKnob(filterXAttenKnob_); styleLabel(filterXAttenLabel_, "Cut Atten");
     styleKnob(filterYAttenKnob_); styleLabel(filterYAttenLabel_, "Res Atten");
@@ -784,6 +805,15 @@ void PluginEditor::resized()
             // Paint will draw the "GATE" label in paint() via tooltip
             randomGateTimeKnob_.setBounds(rRow);
         }
+
+        // Sync button + free tempo knob row (compact, 30px)
+        {
+            auto syncRow = left.removeFromTop(30);
+            const int syncBtnW = 50;
+            randomSyncButton_   .setBounds(syncRow.removeFromLeft(syncBtnW));
+            syncRow.removeFromLeft(4);
+            randomFreeTempoKnob_.setBounds(syncRow.removeFromLeft(30));
+        }
     }
 
     left.removeFromTop(6);
@@ -847,6 +877,16 @@ void PluginEditor::paint(juce::Graphics& g)
         g.drawText("GATE",
                    randomGateTimeKnob_.getX(), randomGateTimeKnob_.getY() - 2,
                    randomGateTimeKnob_.getWidth(), 12, juce::Justification::centred);
+    }
+
+    // FREE BPM label to the right of the sync button
+    if (randomFreeTempoKnob_.isVisible())
+    {
+        g.setColour(Clr::textDim);
+        g.setFont(juce::Font(9.5f));
+        g.drawText("FREE BPM",
+                   randomFreeTempoKnob_.getX(), randomFreeTempoKnob_.getY() - 2,
+                   randomFreeTempoKnob_.getWidth() + 20, 12, juce::Justification::centred);
     }
 
     g.setColour(Clr::accent);
