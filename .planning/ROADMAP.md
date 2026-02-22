@@ -33,9 +33,11 @@ Plans:
 
 **Status:** pending
 
+**Plans:** 2 plans
+
 Plans:
-- [ ] 02-01: Add Catch2 CMake target and ScaleQuantizer unit tests
-- [ ] 02-02: Add ChordEngine unit tests (all 4 voices, intervals, octave offsets, transpose)
+- [ ] 02-01-PLAN.md — Add Catch2 v3.8.1 FetchContent + ChordJoystickTests CMake target + ScaleQuantizer test suite
+- [ ] 02-02-PLAN.md — ChordEngine test suite (axis routing, transpose, octave offsets, clamping, scale quantization)
 
 ---
 
