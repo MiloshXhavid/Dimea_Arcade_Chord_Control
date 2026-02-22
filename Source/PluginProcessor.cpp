@@ -305,12 +305,16 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     }
     const bool hasDaw = isDawPlaying;
 
+    // Use free tempo knob when not DAW-synced; use DAW BPM when synced and DAW is rolling.
+    const double freeTempo = static_cast<double>(
+        apvts.getRawParameterValue("randomFreeTempo")->load());
     LooperEngine::ProcessParams lp;
     lp.sampleRate   = sampleRate_;
-    lp.bpm          = (dawBpm > 0.0) ? dawBpm : 120.0;
+    lp.bpm          = (looper_.isSyncToDaw() && isDawPlaying && dawBpm > 0.0) ? dawBpm : freeTempo;
     lp.ppqPosition  = ppqPos;
     lp.blockSize    = blockSize;
     lp.isDawPlaying = isDawPlaying;
+    effectiveBpm_.store(static_cast<float>(lp.bpm), std::memory_order_relaxed);
 
     const auto loopOut = looper_.process(lp);
 
@@ -336,6 +340,13 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         (int)apvts.getRawParameterValue(ParamID::voiceCh2)->load(),
         (int)apvts.getRawParameterValue(ParamID::voiceCh3)->load(),
     };
+
+    // If DAW stopped while SYNC was on, send all-notes-off to prevent hanging notes.
+    if (loopOut.dawStopped)
+    {
+        for (int v = 0; v < 4; ++v)
+            midi.addEvent(juce::MidiMessage::allNotesOff(voiceChs[v]), 0);
+    }
 
     // Looper gate playback: emit MIDI directly, bypassing TriggerSystem.
     // This satisfies the locked decision: live pad input passes through independently

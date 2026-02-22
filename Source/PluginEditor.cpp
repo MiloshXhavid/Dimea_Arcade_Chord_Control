@@ -45,7 +45,15 @@ void JoystickPad::paint(juce::Graphics& g)
     g.setColour(Clr::accent);
     g.fillRoundedRectangle(b, 6.0f);
 
-    // Grid lines
+    // 12-step grid: 11 interior lines per axis (one per semitone at 1-octave range)
+    g.setColour(Clr::panel.withAlpha(0.35f));
+    for (int i = 1; i < 12; ++i)
+    {
+        const float t = static_cast<float>(i) / 12.0f;
+        g.drawLine(b.getX() + t * b.getWidth(),  b.getY(), b.getX() + t * b.getWidth(),  b.getBottom(), 0.5f);
+        g.drawLine(b.getX(), b.getY() + t * b.getHeight(), b.getRight(), b.getY() + t * b.getHeight(), 0.5f);
+    }
+    // Centre cross slightly brighter (root/unison reference)
     g.setColour(Clr::panel);
     g.drawLine(b.getCentreX(), b.getY(),    b.getCentreX(), b.getBottom(), 1.0f);
     g.drawLine(b.getX(),       b.getCentreY(), b.getRight(), b.getCentreY(), 1.0f);
@@ -648,6 +656,12 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(loopRecGatesBtn_);
     addAndMakeVisible(loopSyncBtn_);
 
+    bpmDisplayLabel_.setText("120.0 BPM", juce::dontSendNotification);
+    bpmDisplayLabel_.setJustificationType(juce::Justification::centred);
+    bpmDisplayLabel_.setFont(juce::Font(11.0f));
+    bpmDisplayLabel_.setColour(juce::Label::textColourId, Clr::text.withAlpha(0.75f));
+    addAndMakeVisible(bpmDisplayLabel_);
+
     loopSubdivBox_.addItem("3/4", 1); loopSubdivBox_.addItem("4/4", 2);
     loopSubdivBox_.addItem("5/4", 3); loopSubdivBox_.addItem("7/8", 4);
     loopSubdivBox_.addItem("9/8", 5); loopSubdivBox_.addItem("11/8", 6);
@@ -890,7 +904,12 @@ void PluginEditor::resized()
             loopSyncBtn_    .setBounds(row2);
         }
 
-        section.removeFromTop(4);
+        section.removeFromTop(2);
+
+        // BPM display (effective BPM: free tempo or DAW BPM when synced)
+        bpmDisplayLabel_.setBounds(section.removeFromTop(18));
+
+        section.removeFromTop(2);
 
         // Subdiv + length
         auto ctrlRow = section.removeFromTop(60);
@@ -978,6 +997,12 @@ void PluginEditor::timerCallback()
         loopRecJoyBtn_  .setButtonText("REC JOY");
         loopRecGatesBtn_.setButtonText("REC GATES");
         capFlashCounter = 0;
+    }
+
+    // Update BPM display
+    {
+        const float bpm = proc_.getEffectiveBpm();
+        bpmDisplayLabel_.setText(juce::String(bpm, 1) + " BPM", juce::dontSendNotification);
     }
 
     // Mirror gamepad right stick to joystick if active

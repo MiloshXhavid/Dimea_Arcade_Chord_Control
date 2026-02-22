@@ -153,6 +153,7 @@ private:
     juce::TextButton  loopRecJoyBtn_;    // [REC JOY]
     juce::TextButton  loopRecGatesBtn_;  // [REC GATES]
     juce::TextButton  loopSyncBtn_;      // [SYNC]
+    juce::Label       bpmDisplayLabel_;  // shows effective BPM (free tempo or DAW BPM)
     juce::ComboBox    loopSubdivBox_;
     juce::Label       loopSubdivLabel_;
     juce::Slider      loopLengthKnob_;

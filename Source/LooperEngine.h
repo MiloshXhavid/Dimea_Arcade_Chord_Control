@@ -71,6 +71,7 @@ public:
         float   joystickY    = 0.0f;
         bool    gateOn[4]    = {};
         bool    gateOff[4]   = {};
+        bool    dawStopped   = false;  // true on the block where DAW stops (send all-notes-off)
     };
 
     LooperEngine() = default;
@@ -139,10 +140,11 @@ private:
     std::atomic<bool> resetRequest_  { false };
 
     // ── Audio-thread-only (no atomic needed) ─────────────────────────────────
-    double internalBeat_   = 0.0;
-    double loopStartPpq_   = -1.0;  // DAW sync anchor; -1 = not anchored
-    float  lastRecordedX_  = 0.0f;  // for sparse joystick recording threshold
-    float  lastRecordedY_  = 0.0f;
+    double internalBeat_    = 0.0;
+    double loopStartPpq_    = -1.0;  // DAW sync anchor; -1 = not anchored
+    float  lastRecordedX_   = 0.0f;  // for sparse joystick recording threshold
+    float  lastRecordedY_   = 0.0f;
+    bool   prevDawPlaying_  = false; // tracks DAW play/stop transitions for auto-stop/start
 
     // ── UI read-out — float atomic (lock-free on all targets, incl. 32-bit) ───
     std::atomic<float> playbackBeat_ { 0.0f };

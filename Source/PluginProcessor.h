@@ -68,6 +68,9 @@ public:
     bool looperIsRecJoy()      const { return looper_.isRecJoy();     }
     bool looperIsRecGates()    const { return looper_.isRecGates();   }
 
+    // Effective BPM (DAW BPM when synced, free tempo otherwise) — read by UI
+    float getEffectiveBpm() const { return effectiveBpm_.load(std::memory_order_relaxed); }
+
     // Gamepad
     GamepadInput& getGamepad() { return gamepad_; }
 
@@ -82,6 +85,7 @@ private:
     GamepadInput  gamepad_;
 
     double sampleRate_ = 44100.0;
+    std::atomic<float> effectiveBpm_ { 120.0f };
 
     // Previous joystick position — used to compute per-block deltas for JOY gate detection.
     // Initialised to match joystickX/joystickY defaults so the first delta is 0.

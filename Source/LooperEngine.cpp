@@ -290,6 +290,35 @@ LooperEngine::BlockOutput LooperEngine::process(const ProcessParams& p)
         return out;
     }
 
+    // ── DAW transport sync: auto-stop / auto-start with DAW when SYNC is enabled ─
+    {
+        const bool syncOn    = syncToDaw_.load(std::memory_order_relaxed);
+        const bool dawActive = syncOn && p.isDawPlaying && p.ppqPosition >= 0.0;
+
+        if (syncOn)
+        {
+            if (!dawActive && prevDawPlaying_)
+            {
+                // DAW just stopped → stop looper, reset anchor, signal all-notes-off
+                playing_.store(false, std::memory_order_relaxed);
+                loopStartPpq_   = -1.0;
+                prevDawPlaying_ = false;
+                out.dawStopped  = true;
+                return out;
+            }
+            if (dawActive && !prevDawPlaying_ && playbackCount_.load(std::memory_order_relaxed) > 0)
+            {
+                // DAW just started and looper has content → auto-restart
+                playing_.store(true, std::memory_order_relaxed);
+            }
+            prevDawPlaying_ = dawActive;
+        }
+        else
+        {
+            prevDawPlaying_ = false;  // reset so transition is detected if SYNC re-enabled
+        }
+    }
+
     if (!playing_.load(std::memory_order_relaxed)) return out;
 
     const double loopLen = getLoopLengthBeats();
