@@ -509,12 +509,30 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(randomDensityKnob_); addAndMakeVisible(randomDensityLabel_);
     randomDensityAtt_ = std::make_unique<SliderAtt>(p.apvts, "randomDensity", randomDensityKnob_);
 
-    addAndMakeVisible(randomSubdivBox_); addAndMakeVisible(randomSubdivLabel_);
-    randomSubdivBox_.addItem("1/4", 1); randomSubdivBox_.addItem("1/8", 2);
-    randomSubdivBox_.addItem("1/16", 3); randomSubdivBox_.addItem("1/32", 4);
-    styleCombo(randomSubdivBox_);
-    styleLabel(randomSubdivLabel_, "Rand Div");
-    randomSubdivAtt_ = std::make_unique<ComboAtt>(p.apvts, "randomSubdiv", randomSubdivBox_);
+    styleLabel(randomSubdivLabel_, "SUBDIV");
+    addAndMakeVisible(randomSubdivLabel_);
+    {
+        const juce::StringArray subdivChoices { "1/4", "1/8", "1/16", "1/32" };
+        for (int v = 0; v < 4; ++v)
+        {
+            randomSubdivBox_[v].addItemList(subdivChoices, 1);
+            randomSubdivBox_[v].setSelectedItemIndex(1, juce::dontSendNotification);
+            styleCombo(randomSubdivBox_[v]);
+            addAndMakeVisible(randomSubdivBox_[v]);
+            randomSubdivAtt_[v] = std::make_unique<juce::ComboBoxParameterAttachment>(
+                *p.apvts.getParameter("randomSubdiv" + juce::String(v)), randomSubdivBox_[v]);
+        }
+    }
+
+    randomGateTimeKnob_.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    randomGateTimeKnob_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    randomGateTimeKnob_.setTooltip("Random gate time (fraction of subdivision)");
+    randomGateTimeKnob_.setColour(juce::Slider::rotarySliderFillColourId,  Clr::highlight);
+    randomGateTimeKnob_.setColour(juce::Slider::rotarySliderOutlineColourId, Clr::accent);
+    randomGateTimeKnob_.setColour(juce::Slider::thumbColourId,             Clr::text);
+    addAndMakeVisible(randomGateTimeKnob_);
+    randomGateTimeKnobAtt_ = std::make_unique<juce::SliderParameterAttachment>(
+        *p.apvts.getParameter("randomGateTime"), randomGateTimeKnob_);
 
     // ── Filter attenuators ────────────────────────────────────────────────────
     styleKnob(filterXAttenKnob_); styleLabel(filterXAttenLabel_, "Cut Atten");
@@ -726,22 +744,46 @@ void PluginEditor::resized()
 
     // Trigger sources
     {
-        auto section = left.removeFromTop(90);
-        const int cw = section.getWidth() / 4;
-        for (int i = 0; i < 4; ++i)
+        const int cw = left.getWidth() / 4;
+
+        // Trigger source combo row
         {
-            auto col = section.removeFromLeft(cw);
-            trigSrcLabel_[i].setBounds(col.removeFromTop(14));
-            trigSrc_[i].setBounds(col.removeFromTop(22));
+            auto section = left.removeFromTop(36);
+            for (int i = 0; i < 4; ++i)
+            {
+                auto col = section.removeFromLeft(cw);
+                trigSrcLabel_[i].setBounds(col.removeFromTop(14));
+                trigSrc_[i].setBounds(col.removeFromTop(22));
+            }
         }
 
-        // Random density + subdiv in remaining space
+        // Per-voice subdiv combo row (column-aligned with trigger source combos)
+        {
+            auto subdivHeaderRow = left.removeFromTop(14);
+            randomSubdivLabel_.setBounds(subdivHeaderRow);
+
+            auto subdivRow = left.removeFromTop(22);
+            for (int v = 0; v < 4; ++v)
+            {
+                auto col = subdivRow.removeFromLeft(cw);
+                randomSubdivBox_[v].setBounds(col.reduced(1, 0));
+            }
+        }
+
+        left.removeFromTop(4);
+
+        // Random density + gate-time knobs row
         auto rRow = left.removeFromTop(60);
-        randomDensityLabel_.setBounds(rRow.removeFromLeft(70).removeFromTop(14));
-        randomDensityKnob_ .setBounds(rRow.removeFromLeft(60));
-        rRow.removeFromLeft(8);
-        randomSubdivLabel_.setBounds(rRow.removeFromLeft(60).removeFromTop(14));
-        randomSubdivBox_  .setBounds(rRow.removeFromLeft(80).removeFromTop(22));
+        {
+            auto densityCol = rRow.removeFromLeft(rRow.getWidth() / 2);
+            randomDensityLabel_.setBounds(densityCol.removeFromTop(14));
+            randomDensityKnob_ .setBounds(densityCol);
+        }
+        {
+            // Gate time knob takes the right half
+            // Paint will draw the "GATE" label in paint() via tooltip
+            randomGateTimeKnob_.setBounds(rRow);
+        }
     }
 
     left.removeFromTop(6);
@@ -795,6 +837,16 @@ void PluginEditor::paint(juce::Graphics& g)
         g.drawText("THRESH",
                    thresholdSlider_.getX(), thresholdSlider_.getY() - 12,
                    60, 12, juce::Justification::left);
+    }
+
+    // GATE label above randomGateTimeKnob_
+    if (randomGateTimeKnob_.isVisible())
+    {
+        g.setColour(Clr::textDim);
+        g.setFont(juce::Font(9.5f));
+        g.drawText("GATE",
+                   randomGateTimeKnob_.getX(), randomGateTimeKnob_.getY() - 2,
+                   randomGateTimeKnob_.getWidth(), 12, juce::Justification::centred);
     }
 
     g.setColour(Clr::accent);

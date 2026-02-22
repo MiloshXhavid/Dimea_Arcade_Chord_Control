@@ -129,7 +129,10 @@ private:
     juce::Label    trigSrcLabel_[4];
     juce::Slider   randomDensityKnob_;
     juce::Label    randomDensityLabel_;
-    juce::ComboBox randomSubdivBox_;
+    std::array<juce::ComboBox, 4>                                    randomSubdivBox_;
+    std::array<std::unique_ptr<juce::ComboBoxParameterAttachment>, 4> randomSubdivAtt_;
+    juce::Slider                                                     randomGateTimeKnob_;
+    std::unique_ptr<juce::SliderParameterAttachment>                  randomGateTimeKnobAtt_;
     juce::Label    randomSubdivLabel_;
 
     // ── Joystick threshold ────────────────────────────────────────────────────
@@ -165,7 +168,7 @@ private:
     std::unique_ptr<ComboAtt>  scalePresetAtt_;
     std::unique_ptr<ButtonAtt> customScaleAtt_;
     std::unique_ptr<ComboAtt>  trigSrcAtt_[4];
-    std::unique_ptr<ComboAtt>  randomSubdivAtt_, loopSubdivAtt_;
+    std::unique_ptr<ComboAtt>  loopSubdivAtt_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginEditor)
 };
