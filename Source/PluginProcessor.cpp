@@ -1,458 +1,385 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-
 #include <cmath>
 
-namespace
+// ─── Parameter IDs ────────────────────────────────────────────────────────────
+namespace ParamID
 {
-    // Helper to create NormalisableRange with skew for musical parameters
-    template<typename T>
-    juce::NormalisableRange<T> createLogarithmicRange(T min, T max, T skew = T{1})
-    {
-        return juce::NormalisableRange<T>(min, max, skew);
-    }
+    // Chord
+    static const juce::String globalTranspose  = "globalTranspose";
+    static const juce::String thirdInterval    = "thirdInterval";
+    static const juce::String fifthInterval    = "fifthInterval";
+    static const juce::String tensionInterval  = "tensionInterval";
+    static const juce::String rootOctave       = "rootOctave";
+    static const juce::String thirdOctave      = "thirdOctave";
+    static const juce::String fifthOctave      = "fifthOctave";
+    static const juce::String tensionOctave    = "tensionOctave";
+    static const juce::String joystickXAtten   = "joystickXAtten";
+    static const juce::String joystickYAtten   = "joystickYAtten";
+
+    // Scale
+    static const juce::String scalePreset      = "scalePreset";
+    static const juce::String useCustomScale   = "useCustomScale";
+    // scaleNote0..scaleNote11 generated inline
+
+    // Trigger
+    static const juce::String triggerSource0   = "triggerSource0";
+    static const juce::String triggerSource1   = "triggerSource1";
+    static const juce::String triggerSource2   = "triggerSource2";
+    static const juce::String triggerSource3   = "triggerSource3";
+    static const juce::String randomDensity    = "randomDensity";
+    static const juce::String randomSubdiv     = "randomSubdiv";
+
+    // Filter
+    static const juce::String filterXAtten     = "filterXAtten";
+    static const juce::String filterYAtten     = "filterYAtten";
+    static const juce::String filterMidiCh     = "filterMidiCh";
+
+    // MIDI channels
+    static const juce::String voiceCh0         = "voiceCh0";
+    static const juce::String voiceCh1         = "voiceCh1";
+    static const juce::String voiceCh2         = "voiceCh2";
+    static const juce::String voiceCh3         = "voiceCh3";
+
+    // Looper
+    static const juce::String looperSubdiv     = "looperSubdiv";
+    static const juce::String looperLength     = "looperLength";
 }
 
-// ============================================================
-// Scale Patterns (semitones from root, 0-11)
-// ============================================================
-const int ScaleQuantizer::majorPattern[] = {0, 2, 4, 5, 7, 9, 11};
-const int ScaleQuantizer::minorPattern[] = {0, 2, 3, 5, 7, 8, 10};
-const int ScaleQuantizer::harmonicMinorPattern[] = {0, 2, 3, 5, 7, 8, 11};
-const int ScaleQuantizer::melodicMinorPattern[] = {0, 2, 3, 5, 7, 9, 11};
-const int ScaleQuantizer::dorianPattern[] = {0, 2, 3, 5, 7, 9, 10};
-const int ScaleQuantizer::phrygianPattern[] = {0, 1, 3, 5, 7, 8, 10};
-const int ScaleQuantizer::lydianPattern[] = {0, 2, 4, 6, 7, 9, 11};
-const int ScaleQuantizer::mixolydianPattern[] = {0, 2, 4, 5, 7, 9, 10};
-const int ScaleQuantizer::pentatonicMajorPattern[] = {0, 2, 4, 7, 9};
-const int ScaleQuantizer::pentatonicMinorPattern[] = {0, 3, 5, 7, 10};
-const int ScaleQuantizer::bluesPattern[] = {0, 3, 5, 6, 7, 10};
-const int ScaleQuantizer::chromaticPattern[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+// ─── Parameter layout ─────────────────────────────────────────────────────────
 
-// ============================================================
-// ScaleQuantizer Implementation
-// ============================================================
-const int* ScaleQuantizer::getScalePattern(ScalePreset scale)
-{
-    switch (scale)
-    {
-        case ScalePreset::Major: return majorPattern;
-        case ScalePreset::Minor: return minorPattern;
-        case ScalePreset::HarmonicMinor: return harmonicMinorPattern;
-        case ScalePreset::MelodicMinor: return melodicMinorPattern;
-        case ScalePreset::Dorian: return dorianPattern;
-        case ScalePreset::Phrygian: return phrygianPattern;
-        case ScalePreset::Lydian: return lydianPattern;
-        case ScalePreset::Mixolydian: return mixolydianPattern;
-        case ScalePreset::PentatonicMajor: return pentatonicMajorPattern;
-        case ScalePreset::PentatonicMinor: return pentatonicMinorPattern;
-        case ScalePreset::Blues: return bluesPattern;
-        case ScalePreset::Chromatic: return chromaticPattern;
-        default: return majorPattern;
-    }
-}
-
-int ScaleQuantizer::getScaleSize(ScalePreset scale)
-{
-    switch (scale)
-    {
-        case ScalePreset::PentatonicMajor:
-        case ScalePreset::PentatonicMinor:
-            return 5;
-        case ScalePreset::Blues:
-            return 6;
-        case ScalePreset::Chromatic:
-            return 12;
-        default:
-            return 7;
-    }
-}
-
-void ScaleQuantizer::buildCustomPattern(const bool scaleNotes[12], int customPattern[12], int& customSize)
-{
-    customSize = 0;
-    for (int i = 0; i < 12; ++i)
-    {
-        if (scaleNotes[i])
-        {
-            customPattern[customSize++] = i;
-        }
-    }
-    // Ensure at least one note in the scale
-    if (customSize == 0)
-    {
-        customPattern[0] = 0;
-        customSize = 1;
-    }
-}
-
-int ScaleQuantizer::quantizeToScale(int rawPitch, const int* scalePattern, int scaleSize, int transpose)
-{
-    // Extract octave and semitone from raw pitch
-    int octave = rawPitch / 12;
-    int semitone = rawPitch % 12;
-    
-    // Apply transpose to semitone
-    int transposedSemitone = (semitone + transpose) % 12;
-    if (transposedSemitone < 0) transposedSemitone += 12;
-    
-    // Adjust octave if transpose wrapped around
-    octave += (semitone + transpose) / 12;
-    
-    // Find nearest note in scale
-    int closestScaleNote = scalePattern[0];
-    int minDistance = 12;
-    
-    for (int i = 0; i < scaleSize; ++i)
-    {
-        int distance = std::abs(scalePattern[i] - transposedSemitone);
-        // Handle wraparound
-        if (distance > 6) distance = 12 - distance;
-        
-        if (distance < minDistance)
-        {
-            minDistance = distance;
-            closestScaleNote = scalePattern[i];
-        }
-    }
-    
-    // Calculate final MIDI note
-    int midiNote = octave * 12 + closestScaleNote;
-    
-    // Clamp to valid MIDI range
-    if (midiNote < 0) midiNote = 0;
-    if (midiNote > 127) midiNote = 127;
-    
-    return midiNote;
-}
-
-PluginProcessor::PluginProcessor()
-    : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo()))
-    , apvts(*this, nullptr, "Parameters", createParameterLayout())
-{
-}
-
-PluginProcessor::~PluginProcessor()
-{
-}
-
-juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParameterLayout()
+juce::AudioProcessorValueTreeState::ParameterLayout
+PluginProcessor::createParameterLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    // ============================================================
-    // QUANTIZER GROUP (12 scale buttons for chromatic selection)
-    // ============================================================
+    auto addInt   = [&](const juce::String& id, const juce::String& name,
+                        int min, int max, int def)
     {
-        auto group = std::make_unique<juce::AudioProcessorParameterGroup>("quantizer", "Quantizer", "|");
-        
-        for (int i = 0; i < 12; ++i)
-        {
-            auto paramID = "scale_" + juce::String(i);
-            auto param = std::make_unique<juce::AudioParameterBool>(paramID, 
-                "Scale " + juce::String(i), 
-                i == 0);  // Default: C selected
-            group->addChild(std::move(param));
-        }
-        
-        layout.add(std::move(group));
+        layout.add(std::make_unique<juce::AudioParameterInt>(id, name, min, max, def));
+    };
+    auto addFloat = [&](const juce::String& id, const juce::String& name,
+                        float min, float max, float def)
+    {
+        layout.add(std::make_unique<juce::AudioParameterFloat>(
+            id, name, juce::NormalisableRange<float>(min, max, 0.01f), def));
+    };
+    auto addBool  = [&](const juce::String& id, const juce::String& name, bool def)
+    {
+        layout.add(std::make_unique<juce::AudioParameterBool>(id, name, def));
+    };
+    auto addChoice = [&](const juce::String& id, const juce::String& name,
+                         juce::StringArray choices, int def)
+    {
+        layout.add(std::make_unique<juce::AudioParameterChoice>(id, name, choices, def));
+    };
+
+    // ── Chord ─────────────────────────────────────────────────────────────────
+    addInt  (ParamID::globalTranspose, "Global Transpose", -24, 24,  0);
+    addInt  (ParamID::thirdInterval,   "Third Interval",    0, 12,  4);
+    addInt  (ParamID::fifthInterval,   "Fifth Interval",    0, 12,  7);
+    addInt  (ParamID::tensionInterval, "Tension Interval",  0, 12, 10);
+    addInt  (ParamID::rootOctave,      "Root Octave",      -3,  3,  0);
+    addInt  (ParamID::thirdOctave,     "Third Octave",     -3,  3,  0);
+    addInt  (ParamID::fifthOctave,     "Fifth Octave",     -3,  3,  0);
+    addInt  (ParamID::tensionOctave,   "Tension Octave",   -3,  3,  0);
+    addFloat(ParamID::joystickXAtten,  "Joy X Attenuator",  0.0f, 127.0f, 48.0f);
+    addFloat(ParamID::joystickYAtten,  "Joy Y Attenuator",  0.0f, 127.0f, 48.0f);
+
+    // ── Scale ─────────────────────────────────────────────────────────────────
+    {
+        juce::StringArray scaleNames;
+        for (int i = 0; i < (int)ScalePreset::COUNT; ++i)
+            scaleNames.add(ScaleQuantizer::getScaleName(static_cast<ScalePreset>(i)));
+
+        addChoice(ParamID::scalePreset, "Scale Preset", scaleNames, 0);
+    }
+    addBool(ParamID::useCustomScale, "Use Custom Scale", false);
+    for (int i = 0; i < 12; ++i)
+    {
+        static const bool kMajorDefault[12] = {1,0,1,0,1,1,0,1,0,1,0,1};
+        layout.add(std::make_unique<juce::AudioParameterBool>(
+            "scaleNote" + juce::String(i),
+            "Scale Note " + juce::String(i),
+            kMajorDefault[i]));
     }
 
-    // ============================================================
-    // INTERVALS GROUP (intervals, octaves, presets, transpose)
-    // ============================================================
-    {
-        auto group = std::make_unique<juce::AudioProcessorParameterGroup>("intervals", "Intervals", "|");
-        
-        // Interval semitones (0-12)
-        auto intervalRange = juce::NormalisableRange<float>(0.0f, 12.0f, 1.0f);
-        
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("root_interval", "Root Interval", intervalRange, 0.0f));
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("third_interval", "Third Interval", intervalRange, 4.0f));
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("fifth_interval", "Fifth Interval", intervalRange, 7.0f));
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("tension_interval", "Tension Interval", intervalRange, 11.0f));
-        
-        // Octave offsets (-2 to +2)
-        auto octaveRange = juce::NormalisableRange<float>(-2.0f, 2.0f, 1.0f);
-        
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("root_octave", "Root Octave", octaveRange, 0.0f));
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("third_octave", "Third Octave", octaveRange, 0.0f));
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("fifth_octave", "Fifth Octave", octaveRange, 0.0f));
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("tension_octave", "Tension Octave", octaveRange, 0.0f));
-        
-        // Scale preset (0-10)
-        group->addChild(std::make_unique<juce::AudioParameterInt>("scale_preset", "Scale Preset", 0, 10, 0));
-        
-        // Global transpose (0-12)
-        auto transposeRange = juce::NormalisableRange<float>(0.0f, 12.0f, 1.0f);
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("global_transpose", "Global Transpose", transposeRange, 0.0f));
-        
-        layout.add(std::move(group));
-    }
+    // ── Trigger ───────────────────────────────────────────────────────────────
+    juce::StringArray trigSrcNames { "TouchPlate", "Joystick", "Random" };
+    addChoice(ParamID::triggerSource0, "Trigger Source Root",    trigSrcNames, 0);
+    addChoice(ParamID::triggerSource1, "Trigger Source Third",   trigSrcNames, 0);
+    addChoice(ParamID::triggerSource2, "Trigger Source Fifth",   trigSrcNames, 0);
+    addChoice(ParamID::triggerSource3, "Trigger Source Tension", trigSrcNames, 0);
+    addFloat (ParamID::randomDensity,  "Random Density",   0.0f, 1.0f, 0.5f);
+    addChoice(ParamID::randomSubdiv,   "Random Subdivison",
+              { "1/4", "1/8", "1/16", "1/32" }, 1);
 
-    // ============================================================
-    // TRIGGERS GROUP
-    // ============================================================
-    {
-        auto group = std::make_unique<juce::AudioProcessorParameterGroup>("triggers", "Triggers", "|");
-        
-        // Trigger source: 0=touchplate, 1=joystick, 2=random
-        group->addChild(std::make_unique<juce::AudioParameterInt>("trigger_source", "Trigger Source", 0, 2, 0));
-        
-        // Velocity sensitivity (0-1)
-        auto velRange = juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f);
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("velocity_sensitivity", "Velocity Sensitivity", velRange, 1.0f));
-        
-        layout.add(std::move(group));
-    }
+    // ── Filter ────────────────────────────────────────────────────────────────
+    addFloat(ParamID::filterXAtten, "Filter Cutoff Attenuator",    0.0f, 127.0f, 64.0f);
+    addFloat(ParamID::filterYAtten, "Filter Resonance Attenuator", 0.0f, 127.0f, 64.0f);
+    addInt  (ParamID::filterMidiCh, "Filter MIDI Channel",  1, 16, 1);
 
-    // ============================================================
-    // JOYSTICK GROUP
-    // ============================================================
-    {
-        auto group = std::make_unique<juce::AudioProcessorParameterGroup>("joystick", "Joystick", "|");
-        
-        // XY Attenuator (0-24 dB)
-        auto attenRange = juce::NormalisableRange<float>(0.0f, 24.0f, 0.1f);
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("xy_attenuator", "XY Attenuator", attenRange, 12.0f));
-        
-        // Simulated joystick position (0-1)
-        auto joyRange = juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f);
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("joystick_x", "Joystick X", joyRange, 0.5f));
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("joystick_y", "Joystick Y", joyRange, 0.5f));
-        
-        layout.add(std::move(group));
-    }
+    // ── MIDI routing ──────────────────────────────────────────────────────────
+    addInt(ParamID::voiceCh0, "Root MIDI Channel",    1, 16, 1);
+    addInt(ParamID::voiceCh1, "Third MIDI Channel",   1, 16, 2);
+    addInt(ParamID::voiceCh2, "Fifth MIDI Channel",   1, 16, 3);
+    addInt(ParamID::voiceCh3, "Tension MIDI Channel", 1, 16, 4);
 
-    // ============================================================
-    // SWITCHES GROUP (clock)
-    // ============================================================
-    {
-        auto group = std::make_unique<juce::AudioProcessorParameterGroup>("switches", "Switches", "|");
-        
-        // Clock source: 0=internal, 1=external/DAW
-        group->addChild(std::make_unique<juce::AudioParameterInt>("clock_source", "Clock Source", 0, 1, 0));
-        
-        // BPM (40-240) for standalone mode
-        auto bpmRange = juce::NormalisableRange<float>(40.0f, 240.0f, 1.0f);
-        group->addChild(std::make_unique<juce::AudioParameterFloat>("bpm", "BPM", bpmRange, 120.0f));
-        
-        layout.add(std::move(group));
-    }
-
-    // ============================================================
-    // LOOPER GROUP
-    // ============================================================
-    {
-        auto group = std::make_unique<juce::AudioProcessorParameterGroup>("looper", "Looper", "|");
-        
-        group->addChild(std::make_unique<juce::AudioParameterBool>("looper_enabled", "Looper Enabled", false));
-        group->addChild(std::make_unique<juce::AudioParameterBool>("looper_record", "Looper Record", false));
-        group->addChild(std::make_unique<juce::AudioParameterBool>("looper_reset", "Looper Reset", false));
-        
-        // Loop length in bars (1-16)
-        group->addChild(std::make_unique<juce::AudioParameterInt>("loop_length_bars", "Loop Length Bars", 1, 16, 4));
-        
-        // Loop subdivision: 0=3/4, 1=4/4, 2=5/4, 3=7/8, 4=9/8, 5=11/8
-        group->addChild(std::make_unique<juce::AudioParameterInt>("loop_subdivision", "Loop Subdivision", 0, 5, 1));
-        
-        layout.add(std::move(group));
-    }
+    // ── Looper ────────────────────────────────────────────────────────────────
+    addChoice(ParamID::looperSubdiv, "Loop Time Signature",
+              { "3/4", "4/4", "5/4", "7/8", "9/8", "11/8" }, 1);
+    addInt   (ParamID::looperLength, "Loop Length (bars)", 1, 16, 2);
 
     return layout;
 }
 
-// Helper method to get float parameter value by ID
-float PluginProcessor::getParameterValue(const juce::String& paramID) const
+// ─── Constructor ──────────────────────────────────────────────────────────────
+
+PluginProcessor::PluginProcessor()
+    : AudioProcessor(
+          juce::PluginHostType().isAbletonLive()
+              ? BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), false)
+              : BusesProperties()),
+      apvts(*this, nullptr, "ChordJoystick", createParameterLayout())
 {
-    if (auto* param = apvts.getParameter(paramID))
-    {
-        return param->getValue();
-    }
-    return 0.0f;
 }
 
-// Helper method to get bool parameter value by ID
-bool PluginProcessor::getBoolParameterValue(const juce::String& paramID) const
+PluginProcessor::~PluginProcessor() {}
+
+// ─── Prepare ─────────────────────────────────────────────────────────────────
+
+void PluginProcessor::prepareToPlay(double sr, int /*blockSize*/)
 {
-    if (auto* param = apvts.getParameter(paramID))
-    {
-        return param->getValue() > 0.5f;
-    }
-    return false;
+    sampleRate_ = sr;
 }
 
-// Helper method to get int parameter value by ID
-int PluginProcessor::getIntParameterValue(const juce::String& paramID) const
+void PluginProcessor::releaseResources() {}
+
+bool PluginProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
-    if (auto* param = apvts.getParameter(paramID))
-    {
-        return static_cast<int>(param->getValue() * 1000.0f);  // Approximate for now
-    }
-    return 0;
+    // No audio input ever
+    if (layouts.getMainInputChannels() != 0) return false;
+    // Allow zero output (Reaper/Bitwig/standalone) or stereo dummy output (Ableton Live)
+    const int outCh = layouts.getMainOutputChannels();
+    if (outCh != 0 && outCh != 2) return false;
+    return true;
 }
 
-// ============================================================
-// Scale Quantization Methods
-// ============================================================
+// ─── ChordParams builder ──────────────────────────────────────────────────────
 
-// Get the currently selected scale preset
-ScalePreset PluginProcessor::getCurrentScale() const
+ChordEngine::Params PluginProcessor::buildChordParams() const
 {
-    int presetValue = static_cast<int>(getParameterValue("scale_preset"));
-    if (presetValue < 0) presetValue = 0;
-    if (presetValue > 10) presetValue = 10;
-    return static_cast<ScalePreset>(presetValue);
-}
+    ChordEngine::Params p;
 
-// Get custom scale note by index (for custom chromatic selection)
-int PluginProcessor::getCustomScaleNote(int index) const
-{
-    if (index < 0 || index > 11) return 0;
-    auto paramID = "scale_" + juce::String(index);
-    return getBoolParameterValue(paramID) ? index : -1;
-}
+    // Apply gamepad right-stick on top of UI joystick
+    const float gpX = gamepad_.getPitchX();
+    const float gpY = gamepad_.getPitchY();
+    const float jx  = joystickX.load();
+    const float jy  = joystickY.load();
 
-// Get the scale degree (0-6) from the current scale
-int PluginProcessor::getScaleDegree(int degree) const
-{
-    ScalePreset scale = getCurrentScale();
-    const int* pattern = ScaleQuantizer::getScalePattern(scale);
-    int size = ScaleQuantizer::getScaleSize(scale);
-    
-    if (degree < 0) degree = 0;
-    if (degree >= size) degree = degree % size;
-    
-    return pattern[degree];
-}
+    // Prefer gamepad if any axis is active (|value| > 0.05)
+    const bool gpActive = (std::abs(gpX) + std::abs(gpY)) > 0.05f;
+    p.joystickX = gpActive ? gpX : jx;
+    p.joystickY = gpActive ? gpY : jy;
 
-// Quantize a raw MIDI pitch to the selected scale
-int PluginProcessor::getQuantizedNote(int rawPitch) const
-{
-    // Check for custom scale first
-    bool customNotes[12];
-    bool hasCustom = false;
+    p.xAtten = apvts.getRawParameterValue(ParamID::joystickXAtten)->load();
+    p.yAtten = apvts.getRawParameterValue(ParamID::joystickYAtten)->load();
+
+    p.globalTranspose = (int)apvts.getRawParameterValue(ParamID::globalTranspose)->load();
+    p.intervals[0] = 0;
+    p.intervals[1] = (int)apvts.getRawParameterValue(ParamID::thirdInterval)->load();
+    p.intervals[2] = (int)apvts.getRawParameterValue(ParamID::fifthInterval)->load();
+    p.intervals[3] = (int)apvts.getRawParameterValue(ParamID::tensionInterval)->load();
+
+    p.octaves[0] = (int)apvts.getRawParameterValue(ParamID::rootOctave)->load();
+    p.octaves[1] = (int)apvts.getRawParameterValue(ParamID::thirdOctave)->load();
+    p.octaves[2] = (int)apvts.getRawParameterValue(ParamID::fifthOctave)->load();
+    p.octaves[3] = (int)apvts.getRawParameterValue(ParamID::tensionOctave)->load();
+
+    p.useCustomScale = apvts.getRawParameterValue(ParamID::useCustomScale)->load() > 0.5f;
+    p.scalePreset    = static_cast<ScalePreset>(
+        (int)apvts.getRawParameterValue(ParamID::scalePreset)->load());
+
     for (int i = 0; i < 12; ++i)
+        p.customNotes[i] =
+            apvts.getRawParameterValue("scaleNote" + juce::String(i))->load() > 0.5f;
+
+    return p;
+}
+
+// ─── processBlock ─────────────────────────────────────────────────────────────
+
+void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
+                                   juce::MidiBuffer& midi)
+{
+    juce::ScopedNoDenormals noDenum;
+    audio.clear();
+    midi.clear();
+
+    const int blockSize = audio.getNumSamples();
+
+    // ── Poll gamepad triggers (consume edge-flags) ────────────────────────────
+    for (int v = 0; v < 4; ++v)
+        if (gamepad_.consumeVoiceTrigger(v))
+            trigger_.setPadState(v, true);    // instant press
+
+    if (gamepad_.consumeAllNotesTrigger())
+        trigger_.triggerAllNotes();
+
+    if (gamepad_.consumeLooperStartStop()) looper_.startStop();
+    if (gamepad_.consumeLooperRecord())    looper_.record();
+    if (gamepad_.consumeLooperReset())     looper_.reset();
+    if (gamepad_.consumeLooperDelete())    looper_.deleteLoop();
+
+    // ── Looper ────────────────────────────────────────────────────────────────
+    juce::AudioPlayHead::CurrentPositionInfo pos {};
+    const bool hasDaw = getPlayHead() && getPlayHead()->getCurrentPosition(pos);
+
+    LooperEngine::ProcessParams lp;
+    lp.sampleRate   = sampleRate_;
+    lp.bpm          = (hasDaw && pos.bpm > 0.0) ? pos.bpm : 120.0;
+    lp.ppqPosition  = (hasDaw && pos.isPlaying) ? pos.ppqPosition : -1.0;
+    lp.blockSize    = blockSize;
+    lp.isDawPlaying = hasDaw && pos.isPlaying;
+
+    const auto loopOut = looper_.process(lp);
+
+    // Override joystick from looper playback if applicable
+    if (loopOut.hasJoystickX) joystickX.store(loopOut.joystickX);
+    if (loopOut.hasJoystickY) joystickY.store(loopOut.joystickY);
+
+    // ── Build chord params ────────────────────────────────────────────────────
+    const ChordEngine::Params chordP = buildChordParams();
+
+    // ── Compute & sample-hold pitches ─────────────────────────────────────────
+    // We only recompute on trigger events.  The trigger callback does this.
+    // Pre-compute all 4 pitches once so the callback can use them.
+    int freshPitches[4];
+    for (int v = 0; v < 4; ++v)
+        freshPitches[v] = ChordEngine::computePitch(v, chordP);
+
+    // Looper gate overrides
+    for (int v = 0; v < 4; ++v)
     {
-        customNotes[i] = getBoolParameterValue("scale_" + juce::String(i));
-        if (customNotes[i]) hasCustom = true;
+        if (loopOut.gateOn[v])  trigger_.setPadState(v, true);
+        if (loopOut.gateOff[v]) trigger_.setPadState(v, false);
     }
-    
-    // Get global transpose
-    int transpose = static_cast<int>(getParameterValue("global_transpose"));
-    
-    // Use custom scale if any notes are selected
-    if (hasCustom)
+
+    // ── Trigger system ────────────────────────────────────────────────────────
+    const int voiceChs[4] =
     {
-        int customPattern[12];
-        int customSize;
-        ScaleQuantizer::buildCustomPattern(customNotes, customPattern, customSize);
-        return ScaleQuantizer::quantizeToScale(rawPitch, customPattern, customSize, transpose);
+        (int)apvts.getRawParameterValue(ParamID::voiceCh0)->load(),
+        (int)apvts.getRawParameterValue(ParamID::voiceCh1)->load(),
+        (int)apvts.getRawParameterValue(ParamID::voiceCh2)->load(),
+        (int)apvts.getRawParameterValue(ParamID::voiceCh3)->load(),
+    };
+
+    TriggerSource src[4];
+    const juce::String srcIDs[4] = {
+        ParamID::triggerSource0, ParamID::triggerSource1,
+        ParamID::triggerSource2, ParamID::triggerSource3
+    };
+    for (int v = 0; v < 4; ++v)
+        src[v] = static_cast<TriggerSource>(
+            (int)apvts.getRawParameterValue(srcIDs[v])->load());
+
+    // Update held pitches for voices about to be triggered
+    for (int v = 0; v < 4; ++v)
+        heldPitch_[v] = freshPitches[v];
+
+    TriggerSystem::ProcessParams tp;
+    tp.onNote = [&](int voice, int pitch, bool isOn, int sampleOff)
+    {
+        const int ch0 = voiceChs[voice] - 1;  // 0-based
+        if (isOn)
+        {
+            // Record gate event in looper
+            const double beatPos = (hasDaw && pos.isPlaying)
+                ? pos.ppqPosition
+                : looper_.getPlaybackBeat();
+            looper_.recordGate(beatPos, voice, true);
+
+            midi.addEvent(juce::MidiMessage::noteOn(ch0 + 1, pitch, (uint8_t)100),
+                          sampleOff);
+        }
+        else
+        {
+            looper_.recordGate(looper_.getPlaybackBeat(), voice, false);
+            midi.addEvent(juce::MidiMessage::noteOff(ch0 + 1, pitch), sampleOff);
+        }
+    };
+
+    tp.blockSize    = blockSize;
+    tp.sampleRate   = sampleRate_;
+    tp.bpm          = lp.bpm;
+    tp.joystickX    = chordP.joystickX;
+    tp.joystickY    = chordP.joystickY;
+    for (int v = 0; v < 4; ++v)
+    {
+        tp.sources[v]      = src[v];
+        tp.heldPitches[v]  = heldPitch_[v];
+        tp.midiChannels[v] = voiceChs[v];
     }
-    
-    // Otherwise use preset scale
-    ScalePreset scale = getCurrentScale();
-    const int* pattern = ScaleQuantizer::getScalePattern(scale);
-    int size = ScaleQuantizer::getScaleSize(scale);
-    
-    return ScaleQuantizer::quantizeToScale(rawPitch, pattern, size, transpose);
+    tp.randomDensity = apvts.getRawParameterValue(ParamID::randomDensity)->load();
+    tp.randomSubdiv  = static_cast<RandomSubdiv>(
+        (int)apvts.getRawParameterValue(ParamID::randomSubdiv)->load());
+
+    trigger_.processBlock(tp);
+
+    // ── Looper joystick recording ─────────────────────────────────────────────
+    {
+        const double beatPos = (hasDaw && pos.isPlaying)
+            ? pos.ppqPosition : looper_.getPlaybackBeat();
+        looper_.recordJoystick(beatPos, chordP.joystickX, chordP.joystickY);
+    }
+
+    // ── Filter CC from gamepad left stick ─────────────────────────────────────
+    {
+        const float xAtten = apvts.getRawParameterValue(ParamID::filterXAtten)->load();
+        const float yAtten = apvts.getRawParameterValue(ParamID::filterYAtten)->load();
+        const int   fCh    = (int)apvts.getRawParameterValue(ParamID::filterMidiCh)->load();
+
+        // Map (-1..+1) → (0..atten), clamp to 0..127
+        const float gfx = gamepad_.getFilterX();
+        const float gfy = gamepad_.getFilterY();
+        const int ccCut  = juce::jlimit(0, 127, (int)(((gfx + 1.0f) * 0.5f) * xAtten));
+        const int ccRes  = juce::jlimit(0, 127, (int)(((gfy + 1.0f) * 0.5f) * yAtten));
+
+        midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 74, ccCut), 0);
+        midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 71, ccRes), 0);
+    }
+
+    // ── Looper config sync ────────────────────────────────────────────────────
+    looper_.setSubdiv(static_cast<LooperSubdiv>(
+        (int)apvts.getRawParameterValue(ParamID::looperSubdiv)->load()));
+    looper_.setLoopLengthBars(
+        (int)apvts.getRawParameterValue(ParamID::looperLength)->load());
 }
 
-void PluginProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
+// ─── State persistence ────────────────────────────────────────────────────────
+
+void PluginProcessor::getStateInformation(juce::MemoryBlock& dest)
 {
-    // Verify APVTS parameters are accessible
-    // These calls will log parameter values if debugging is enabled
-    auto rootInterval = getParameterValue("root_interval");
-    auto triggerSource = getIntParameterValue("trigger_source");
-    auto looperEnabled = getBoolParameterValue("looper_enabled");
-    
-    (void)sampleRate;    // Suppress unused warning
-    (void)samplesPerBlock;
-    (void)rootInterval;
-    (void)triggerSource;
-    (void)looperEnabled;
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    copyXmlToBinary(*xml, dest);
 }
 
-void PluginProcessor::releaseResources()
+void PluginProcessor::setStateInformation(const void* data, int size)
 {
+    std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, size));
+    if (xml && xml->hasTagName(apvts.state.getType()))
+        apvts.replaceState(juce::ValueTree::fromXml(*xml));
 }
 
-bool PluginProcessor::isBusesLayoutSupported(const BusesLayout& layout) const
-{
-    return layout.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
-}
+// ─── Factory ──────────────────────────────────────────────────────────────────
 
-void PluginProcessor::processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&)
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
+    return new PluginProcessor();
 }
 
 juce::AudioProcessorEditor* PluginProcessor::createEditor()
 {
     return new PluginEditor(*this);
-}
-
-bool PluginProcessor::hasEditor() const
-{
-    return true;
-}
-
-const juce::String PluginProcessor::getName() const
-{
-    return "ChordJoystick";
-}
-
-bool PluginProcessor::producesMidi() const
-{
-    return true;
-}
-
-bool PluginProcessor::acceptsMidi() const
-{
-    return true;
-}
-
-bool PluginProcessor::isMidiEffect() const
-{
-    return true;
-}
-
-double PluginProcessor::getTailLengthSeconds() const
-{
-    return 0.0;
-}
-
-int PluginProcessor::getNumPrograms()
-{
-    return 1;
-}
-
-int PluginProcessor::getCurrentProgram()
-{
-    return 0;
-}
-
-void PluginProcessor::setCurrentProgram(int)
-{
-}
-
-const juce::String PluginProcessor::getProgramName(int)
-{
-    return {};
-}
-
-void PluginProcessor::changeProgramName(int, const juce::String&)
-{
-}
-
-void PluginProcessor::getStateInformation(juce::MemoryBlock&)
-{
-}
-
-void PluginProcessor::setStateInformation(const void*, int)
-{
-}
-
-juce::AudioProcessor* createPluginFilter()
-{
-    return new PluginProcessor();
 }
