@@ -67,6 +67,10 @@ public:
         float          deltaY           = 0.0f;
 
         float          joystickThreshold = 0.015f;  // configurable threshold (0.001..0.1)
+
+        // Random clock mode
+        bool           randomClockSync  = true;    // true = DAW-gated, false = free tempo
+        float          randomFreeTempo  = 120.0f;  // BPM for free mode (30..240)
     };
 
     void processBlock(const ProcessParams& p);

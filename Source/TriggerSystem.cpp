@@ -93,23 +93,31 @@ void TriggerSystem::processBlock(const ProcessParams& p)
     bool randomFired[4] = {};
     for (int v = 0; v < 4; ++v)
     {
+        const double effectiveBpm     = p.randomClockSync
+                                            ? p.bpm
+                                            : static_cast<double>(p.randomFreeTempo);
         const double beats            = subdivBeatsFor(p.randomSubdiv[v]);
-        const double beatsPerSec      = p.bpm / 60.0;
+        const double beatsPerSec      = effectiveBpm / 60.0;
         const double samplesPerSubdiv = (p.sampleRate / beatsPerSec) * beats;
 
-        if (p.isDawPlaying && p.ppqPosition >= 0.0)
+        if (p.randomClockSync)
         {
-            // DAW-synced: fire when subdivision index changes
-            const int64_t idx = static_cast<int64_t>(p.ppqPosition / beats);
-            if (idx != prevSubdivIndex_[v])
+            // Sync mode: fire on ppq subdivision boundary, only when DAW is playing.
+            // When DAW stops, do nothing — no fallback clock.
+            if (p.isDawPlaying && p.ppqPosition >= 0.0)
             {
-                prevSubdivIndex_[v] = idx;
-                randomFired[v] = true;
+                const int64_t idx = static_cast<int64_t>(p.ppqPosition / beats);
+                if (idx != prevSubdivIndex_[v])
+                {
+                    prevSubdivIndex_[v] = idx;
+                    randomFired[v] = true;
+                }
             }
+            // else: transport stopped — no trigger, no phase advance
         }
         else
         {
-            // Transport stopped: sample-count fallback
+            // Free mode: always-running sample-count clock at randomFreeTempo.
             randomPhase_[v] += static_cast<double>(p.blockSize);
             if (samplesPerSubdiv > 0.0 && randomPhase_[v] >= samplesPerSubdiv)
             {

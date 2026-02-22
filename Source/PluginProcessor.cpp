@@ -136,6 +136,15 @@ PluginProcessor::createParameterLayout()
     }
     addFloat("randomGateTime", "Random Gate Time", 0.0f, 1.0f, 0.5f);
 
+    // Random clock mode
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        "randomClockSync", "Random Clock Sync", true));
+
+    // Free-running tempo for random triggers
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "randomFreeTempo", "Random Free Tempo",
+        juce::NormalisableRange<float>(30.0f, 240.0f, 0.1f), 120.0f));
+
     // ── Filter ────────────────────────────────────────────────────────────────
     addFloat(ParamID::filterXAtten, "Filter Cutoff Attenuator",    0.0f, 127.0f, 64.0f);
     addFloat(ParamID::filterYAtten, "Filter Resonance Attenuator", 0.0f, 127.0f, 64.0f);
@@ -393,6 +402,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         tp.ppqPosition  = -1.0;
         tp.isDawPlaying = false;
     }
+    tp.randomClockSync = (*apvts.getRawParameterValue("randomClockSync") > 0.5f);
+    tp.randomFreeTempo = *apvts.getRawParameterValue("randomFreeTempo");
 
     trigger_.processBlock(tp);
 
