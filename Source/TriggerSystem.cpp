@@ -124,15 +124,33 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             }
             else
             {
-                // Below threshold — accumulate stillness samples.
-                joystickStillSamples_[v] += p.blockSize;
-                const int closeAfter = static_cast<int>(0.050f * p.sampleRate); // 50ms debounce
+                // Below open threshold — apply hysteresis:
+                // Only count toward gate-close when the joystick is near rest
+                // (< 15% of open threshold).  A brief dip just below threshold
+                // (e.g. mid-movement) resets the counter instead, keeping the
+                // gate open and preventing spurious same-pitch retriggering.
+                const float closeThreshold = p.joystickThreshold * 0.15f;
+                const int   closeAfter     = static_cast<int>(0.050f * p.sampleRate); // 50ms debounce
 
-                if (gateOpen_[v].load() && joystickStillSamples_[v] >= closeAfter)
+                if (magnitude < closeThreshold)
                 {
-                    // Joystick has been still for 50ms — close the gate.
-                    fireNoteOff(v, ch - 1, 0, p);   // clears gateOpen_ and activePitch_
-                    joyActivePitch_[v]       = -1;
+                    // Joystick is near rest — accumulate stillness counter.
+                    joystickStillSamples_[v] += p.blockSize;
+
+                    if (gateOpen_[v].load() && joystickStillSamples_[v] >= closeAfter)
+                    {
+                        // Joystick has been near rest for 50ms — close the gate.
+                        fireNoteOff(v, ch - 1, 0, p);   // clears gateOpen_ and activePitch_
+                        joyActivePitch_[v]       = -1;
+                        joystickStillSamples_[v] = 0;
+                    }
+                }
+                else
+                {
+                    // Magnitude between closeThreshold and joystickThreshold —
+                    // joystick is hovering near threshold mid-movement.
+                    // Reset the stillness counter so a brief dip doesn't
+                    // eventually close the gate.
                     joystickStillSamples_[v] = 0;
                 }
             }
