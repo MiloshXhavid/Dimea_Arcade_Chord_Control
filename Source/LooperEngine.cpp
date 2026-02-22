@@ -1,0 +1,375 @@
+#include "LooperEngine.h"
+#include <cmath>
+#include <algorithm>
+
+// No #include <mutex> — this file contains zero blocking calls.
+
+// ─── Configuration helpers ────────────────────────────────────────────────────
+
+double LooperEngine::beatsPerBar() const
+{
+    switch ((LooperSubdiv)subdiv_.load(std::memory_order_relaxed))
+    {
+        case LooperSubdiv::ThreeFour:   return 3.0;
+        case LooperSubdiv::FourFour:    return 4.0;
+        case LooperSubdiv::FiveFour:    return 5.0;
+        case LooperSubdiv::SevenEight:  return 3.5;   // 7 eighth-notes = 3.5 quarter-notes
+        case LooperSubdiv::NineEight:   return 4.5;
+        case LooperSubdiv::ElevenEight: return 5.5;
+    }
+    return 4.0;
+}
+
+double LooperEngine::getLoopLengthBeats() const
+{
+    return beatsPerBar() * static_cast<double>(loopBars_.load(std::memory_order_relaxed));
+}
+
+bool LooperEngine::hasContent() const
+{
+    // No mutex — getNumReady() is atomic internally in AbstractFifo.
+    return playbackCount_.load(std::memory_order_relaxed) > 0
+        || fifo_.getNumReady() > 0;
+}
+
+void LooperEngine::setLoopLengthBars(int bars)
+{
+    loopBars_.store(juce::jlimit(1, 16, bars));
+}
+
+// ─── Transport ────────────────────────────────────────────────────────────────
+
+void LooperEngine::startStop()
+{
+    const bool wasPlaying = playing_.load();
+    if (!wasPlaying)
+    {
+        playing_.store(true);
+    }
+    else
+    {
+        // Stop: freeze current FIFO content into playbackStore_.
+        // INVARIANT: recording_ must be false before finaliseRecording().
+        playing_.store(false);
+        recording_.store(false);
+        finaliseRecording();
+    }
+}
+
+void LooperEngine::record()
+{
+    if (!playing_.load()) return;
+
+    const bool wasRecording = recording_.load();
+    if (wasRecording)
+    {
+        // Disarm: merge FIFO events into playbackStore_ (punch-in logic).
+        // INVARIANT: recording_ must be false before finaliseRecording().
+        recording_.store(false);
+        finaliseRecording();
+    }
+    else
+    {
+        // Arm: clear cap flag, start writing to FIFO.
+        capReached_.store(false, std::memory_order_relaxed);
+        recording_.store(true);
+    }
+}
+
+void LooperEngine::reset()
+{
+    // Audio thread services this at the top of process().
+    resetRequest_.store(true, std::memory_order_release);
+}
+
+void LooperEngine::deleteLoop()
+{
+    // Audio thread services this at the top of process().
+    deleteRequest_.store(true, std::memory_order_release);
+}
+
+// ─── DAW sync anchor ─────────────────────────────────────────────────────────
+
+void LooperEngine::anchorToBar(double ppqPosition, double bpb)
+{
+    const double barIndex = std::floor(ppqPosition / bpb);
+    loopStartPpq_ = barIndex * bpb;
+}
+
+// ─── Punch-in merge ───────────────────────────────────────────────────────────
+//
+// THREADING INVARIANT:
+//   This method MUST only be called when BOTH conditions are true:
+//     (a) playing_ = false  — process() early-returns before touching the FIFO or
+//         playbackStore_, so there is no concurrent reader.
+//     (b) recording_ = false — recordGate() and recordJoystick() both early-return
+//         before writing to the FIFO, so there is no concurrent writer.
+//   Both callers (startStop() and record()) set these flags before calling this method.
+//   DO NOT call finaliseRecording() with playing_=true or recording_=true.
+
+void LooperEngine::finaliseRecording()
+{
+    const int newCount = fifo_.getNumReady();
+
+    // Case 1: no existing content, or no new events — simple drain of FIFO.
+    if (playbackCount_.load(std::memory_order_relaxed) == 0 || newCount == 0)
+    {
+        int count = 0;
+        if (newCount > 0)
+        {
+            auto scope = fifo_.read(newCount);
+            scope.forEach([&](int idx)
+            {
+                if (count < LOOPER_FIFO_CAPACITY)
+                    playbackStore_[count++] = eventBuf_[idx];
+            });
+            fifo_.reset();
+        }
+        playbackCount_.store(count, std::memory_order_release);
+        return;
+    }
+
+    // Case 2: punch-in merge — existing content AND new events.
+    // Step A: drain new events from FIFO into a temporary local array (stack only, no heap).
+    LooperEvent newEvents[LOOPER_FIFO_CAPACITY];
+    int newEventCount = 0;
+    {
+        auto scope = fifo_.read(newCount);
+        scope.forEach([&](int idx)
+        {
+            if (newEventCount < LOOPER_FIFO_CAPACITY)
+                newEvents[newEventCount++] = eventBuf_[idx];
+        });
+    }
+    fifo_.reset();
+
+    // Step B: build merge result.
+    // "Touched" beat window: within ±touchRadius of any newly recorded event.
+    // touchRadius ≈ 1/64th of the loop length — sufficient for block-granular recording.
+    const double loopLen     = getLoopLengthBeats();
+    const double touchRadius = (loopLen > 0.0) ? (loopLen / 64.0) : 0.05;
+
+    // Step C: merged result — old events outside touched windows, plus all new events.
+    LooperEvent merged[LOOPER_FIFO_CAPACITY];
+    int mergedCount = 0;
+
+    // First pass: keep old events that fall OUTSIDE all touched beat windows.
+    const int oldCount = playbackCount_.load(std::memory_order_relaxed);
+    for (int i = 0; i < oldCount && mergedCount < LOOPER_FIFO_CAPACITY; ++i)
+    {
+        const double oldPos = playbackStore_[i].beatPosition;
+        bool inTouchedWindow = false;
+        for (int j = 0; j < newEventCount; ++j)
+        {
+            const double dist = std::abs(oldPos - newEvents[j].beatPosition);
+            // Handle wrap-around at loop boundary
+            const double distWrapped = std::min(dist, loopLen - dist);
+            if (distWrapped <= touchRadius)
+            {
+                inTouchedWindow = true;
+                break;
+            }
+        }
+        if (!inTouchedWindow)
+            merged[mergedCount++] = playbackStore_[i];
+    }
+
+    // Second pass: append all new events.
+    for (int j = 0; j < newEventCount && mergedCount < LOOPER_FIFO_CAPACITY; ++j)
+        merged[mergedCount++] = newEvents[j];
+
+    // Copy merged result back into playbackStore_.
+    for (int i = 0; i < mergedCount; ++i)
+        playbackStore_[i] = merged[i];
+    playbackCount_.store(mergedCount, std::memory_order_release);
+}
+
+// ─── Recording helpers (audio-thread-only) ────────────────────────────────────
+
+void LooperEngine::recordGate(double beatPos, int voice, bool on)
+{
+    ASSERT_AUDIO_THREAD();
+    if (!recording_.load(std::memory_order_relaxed)) return;
+    if (!recGates_.load(std::memory_order_relaxed))  return;
+
+    const double loopLen = getLoopLengthBeats();
+    if (loopLen <= 0.0) return;
+
+    // Cap check — auto-stop recording when FIFO is full.
+    if (fifo_.getFreeSpace() < 1)
+    {
+        capReached_.store(true, std::memory_order_relaxed);
+        recording_.store(false, std::memory_order_relaxed);
+        return;
+    }
+
+    const double pos = std::fmod(beatPos, loopLen);
+    LooperEvent e { pos, LooperEvent::Type::Gate, voice, on ? 1.0f : 0.0f };
+
+    auto scope = fifo_.write(1);
+    scope.forEach([&](int idx) { eventBuf_[idx] = e; });
+}
+
+void LooperEngine::recordJoystick(double beatPos, float x, float y)
+{
+    ASSERT_AUDIO_THREAD();
+    if (!recording_.load(std::memory_order_relaxed)) return;
+    if (!recJoy_.load(std::memory_order_relaxed))    return;
+
+    const double loopLen = getLoopLengthBeats();
+    if (loopLen <= 0.0) return;
+
+    // Sparse recording: only write when movement exceeds threshold.
+    const float thresh = joystickThresh_.load(std::memory_order_relaxed);
+    const bool  xMoved = std::abs(x - lastRecordedX_) > thresh;
+    const bool  yMoved = std::abs(y - lastRecordedY_) > thresh;
+    if (!xMoved && !yMoved) return;
+
+    const double pos = std::fmod(beatPos, loopLen);
+
+    if (xMoved)
+    {
+        if (fifo_.getFreeSpace() < 1)
+        {
+            capReached_.store(true, std::memory_order_relaxed);
+            return;
+        }
+        LooperEvent ex { pos, LooperEvent::Type::JoystickX, -1, x };
+        auto scope = fifo_.write(1);
+        scope.forEach([&](int idx) { eventBuf_[idx] = ex; });
+        lastRecordedX_ = x;
+    }
+
+    if (yMoved)
+    {
+        if (fifo_.getFreeSpace() < 1)
+        {
+            capReached_.store(true, std::memory_order_relaxed);
+            return;
+        }
+        LooperEvent ey { pos, LooperEvent::Type::JoystickY, -1, y };
+        auto scope = fifo_.write(1);
+        scope.forEach([&](int idx) { eventBuf_[idx] = ey; });
+        lastRecordedY_ = y;
+    }
+}
+
+// ─── Audio-thread process ─────────────────────────────────────────────────────
+
+LooperEngine::BlockOutput LooperEngine::process(const ProcessParams& p)
+{
+    ASSERT_AUDIO_THREAD();
+    BlockOutput out {};
+
+    // Service destructive requests first.
+    // Safe: audio thread is the sole FIFO user; no concurrent reader/writer at this point.
+    if (resetRequest_.exchange(false, std::memory_order_acq_rel))
+    {
+        fifo_.reset();
+        playbackStore_ = {};
+        playbackCount_.store(0, std::memory_order_relaxed);
+        internalBeat_  = 0.0;
+        loopStartPpq_  = -1.0;
+        playing_.store(false, std::memory_order_relaxed);
+        recording_.store(false, std::memory_order_relaxed);
+        playbackBeat_.store(0.0f, std::memory_order_relaxed);
+        return out;
+    }
+
+    if (deleteRequest_.exchange(false, std::memory_order_acq_rel))
+    {
+        fifo_.reset();
+        playbackStore_ = {};
+        playbackCount_.store(0, std::memory_order_relaxed);
+        return out;
+    }
+
+    if (!playing_.load(std::memory_order_relaxed)) return out;
+
+    const double loopLen = getLoopLengthBeats();
+    if (loopLen <= 0.0) return out;
+
+    const double bpm          = (p.bpm > 0.0) ? p.bpm : 120.0;
+    const double samplesPerBeat = (p.sampleRate * 60.0) / bpm;
+
+    // ── Determine beat position at block start ────────────────────────────────
+    double beatAtBlockStart;
+    const bool useDaw = syncToDaw_.load(std::memory_order_relaxed)
+                     && p.isDawPlaying
+                     && p.ppqPosition >= 0.0;
+
+    if (useDaw)
+    {
+        // DAW sync: anchor loopStartPpq_ to the nearest bar boundary on first call.
+        if (loopStartPpq_ < 0.0)
+            anchorToBar(p.ppqPosition, beatsPerBar());
+
+        const double elapsed = p.ppqPosition - loopStartPpq_;
+        beatAtBlockStart = std::fmod(elapsed < 0.0 ? 0.0 : elapsed, loopLen);
+    }
+    else
+    {
+        if (syncToDaw_.load(std::memory_order_relaxed))
+        {
+            // DAW sync is ON but DAW is not playing — pause internal advance.
+            playbackBeat_.store((float)std::fmod(internalBeat_, loopLen), std::memory_order_relaxed);
+            return out;
+        }
+        // Internal clock: reset DAW anchor when switching back.
+        loopStartPpq_    = -1.0;
+        beatAtBlockStart = std::fmod(internalBeat_, loopLen);
+    }
+
+    const double blockBeats = static_cast<double>(p.blockSize) / samplesPerBeat;
+    const double rawEnd     = beatAtBlockStart + blockBeats;
+    const double beatAtEnd  = std::fmod(rawEnd, loopLen);
+    const bool   wraps      = rawEnd >= loopLen;
+
+    playbackBeat_.store((float)beatAtBlockStart, std::memory_order_relaxed);
+
+    // Advance internal clock (DAW mode uses ppqPosition directly — no advance needed).
+    if (!useDaw)
+    {
+        internalBeat_ += blockBeats;
+        if (internalBeat_ >= loopLen)
+            internalBeat_ = std::fmod(internalBeat_, loopLen);
+    }
+
+    // ── Scan playbackStore_ ───────────────────────────────────────────────────
+    // playbackStore_ is audio-thread-only during playback.
+    // The SPSC invariant ensures recording_=false when playing_=true in the sequential
+    // model — punch-in requires stop before re-record, so no concurrent FIFO writer.
+    const int count = playbackCount_.load(std::memory_order_acquire);
+    for (int i = 0; i < count; ++i)
+    {
+        const auto& ev = playbackStore_[i];
+        bool inWindow = wraps
+            ? (ev.beatPosition >= beatAtBlockStart || ev.beatPosition < beatAtEnd)
+            : (ev.beatPosition >= beatAtBlockStart && ev.beatPosition < beatAtEnd);
+
+        if (!inWindow) continue;
+
+        switch (ev.type)
+        {
+            case LooperEvent::Type::JoystickX:
+                out.hasJoystickX = true;
+                out.joystickX    = ev.value;
+                break;
+            case LooperEvent::Type::JoystickY:
+                out.hasJoystickY = true;
+                out.joystickY    = ev.value;
+                break;
+            case LooperEvent::Type::Gate:
+                if (ev.voice >= 0 && ev.voice < 4)
+                {
+                    if (ev.value > 0.5f)
+                        out.gateOn[ev.voice]  = true;
+                    else
+                        out.gateOff[ev.voice] = true;
+                }
+                break;
+        }
+    }
+
+    return out;
+}
