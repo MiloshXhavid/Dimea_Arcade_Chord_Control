@@ -8,9 +8,9 @@ Core value: Continuous harmonic navigation via joystick with per-voice sample-an
 
 ## Current Position
 
-- **Phase:** 04 of 7 — Per-Voice Trigger Sources and Random Gate
-- **Plan:** 04-02 COMPLETE — proceeding to 04-03 (if planned) or phase 05
-- **Status:** Milestone complete
+- **Phase:** 05 of 7 — LooperEngine Hardening and DAW Sync
+- **Plan:** 05-01 COMPLETE — proceeding to 05-02
+- **Status:** In progress
 
 ## Progress
 
@@ -19,11 +19,11 @@ Phase 01 [████░░░░░░]   Build Foundation    (partial — plu
 Phase 02 [██████████]   Engine Validation   (COMPLETE — ScaleQuantizer+ChordEngine 15 tests green, checkpoint approved)
 Phase 03 [██████████]   Core MIDI Output    (COMPLETE — 2/2 plans done, all 6 DAW tests passed in Reaper)
 Phase 04 [████████░░]   Trigger Sources     (IN PROGRESS — 04-01+04-02 COMPLETE, 04-03 pending if planned)
-Phase 05 [░░░░░░░░░░]   Looper Hardening
+Phase 05 [███░░░░░░░]   Looper Hardening    (IN PROGRESS — 05-01 COMPLETE)
 Phase 06 [░░░░░░░░░░]   SDL2 Gamepad
 Phase 07 [░░░░░░░░░░]   Distribution
 
-Overall: [████░░░░░░] ~45% (Phase 01 partial, Phase 02 complete 2/2, Phase 03 complete 2/2, Phase 04 2/2 plans done)
+Overall: [████░░░░░░] ~48% (Phase 01 partial, Phase 02 complete 2/2, Phase 03 complete 2/2, Phase 04 2/2 plans done, Phase 05 1/3 done)
 ```
 
 ## What's Been Built
@@ -51,6 +51,8 @@ Overall: [████░░░░░░] ~45% (Phase 01 partial, Phase 02 compl
 - **[NEW] randomClockSync APVTS bool (default true): sync mode = DAW-only triggers, free mode = internal BPM accumulator; randomFreeTempo APVTS float (30-240 BPM, default 120) for free-running clock (04-02 / 30f52d4)**
 - **[NEW] 4-column DENS/GATE/FREE BPM/SYNC random controls row; randomDensityKnob_ changed to NoTextBox rotary for visual consistency; labels visible above knob row (04-02 / 43f0724, 65f069c)**
 - **[NEW] 04-02 human checkpoint APPROVED in Reaper — all 5 random gate tests passed (per-voice independence, DAW sync, density, gate time, mode switch clean)**
+- **[NEW] LooperEngine fully rewritten lock-free: AbstractFifo SPSC double-buffer (eventBuf_+fifo_ record side, playbackStore_ playback side), punch-in merge (loopLen/64 touch radius), deleteRequest_/resetRequest_ atomic flags serviced at top of process(), ASSERT_AUDIO_THREAD() macro (05-01 / 72a9eeb, 3de3cec)**
+- **[NEW] 11 new Catch2 LooperEngine tests: FIFO stress no-deadlock, DAW sync anchor, punch-in correctness, loop-wrap boundary sweep (96 combos: 6 subdivs x 16 bar lengths); all 26 tests pass. ENABLE_TSAN CMake option with MSVC guard. ScopedRead-before-reset ordering bug fixed. (05-01 / f27440b)**
 
 ## Key Decisions
 
@@ -88,12 +90,16 @@ Overall: [████░░░░░░] ~45% (Phase 01 partial, Phase 02 compl
 | randomClockSync sync/free mode | sync=true fires only when isDawPlaying (DAW stop = silence from RND voices); sync=false uses internal BPM at randomFreeTempo — wall-clock fallback from plan spec replaced with explicit user-controlled toggle |
 | randomFreeTempo param (30-240 BPM, default 120) | BPM for free-running random clock; only active when randomClockSync=false |
 | 4-column DENS/GATE/FREE BPM/SYNC row | randomDensityKnob_ changed to NoTextBox rotary to match Gate/FreeTempo knobs — visual consistency in random controls section |
+| AbstractFifo double-buffer over snapshot-scan-reinsert | eventBuf_+fifo_ for write side during recording; playbackStore_ for stable read side during playback — no lock needed |
+| ScopedRead must destruct before fifo_.reset() | JUCE AbstractFifo: reset() sets validEnd=0 then validStart=0; ScopedRead dtor calls finishedRead advancing validStart; if reset() runs first dtor leaves validStart=numRead with validEnd=0, getNumReady()=bufferSize-numRead=2047 |
+| Scratch buffers as class members | scratchNew_/scratchMerged_ (each ~49KB) moved from local arrays to class members — prevents MSVC debug-mode stack overflow in finaliseRecording() |
+| Punch-in touch radius = loopLen/64 | Beat window for replacing old events; wrap-around distance via min(dist, loopLen-dist); events outside all windows are preserved |
 
 ## Known Issues (Must Fix Before Shipping)
 
 1. ~~**JUCE pinned to `origin/master`**~~ — FIXED in 01-01 (now 8.0.4).
 2. **[BLOCKER] Plugin crashes on load in Ableton Live 11** — appears in browser, crashes on instantiation. SDL_HINT_JOYSTICK_THREAD fix applied, root cause unresolved. Must fix before Phase 03 DAW testing.
-3. **std::mutex in LooperEngine processBlock** — Blocks audio thread. Fix in Phase 05.
+3. ~~**std::mutex in LooperEngine processBlock**~~ — FIXED in 05-01 (now fully lock-free AbstractFifo design).
 4. **Filter CC (CC71/CC74) emitted unconditionally** — Floods synth at ~175 msgs/sec when no gamepad. Fix in Phase 06.
 5. ~~**releaseResources() is empty**~~ — FIXED in 03-01 (now calls resetAllGates()).
 6. **SDL_Init/SDL_Quit per instance** — Multi-instance race condition. Fix in Phase 06.
@@ -111,5 +117,5 @@ Overall: [████░░░░░░] ~45% (Phase 01 partial, Phase 02 compl
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: 04-02 COMPLETE — all tasks done, human checkpoint APPROVED in Reaper. Plan 04-02 summary written. Ready for 04-03 or Phase 05 if no further Phase 04 plans exist.
-Resume file: .planning/phases/04-per-voice-trigger-sources-and-random-gate/ (check for 04-03-PLAN.md, or proceed to Phase 05)
+Stopped at: 05-01 COMPLETE — lock-free LooperEngine rewrite, 26 Catch2 tests passing. Ready for 05-02 (PluginProcessor DAW sync wiring + PluginEditor buttons).
+Resume file: .planning/phases/05-looperengine-hardening-and-daw-sync/05-02-PLAN.md

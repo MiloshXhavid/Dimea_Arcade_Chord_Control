@@ -95,12 +95,12 @@ Plans:
 - 9 new Catch2 tests (multi-thread stress + loop-wrap + DAW sync anchor)
 - Verified 4-bar loop in Reaper; Ableton best-effort
 
-**Status:** in-progress (planned — 3 plans)
+**Status:** in-progress (1/3 plans done)
 
 **Plans:** 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Lock-free LooperEngine rewrite (AbstractFifo + double-buffer) + Catch2 tests + CMake TSAN option
+- [x] 05-01-PLAN.md — Lock-free LooperEngine rewrite (AbstractFifo + double-buffer) + Catch2 tests + CMake TSAN option — DONE: 26 tests pass, ScopedRead ordering bug fixed
 - [ ] 05-02-PLAN.md — PluginProcessor DAW sync wiring (JUCE 8 ppqPosition API) + PluginEditor [REC JOY]/[REC GATES]/[SYNC] buttons
 - [ ] 05-03-PLAN.md — Release build + full Catch2 suite + Reaper 4-test DAW verification (human checkpoint)
 
