@@ -70,8 +70,9 @@ void LooperEngine::record()
     }
     else
     {
-        // Arm: clear cap flag, start writing to FIFO.
+        // Arm: clear cap flag, reset FIFO to discard any stale events, then start recording.
         capReached_.store(false, std::memory_order_relaxed);
+        fifo_.reset();   // ensure FIFO is clean before new recording pass begins
         recording_.store(true);
     }
 }
@@ -111,11 +112,18 @@ void LooperEngine::finaliseRecording()
 {
     const int newCount = fifo_.getNumReady();
 
-    // Case 1: no existing content, or no new events — simple drain of FIFO.
-    if (playbackCount_.load(std::memory_order_relaxed) == 0 || newCount == 0)
+    // Case 0: no new events recorded — nothing to merge; leave playbackStore_ unchanged.
+    if (newCount == 0)
+        return;
+
+    // Case 1: no existing playback content — simple drain of FIFO into playbackStore_.
+    if (playbackCount_.load(std::memory_order_relaxed) == 0)
     {
         int count = 0;
-        if (newCount > 0)
+        // Scope block ensures ScopedRead destructs (calls finishedRead) BEFORE reset().
+        // If reset() were called while ScopedRead is alive, its destructor would advance
+        // validStart past 0, leaving validStart=newCount with validEnd=0, making
+        // getNumReady() return bufferSize-newCount instead of 0.
         {
             auto scope = fifo_.read(newCount);
             scope.forEach([&](int idx)
@@ -123,22 +131,21 @@ void LooperEngine::finaliseRecording()
                 if (count < LOOPER_FIFO_CAPACITY)
                     playbackStore_[count++] = eventBuf_[idx];
             });
-            fifo_.reset();
-        }
+        }  // ScopedRead destructs here: finishedRead(newCount) → validStart=newCount
+        fifo_.reset();  // now safe: validStart=validEnd=newCount → reset to 0,0
         playbackCount_.store(count, std::memory_order_release);
         return;
     }
 
     // Case 2: punch-in merge — existing content AND new events.
-    // Step A: drain new events from FIFO into a temporary local array (stack only, no heap).
-    LooperEvent newEvents[LOOPER_FIFO_CAPACITY];
+    // Step A: drain new events from FIFO into scratchNew_ (class member — avoids ~49KB stack alloc).
     int newEventCount = 0;
     {
         auto scope = fifo_.read(newCount);
         scope.forEach([&](int idx)
         {
             if (newEventCount < LOOPER_FIFO_CAPACITY)
-                newEvents[newEventCount++] = eventBuf_[idx];
+                scratchNew_[newEventCount++] = eventBuf_[idx];
         });
     }
     fifo_.reset();
@@ -149,8 +156,7 @@ void LooperEngine::finaliseRecording()
     const double loopLen     = getLoopLengthBeats();
     const double touchRadius = (loopLen > 0.0) ? (loopLen / 64.0) : 0.05;
 
-    // Step C: merged result — old events outside touched windows, plus all new events.
-    LooperEvent merged[LOOPER_FIFO_CAPACITY];
+    // Step C: merged result stored in scratchMerged_ (class member — avoids ~49KB stack alloc).
     int mergedCount = 0;
 
     // First pass: keep old events that fall OUTSIDE all touched beat windows.
@@ -161,7 +167,7 @@ void LooperEngine::finaliseRecording()
         bool inTouchedWindow = false;
         for (int j = 0; j < newEventCount; ++j)
         {
-            const double dist = std::abs(oldPos - newEvents[j].beatPosition);
+            const double dist = std::abs(oldPos - scratchNew_[j].beatPosition);
             // Handle wrap-around at loop boundary
             const double distWrapped = std::min(dist, loopLen - dist);
             if (distWrapped <= touchRadius)
@@ -171,16 +177,16 @@ void LooperEngine::finaliseRecording()
             }
         }
         if (!inTouchedWindow)
-            merged[mergedCount++] = playbackStore_[i];
+            scratchMerged_[mergedCount++] = playbackStore_[i];
     }
 
     // Second pass: append all new events.
     for (int j = 0; j < newEventCount && mergedCount < LOOPER_FIFO_CAPACITY; ++j)
-        merged[mergedCount++] = newEvents[j];
+        scratchMerged_[mergedCount++] = scratchNew_[j];
 
     // Copy merged result back into playbackStore_.
     for (int i = 0; i < mergedCount; ++i)
-        playbackStore_[i] = merged[i];
+        playbackStore_[i] = scratchMerged_[i];
     playbackCount_.store(mergedCount, std::memory_order_release);
 }
 

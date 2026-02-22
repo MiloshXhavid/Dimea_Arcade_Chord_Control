@@ -118,6 +118,14 @@ private:
     std::array<LooperEvent, LOOPER_FIFO_CAPACITY> playbackStore_ {};
     std::atomic<int> playbackCount_ { 0 };
 
+    // ── Scratch buffers for finaliseRecording() punch-in merge ────────────────
+    // Kept as class members to avoid large (~49 KB each) stack allocations in
+    // finaliseRecording(), which would risk stack overflow on MSVC debug builds.
+    // These are only used inside finaliseRecording() (called with playing_=false
+    // AND recording_=false, so no reentrancy risk).
+    std::array<LooperEvent, LOOPER_FIFO_CAPACITY> scratchNew_    {};
+    std::array<LooperEvent, LOOPER_FIFO_CAPACITY> scratchMerged_ {};
+
     // ── Atomic state flags (audio + UI threads) ───────────────────────────────
     std::atomic<bool> playing_    { false };
     std::atomic<bool> recording_  { false };

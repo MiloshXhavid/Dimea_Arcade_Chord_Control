@@ -50,8 +50,10 @@ if(BUILD_TESTS)
     add_executable(ChordJoystickTests
         Source/ScaleQuantizer.cpp
         Source/ChordEngine.cpp
+        Source/LooperEngine.cpp
         Tests/ScaleQuantizerTests.cpp
         Tests/ChordEngineTests.cpp
+        Tests/LooperEngineTests.cpp
     )
 
     set_target_properties(ChordJoystickTests PROPERTIES
@@ -80,6 +82,19 @@ if(BUILD_TESTS)
     include(CTest)
     include(Catch)
     catch_discover_tests(ChordJoystickTests)
+
+    # ─── ThreadSanitizer (TSAN) option — Linux/Clang only, silently skipped on MSVC ──
+    option(ENABLE_TSAN "Enable ThreadSanitizer — Linux/Clang only, ignored on MSVC" OFF)
+
+    if(ENABLE_TSAN)
+        if(MSVC)
+            message(WARNING "ENABLE_TSAN=ON ignored: ThreadSanitizer is not available on MSVC/Windows. Use Debug-mode ASSERT_AUDIO_THREAD() macro as fallback.")
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+            target_compile_options(ChordJoystickTests PRIVATE -fsanitize=thread -g)
+            target_link_options(ChordJoystickTests PRIVATE -fsanitize=thread)
+            message(STATUS "ThreadSanitizer enabled for ChordJoystickTests")
+        endif()
+    endif()
 endif()
 
 # ─── Plugin target ───────────────────────────────────────────────────────────
