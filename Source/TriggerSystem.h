@@ -56,6 +56,7 @@ public:
         // Joystick movement threshold for joystick-source trigger
         float          joystickX        = 0.0f;
         float          joystickY        = 0.0f;
+        float          joystickThreshold = 0.015f;  // configurable threshold (0.001..0.1)
     };
 
     void processBlock(const ProcessParams& p);
@@ -80,6 +81,9 @@ private:
     // Audio-thread state
     std::array<std::atomic<bool>, 4> gateOpen_     {};
     std::array<int, 4>               activePitch_  {-1,-1,-1,-1};
+
+    // Joystick continuous gate state
+    std::array<int, 4>           joystickStillSamples_ {};  // samples below threshold per voice
 
     // Random trigger clock
     double   randomPhase_     = 0.0;  // samples since last subdivision

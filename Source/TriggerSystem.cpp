@@ -49,15 +49,14 @@ void TriggerSystem::processBlock(const ProcessParams& p)
     const double subdivBeats     = subdivisionBeats(p.randomSubdiv);
     const double samplesPerSubdiv = samplesPerBeat * subdivBeats;
 
-    // ── Detect joystick movement ─────────────────────────────────────────────
-    const float  dx         = p.joystickX - static_cast<float>(prevJoystickX_);
-    const float  dy         = p.joystickY - static_cast<float>(prevJoystickY_);
-    const bool   joyMoved   = (std::abs(dx) + std::abs(dy)) > 0.005f;
+    // ── Joystick continuous gate model ───────────────────────────────────────
+    const float dx = p.joystickX - static_cast<float>(prevJoystickX_);
+    const float dy = p.joystickY - static_cast<float>(prevJoystickY_);
     prevJoystickX_ = p.joystickX;
     prevJoystickY_ = p.joystickY;
-
-    if (joyMoved)
-        joystickTrig_.store(true);
+    const float magnitude        = std::max(std::abs(dx), std::abs(dy));  // Chebyshev distance
+    const bool  joyAboveThreshold = magnitude > p.joystickThreshold;
+    const int   minGateSamples   = static_cast<int>(0.050 * p.sampleRate);  // 50ms floor
 
     // ── Per-sample random clock ───────────────────────────────────────────────
     // We advance the random clock and check for subdivision crossings.
@@ -104,8 +103,18 @@ void TriggerSystem::processBlock(const ProcessParams& p)
         }
         else if (src == TriggerSource::Joystick)
         {
-            if (joystickTrig_.load())
-                trigger = true;
+            if (joyAboveThreshold)
+            {
+                joystickStillSamples_[v] = 0;
+                if (!gateOpen_[v].load())
+                    trigger = true;           // open gate on threshold-crossing
+            }
+            else
+            {
+                joystickStillSamples_[v] += p.blockSize;
+                if (gateOpen_[v].load() && joystickStillSamples_[v] >= minGateSamples)
+                    fireNoteOff(v, ch, 0, p);  // close gate after 50ms stillness
+            }
         }
         else if (src == TriggerSource::Random)
         {
@@ -121,7 +130,8 @@ void TriggerSystem::processBlock(const ProcessParams& p)
         }
     }
 
-    // Joystick trig is consumed once all joystick-source voices have been processed
+    // joystickTrig_ is kept for external callers (notifyJoystickMoved) but the
+    // continuous gate model in the per-voice loop no longer uses it here.
     joystickTrig_.store(false);
 }
 
@@ -133,6 +143,7 @@ void TriggerSystem::resetAllGates()
         activePitch_[v] = -1;
         padPressed_[v].store(false);
         padJustFired_[v].store(false);
+        joystickStillSamples_[v] = 0;
     }
     allTrigger_.store(false);
     joystickTrig_.store(false);

@@ -22,6 +22,9 @@ namespace ParamID
     static const juce::String useCustomScale   = "useCustomScale";
     // scaleNote0..scaleNote11 generated inline
 
+    // Trigger threshold
+    static const juce::String joystickThreshold = "joystickThreshold";
+
     // Trigger
     static const juce::String triggerSource0   = "triggerSource0";
     static const juce::String triggerSource1   = "triggerSource1";
@@ -83,8 +86,9 @@ PluginProcessor::createParameterLayout()
     addInt  (ParamID::thirdOctave,     "Third Octave",     -3,  3,  0);
     addInt  (ParamID::fifthOctave,     "Fifth Octave",     -3,  3,  0);
     addInt  (ParamID::tensionOctave,   "Tension Octave",   -3,  3,  0);
-    addFloat(ParamID::joystickXAtten,  "Joy X Attenuator",  0.0f, 127.0f, 48.0f);
-    addFloat(ParamID::joystickYAtten,  "Joy Y Attenuator",  0.0f, 127.0f, 48.0f);
+    addFloat(ParamID::joystickXAtten,     "Joy X Attenuator",   0.0f, 127.0f, 48.0f);
+    addFloat(ParamID::joystickYAtten,     "Joy Y Attenuator",   0.0f, 127.0f, 48.0f);
+    addFloat(ParamID::joystickThreshold,  "Joystick Threshold", 0.001f, 0.1f, 0.015f);
 
     // ── Scale ─────────────────────────────────────────────────────────────────
     {
@@ -335,11 +339,12 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         }
     };
 
-    tp.blockSize    = blockSize;
-    tp.sampleRate   = sampleRate_;
-    tp.bpm          = lp.bpm;
-    tp.joystickX    = chordP.joystickX;
-    tp.joystickY    = chordP.joystickY;
+    tp.blockSize         = blockSize;
+    tp.sampleRate        = sampleRate_;
+    tp.bpm               = lp.bpm;
+    tp.joystickX         = chordP.joystickX;
+    tp.joystickY         = chordP.joystickY;
+    tp.joystickThreshold = apvts.getRawParameterValue(ParamID::joystickThreshold)->load();
     for (int v = 0; v < 4; ++v)
     {
         tp.sources[v]      = src[v];
