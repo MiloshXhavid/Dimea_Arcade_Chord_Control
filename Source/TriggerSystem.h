@@ -24,6 +24,12 @@ public:
     // (voiceIndex, midiPitch, isNoteOn, sampleOffset)
     using NoteCallback = std::function<void(int, int, bool, int)>;
 
+    // Called when pitch bend must be sent for a joystick-source voice.
+    // (voiceIndex, bendValue [-8191..8191], sampleOffset)
+    // Also used for the RPN pitch-bend-range setup sequence:
+    // a special overload sends the full RPN CC sequence at gate-open time.
+    using BendCallback = std::function<void(int, int, int)>;
+
     TriggerSystem();
 
     // ── Called from UI / gamepad thread ──────────────────────────────────────
@@ -41,6 +47,7 @@ public:
     struct ProcessParams
     {
         NoteCallback   onNote;
+        BendCallback   onBend;           // pitch bend + RPN setup for JOY voices
         int            blockSize        = 512;
         double         sampleRate       = 44100.0;
         double         bpm              = 120.0;
@@ -85,6 +92,7 @@ private:
     // Joystick continuous gate state
     std::array<int, 4>           joystickStillSamples_ {};  // samples below threshold per voice
     std::array<int, 4>           joyActivePitch_       {-1,-1,-1,-1};  // MIDI pitch currently sounding per JOY voice (-1 = silent)
+    std::array<int, 4>           joyLastBendValue_     {};   // last pitch-bend value sent per voice (-8191..8191), 0 = centred
 
     // Random trigger clock
     double   randomPhase_     = 0.0;  // samples since last subdivision
@@ -97,4 +105,6 @@ private:
 
     void fireNoteOn (int voice, int pitch, int ch, int sampleOff, const ProcessParams& p);
     void fireNoteOff(int voice, int ch, int sampleOff, const ProcessParams& p);
+    void sendBendRangeRPN(int voice, int ch, int sampleOff, const ProcessParams& p);
+    void sendPitchBend  (int voice, int ch, int bendValue, int sampleOff, const ProcessParams& p);
 };

@@ -1,11 +1,14 @@
 #include "TriggerSystem.h"
 #include <cmath>
+#include <limits>
 
 TriggerSystem::TriggerSystem()
 {
     for (auto& a : padPressed_)   a.store(false);
     for (auto& a : padJustFired_) a.store(false);
     for (auto& a : gateOpen_)     a.store(false);
+    for (int v = 0; v < 4; ++v)
+        joyLastBendValue_[v] = 0;
 }
 
 // ── UI / gamepad thread ───────────────────────────────────────────────────────
@@ -112,23 +115,27 @@ void TriggerSystem::processBlock(const ProcessParams& p)
 
                 if (!gateOpen_[v].load())
                 {
-                    // Gate was closed — open it and record the sounding pitch
+                    // Gate was closed — set pitch-bend range via RPN, reset bend,
+                    // then open the gate with a note-on at the current pitch.
                     int pitch = p.heldPitches[v];
+                    sendBendRangeRPN(v, ch, 0, p);
+                    joyLastBendValue_[v] = 0;
                     fireNoteOn(v, pitch, ch, 0, p);
                     joyActivePitch_[v] = pitch;
                     // trigger flag already handled by fireNoteOn — skip common trigger path
                 }
                 else
                 {
-                    // Gate already open — check if quantized pitch changed while moving
-                    int currentPitch = p.heldPitches[v];
-                    if (currentPitch != joyActivePitch_[v])
-                    {
-                        // Pitch changed during movement — retrigger at new pitch immediately
-                        fireNoteOff(v, ch, 0, p);
-                        fireNoteOn(v, currentPitch, ch, 0, p);
-                        joyActivePitch_[v] = currentPitch;
-                    }
+                    // Gate already open — update pitch via pitch bend instead of retrigger.
+                    int targetPitch  = p.heldPitches[v];
+                    int bendSemitones = targetPitch - joyActivePitch_[v];
+                    // Clamp to ±12 (matches the RPN range we set)
+                    bendSemitones = juce::jlimit(-12, 12, bendSemitones);
+                    // Convert to MIDI pitch bend value (±8191 for ±12 semitones)
+                    int bendValue = static_cast<int>(bendSemitones / 12.0f * 8191.0f);
+
+                    if (bendValue != joyLastBendValue_[v])
+                        sendPitchBend(v, ch, bendValue, 0, p);
                 }
             }
             else
@@ -138,15 +145,25 @@ void TriggerSystem::processBlock(const ProcessParams& p)
 
                 if (gateOpen_[v].load() && joystickStillSamples_[v] >= retriggerSamples)
                 {
-                    // 500ms of stillness — check if quantized pitch has changed
+                    // 500ms of stillness — settle: reset pitch bend and optionally retrigger
                     int currentPitch = p.heldPitches[v];
+
                     if (currentPitch != joyActivePitch_[v])
                     {
-                        // Pitch changed — retrigger: note-off then note-on at new pitch
+                        // Pitch changed while joystick was moving — retrigger at new pitch
+                        // Reset bend first so the note-off goes to the original sounding pitch
+                        sendPitchBend(v, ch, 0, 0, p);
                         fireNoteOff(v, ch, 0, p);
                         fireNoteOn(v, currentPitch, ch, 0, p);
                         joyActivePitch_[v] = currentPitch;
                     }
+                    else
+                    {
+                        // Pitch unchanged — just snap the bend back to 0 (exact semitone)
+                        if (joyLastBendValue_[v] != 0)
+                            sendPitchBend(v, ch, 0, 0, p);
+                    }
+
                     // Reset counter so we don't retrigger again next block
                     joystickStillSamples_[v] = 0;
                 }
@@ -184,6 +201,7 @@ void TriggerSystem::resetAllGates()
         padJustFired_[v].store(false);
         joystickStillSamples_[v] = 0;
         joyActivePitch_[v]       = -1;
+        joyLastBendValue_[v]     = 0;
     }
     allTrigger_.store(false);
     joystickTrig_.store(false);
@@ -206,4 +224,28 @@ void TriggerSystem::fireNoteOff(int voice, int ch, int sampleOff,
     gateOpen_[voice].store(false);
     activePitch_[voice] = -1;
     p.onNote(voice, pitch, false, sampleOff);
+}
+
+// Send RPN 0 (pitch bend range) CC sequence: ±12 semitones.
+// Must be called before the gate-open note-on so the synth is configured.
+// ch is 0-based (passed straight through to onBend which will convert to 1-based).
+void TriggerSystem::sendBendRangeRPN(int voice, int ch, int sampleOff,
+                                      const ProcessParams& p)
+{
+    if (!p.onBend) return;
+    // Encode the RPN CC sequence as a special sentinel bend value that the
+    // PluginProcessor's onBend lambda recognises.
+    // We use a separate path: pass INT_MIN as a flag so the callback emits
+    // the full RPN setup instead of a plain pitchWheel message.
+    p.onBend(voice, std::numeric_limits<int>::min(), sampleOff);
+}
+
+// Send a plain pitch-bend message and track the last value.
+// ch is 0-based.
+void TriggerSystem::sendPitchBend(int voice, int ch, int bendValue, int sampleOff,
+                                   const ProcessParams& p)
+{
+    if (!p.onBend) return;
+    joyLastBendValue_[voice] = bendValue;
+    p.onBend(voice, bendValue, sampleOff);
 }
