@@ -8,22 +8,22 @@ Core value: Continuous harmonic navigation via joystick with per-voice sample-an
 
 ## Current Position
 
-- **Phase:** 03 of 7 — Core MIDI Output and Note-Off Guarantee
-- **Plan:** 03-01 (not started)
-- **Status:** pending
+- **Phase:** 02 of 7 — Core Engine Validation
+- **Plan:** 02-02 (not started)
+- **Status:** in-progress
 
 ## Progress
 
 ```
 Phase 01 [████░░░░░░]   Build Foundation    (partial — plugin crashes in Ableton)
-Phase 02 [──────────]   Engine Validation   (skipped — no Catch2 per user preference)
+Phase 02 [█░░░░░░░░░]   Engine Validation   (02-01 complete — ScaleQuantizer tests green)
 Phase 03 [░░░░░░░░░░]   Core MIDI Output
 Phase 04 [░░░░░░░░░░]   Trigger Sources
 Phase 05 [░░░░░░░░░░]   Looper Hardening
 Phase 06 [░░░░░░░░░░]   SDL2 Gamepad
 Phase 07 [░░░░░░░░░░]   Distribution
 
-Overall: [░░░░░░░░░░] ~10% (Phase 01 partial, Phase 02 skipped)
+Overall: [░░░░░░░░░░] ~15% (Phase 01 partial, Phase 02 in-progress 1/2 plans done)
 ```
 
 ## What's Been Built
@@ -38,6 +38,7 @@ Overall: [░░░░░░░░░░] ~10% (Phase 01 partial, Phase 02 skipp
 - **[NEW] CMakeLists.txt fixed: JUCE 8.0.4 pinned, static CRT set (01-01)**
 - **[NEW] PluginProcessor.cpp fixed: Ableton dummy bus, isBusesLayoutSupported updated (01-01)**
 - **[NEW] Build verified: ChordJoystick.vst3 compiled and installed (Visual Studio 18 2026)**
+- **[NEW] Catch2 v3.8.1 FetchContent added, ChordJoystickTests target, ScaleQuantizer 218 assertions green (02-01)**
 
 ## Key Decisions
 
@@ -52,6 +53,9 @@ Overall: [░░░░░░░░░░] ~10% (Phase 01 partial, Phase 02 skipp
 | Quantize ties → down | Deterministic behavior at equidistance |
 | Lock-free LooperEngine | Required before DAW testing — current mutex impl is unsafe |
 | JUCE 8.0.4 BusesLayout API | getMainInputChannels()/getMainOutputChannels() — NOT the Count() variants |
+| Catch2 placed after SDL2 MakeAvailable | Ensures static CRT setting already applied; prevents LNK2038 |
+| Test target compiles .cpp directly | Not linking ChordJoystick plugin target — avoids GUI/DAW deps in headless tests |
+| ASCII hyphens in Catch2 test names | Windows ctest garbles Unicode em-dash in filter arguments |
 
 ## Known Issues (Must Fix Before Shipping)
 
@@ -75,5 +79,5 @@ Overall: [░░░░░░░░░░] ~10% (Phase 01 partial, Phase 02 skipp
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Phase 01 partial — advancing to Phase 03 by user decision. Phase 02 skipped (no Catch2).
-Resume file: .planning/phases/03-core-midi-output/
+Stopped at: Completed 02-01-PLAN.md — ScaleQuantizer test suite green (218 assertions, 6 test cases).
+Resume file: .planning/phases/02-core-engine-validation/02-02-PLAN.md
