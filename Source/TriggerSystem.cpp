@@ -118,7 +118,18 @@ void TriggerSystem::processBlock(const ProcessParams& p)
                     joyActivePitch_[v] = pitch;
                     // trigger flag already handled by fireNoteOn — skip common trigger path
                 }
-                // Gate already open: hold note, no retrigger during motion
+                else
+                {
+                    // Gate already open — check if quantized pitch changed while moving
+                    int currentPitch = p.heldPitches[v];
+                    if (currentPitch != joyActivePitch_[v])
+                    {
+                        // Pitch changed during movement — retrigger at new pitch immediately
+                        fireNoteOff(v, ch, 0, p);
+                        fireNoteOn(v, currentPitch, ch, 0, p);
+                        joyActivePitch_[v] = currentPitch;
+                    }
+                }
             }
             else
             {
