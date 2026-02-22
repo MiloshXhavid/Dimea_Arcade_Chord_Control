@@ -53,7 +53,7 @@ Plans:
 
 **Status:** in-progress (1/2 plans done)
 
-**Plans:** 2 plans (1 complete)
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 03-01-PLAN.md — Note-off guarantee and LED fix (TriggerSystem::resetAllGates, processBlockBypassed, releaseResources, green gate LED, channel conflict warning) — DONE: build clean, 15/15 tests pass

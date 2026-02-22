@@ -9,21 +9,21 @@ Core value: Continuous harmonic navigation via joystick with per-voice sample-an
 ## Current Position
 
 - **Phase:** 03 of 7 — Core MIDI Output and Note-Off Guarantee
-- **Plan:** 03-01 (complete)
-- **Status:** In progress (1/2 plans done)
+- **Plan:** 03-02 (complete)
+- **Status:** COMPLETE (2/2 plans done)
 
 ## Progress
 
 ```
 Phase 01 [████░░░░░░]   Build Foundation    (partial — plugin crashes in Ableton)
 Phase 02 [██████████]   Engine Validation   (COMPLETE — ScaleQuantizer+ChordEngine 15 tests green, checkpoint approved)
-Phase 03 [█████░░░░░]   Core MIDI Output    (in progress — 1/2 plans done, note-off guarantee complete)
+Phase 03 [██████████]   Core MIDI Output    (COMPLETE — 2/2 plans done, all 6 DAW tests passed in Reaper)
 Phase 04 [░░░░░░░░░░]   Trigger Sources
 Phase 05 [░░░░░░░░░░]   Looper Hardening
 Phase 06 [░░░░░░░░░░]   SDL2 Gamepad
 Phase 07 [░░░░░░░░░░]   Distribution
 
-Overall: [███░░░░░░░] ~30% (Phase 01 partial, Phase 02 complete 2/2, Phase 03 in progress 1/2)
+Overall: [████░░░░░░] ~40% (Phase 01 partial, Phase 02 complete 2/2, Phase 03 complete 2/2)
 ```
 
 ## What's Been Built
@@ -41,6 +41,7 @@ Overall: [███░░░░░░░] ~30% (Phase 01 partial, Phase 02 compl
 - **[NEW] Catch2 v3.8.1 FetchContent added, ChordJoystickTests target, ScaleQuantizer 218 assertions green (02-01)**
 - **[NEW] ChordEngine 9-case test suite added; combined suite 15 tests, 0 failures; axis routing, transpose, octave offsets, MIDI clamping, scale quantization verified (02-02)**
 - **[NEW] TriggerSystem::resetAllGates() added; processBlockBypassed() flushes note-offs on bypass; releaseResources() calls resetAllGates(); noteOff uses explicit (uint8_t)0; green gate LEDs; channel conflict warning (03-01)**
+- **[NEW] DAW verification complete: all 6 Reaper tests passed — 4-voice note-on/off, retrigger safety, bypass flush, transport sustain, green LEDs, channel conflict warning (03-02)**
 
 ## Key Decisions
 
@@ -63,6 +64,8 @@ Overall: [███░░░░░░░] ~30% (Phase 01 partial, Phase 02 compl
 | noteOff explicit (uint8_t)0 velocity | 3-arg form avoids host interpretation ambiguity vs 2-arg form |
 | Gate LED uses Clr::gateOn (green) | Corrects semantic mismatch — green universally understood as open/active |
 | channelConflictShown_ cache | Prevents setVisible() being called every 30 Hz tick when state is stable |
+| Reaper as DAW verification target | Ableton crashes on instantiation (deferred); Reaper provides full MIDI monitoring without the crash |
+| 6-test structured DAW protocol | Discrete test cases: basic output, LED color, retrigger, bypass flush, transport, conflict UI — all passed 03-02 |
 
 ## Known Issues (Must Fix Before Shipping)
 
@@ -86,5 +89,5 @@ Overall: [███░░░░░░░] ~30% (Phase 01 partial, Phase 02 compl
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: 03-01-PLAN.md fully complete. Note-off guarantee + gate LED + channel conflict warning done. Next: Phase 03 Plan 02 (DAW verification in Reaper).
-Resume file: .planning/phases/03-core-midi-output-and-note-off-guarantee/03-02-PLAN.md
+Stopped at: 03-02-PLAN.md fully complete. Phase 03 complete. All 6 Reaper DAW verification tests passed. Next: Phase 04 (Trigger Sources).
+Resume file: .planning/phases/04-trigger-sources/ (next phase)
