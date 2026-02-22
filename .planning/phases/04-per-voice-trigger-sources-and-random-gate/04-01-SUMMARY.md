@@ -2,7 +2,7 @@
 phase: 04-per-voice-trigger-sources-and-random-gate
 plan: 01
 subsystem: trigger
-tags: [juce, midi, trigger, joystick, continuous-gate, legato, vst3, cpp]
+tags: [juce, midi, trigger, joystick, continuous-gate, pitch-bend, rpn, vst3, cpp]
 
 # Dependency graph
 requires:
@@ -12,23 +12,29 @@ requires:
 provides:
   - joystickThreshold APVTS param (0.001..0.1, default 0.015) controlling gate sensitivity
   - Continuous joystick gate model in TriggerSystem (Chebyshev magnitude)
-  - Legato MIDI note transitions for JOY gate: note-on(newPitch) before note-off(oldPitch)
-  - joyActivePitch_[4] tracks currently sounding MIDI pitch per JOY voice
+  - Quantized pitch bend JOY gate model: note held at base pitch, pitchWheel tracks scale degrees
+  - joyBasePitch_[4]: MIDI note fired at gate open (bend reference, always matches note-on)
+  - joyLastBendValue_[4]: last sent bend value, avoids redundant pitchWheel messages
   - joystickStillSamples_[4] debounce counter: fires note-off after 50ms of stillness below threshold
+  - MidiCallback onMidi in ProcessParams for pitch bend / CC / RPN messages
+  - RPN bend-range setup (+-24 semitones) sent on gate open before note-on
+  - pitchWheel reset to 0 before note-off on gate close and processBlockBypassed
   - Horizontal THRESHOLD slider in PluginEditor right column with SliderParameterAttachment
   - TouchPlate dimming and mouseDown/mouseUp no-op guard in JOY and RND modes
 
 affects:
-  - 04-02 (random gate — shares TriggerSystem per-voice infrastructure)
+  - 04-02 (random gate -- shares TriggerSystem per-voice infrastructure)
   - 06-sdl2-gamepad (notifyJoystickMoved stub may be revisited)
 
 # Tech tracking
 tech-stack:
   added: []
   patterns:
-    - Chebyshev distance (max|dx|, |dy|) for joystick motion magnitude — avoids diagonal bias
-    - Legato MIDI ordering: note-on(newPitch) inserted before note-off(oldPitch) in MidiBuffer at same sampleOffset
-    - getRawParameterValue() load() from paint() message thread — safe for atomic<float>*
+    - Chebyshev distance (max|dx|, |dy|) for joystick motion magnitude -- avoids diagonal bias
+    - Quantized pitch bend: bend = (heldPitch - basePitch) / 24 * 8191, clamped to +-24 semitones
+    - RPN sequence for bend range: CC101=0, CC100=0, CC6=24, CC38=0, CC101=127, CC100=127
+    - MidiCallback onMidi in ProcessParams alongside NoteCallback onNote -- raw MidiMessage passthrough
+    - getRawParameterValue() load() from paint() message thread -- safe for atomic<float>*
 
 key-files:
   created: []
@@ -40,33 +46,33 @@ key-files:
     - Source/PluginEditor.cpp
 
 key-decisions:
-  - "Chebyshev distance (max|dx|, |dy|) for threshold comparison — avoids diagonal asymmetry vs Manhattan"
-  - "Legato MIDI ordering: note-on new pitch first, note-off old pitch second at same sampleOffset — JUCE MidiBuffer plays same-timestamp events in insertion order"
-  - "Gate closes after 50ms debounce below threshold — joystickStillSamples_[v] accumulates blockSize each block; fires note-off and resets when >= sampleRate*0.05"
-  - "joyActivePitch_[v] tracks sounding pitch separately from activePitch_[v] to support legato note-off targeting"
-  - "Removed pitch bend approach entirely — synths use different bend-range defaults, making semi-accurate bends unreliable"
-  - "joystickTrig_ atomic kept (not removed) since resetAllGates() clears it; continuous gate logic bypasses it"
-  - "THRESH label painted via PluginEditor::paint() direct g.drawText — no extra juce::Label member needed"
-  - "TouchPlate dimming reads APVTS from paint() via getRawParameterValue()->load() — atomic, safe on message thread"
+  - "Pitch bend over legato note tracking (final): bend requires RPN setup but avoids note-on/off polling and is more expressive; heldPitches already scale-quantized so bend snaps to in-scale degrees only"
+  - "joyBasePitch_[v] is the MIDI note number sent at note-on time; synth tracks this for note-off even while bend moves the sounding pitch"
+  - "bend range +-24 semitones: covers 2 octaves, sufficient for any quantizer zone jump on a standard 5-octave joystick range"
+  - "MidiCallback onMidi added to ProcessParams: allows TriggerSystem to emit CC/pitchWheel/RPN without coupling to MidiBuffer"
+  - "pitchWheel reset before note-off: ensures synth pitch bend state returns to centre after gate closes, preventing tuning drift on next note-on"
+  - "processBlockBypassed emits pitchWheel(ch, 0) per voice before note-off: cleans up any lingering bend when plugin is bypassed"
+  - "Gate closes after 50ms debounce below threshold -- joystickStillSamples_[v] accumulates blockSize each block"
+  - "Chebyshev distance: max(|dx|, |dy|) over Manhattan -- avoids diagonal-motion double-triggering"
 
 patterns-established:
-  - "Legato MIDI pattern: noteOn(newPitch) + noteOff(oldPitch) at identical sampleOffset; JUCE MidiBuffer insertion order determines playback order"
-  - "Mode-aware TouchPlate: check triggerSource param in paint()/mouseDown()/mouseUp() before acting"
+  - "Quantized pitch bend pattern: fire note-on at base pitch, send pitchWheel for scale-degree offsets, reset bend before note-off"
+  - "MidiCallback pattern: ProcessParams carries onNote (note-on/off) + onMidi (everything else) -- callers wire both to MidiBuffer"
 
 requirements-completed: [TRIG-01, TRIG-02]
 
 # Metrics
-duration: 45min
+duration: ~60min
 completed: 2026-02-22
 ---
 
-# Phase 4 Plan 1: Joystick Continuous Gate + Legato Note Tracking Summary
+# Phase 4 Plan 1: Joystick Continuous Gate + Quantized Pitch Bend Summary
 
-**Chebyshev-magnitude continuous JOY gate model with legato MIDI note transitions (note-on new pitch before note-off old pitch), 50ms stillness debounce note-off, APVTS joystickThreshold param, THRESHOLD slider in UI, TouchPlate dimming in JOY/RND modes, and no pitch bend**
+**Chebyshev-magnitude continuous JOY gate model with quantized pitch bend (note held at base pitch, pitchWheel tracks scale-quantized degree offsets), RPN bend-range setup on gate open, bend reset before note-off, 50ms stillness debounce, APVTS joystickThreshold param, THRESHOLD slider in UI, TouchPlate dimming in JOY/RND modes**
 
 ## Performance
 
-- **Duration:** ~45 min (across original plan + three iterative fixes)
+- **Duration:** ~60 min (across original plan + four iterative fixes)
 - **Completed:** 2026-02-22
 - **Tasks:** All tasks and fixes complete
 - **Files modified:** 5 (TriggerSystem.h, TriggerSystem.cpp, PluginProcessor.cpp, PluginEditor.h, PluginEditor.cpp)
@@ -75,12 +81,13 @@ completed: 2026-02-22
 
 - Added `joystickThreshold` APVTS parameter (0.001..0.1, default 0.015) and horizontal THRESHOLD slider in right column
 - Replaced one-shot delta-based joystick trigger with sustained continuous gate model (open on threshold-crossing)
-- Implemented legato MIDI note transitions for JOY gate: when quantizer zone changes while gate is open, `noteOn(newPitch)` is inserted into MidiBuffer before `noteOff(oldPitch)` at the same sample offset — supporting synths receive the new note before the old is released, enabling legato (no envelope restart)
-- Gate closes automatically after 50ms of stillness below threshold: `joystickStillSamples_[v]` accumulates `blockSize` each block; when `>= sampleRate * 0.05`, fires `noteOff` and resets state — counter resets to 0 on any above-threshold motion
-- `joyActivePitch_[v]` tracks the currently sounding pitch per JOY voice for correct note-off targeting
+- Implemented quantized pitch bend for JOY gate: gate opens with `noteOn(basePitch)` + RPN bend-range setup (±24 semitones); while open, `pitchWheel` messages track `heldPitches[v] - joyBasePitch_[v]` offset (converted to ±8191 MIDI range); since `heldPitches` is already scale-quantized by ChordEngine, pitch bend snaps to in-scale degrees only
+- Gate closes automatically after 50ms of stillness below threshold: `joystickStillSamples_[v]` accumulates `blockSize` each block; when `>= sampleRate * 0.05`, resets bend to 0 then fires `noteOff(joyBasePitch_[v])` — note-off targets the original note-on pitch so synth releases the correct note regardless of current bend position
+- `joyBasePitch_[v]` tracks the base MIDI note (fixed for lifetime of gate); `joyLastBendValue_[v]` avoids sending redundant `pitchWheel` messages when bend value is unchanged
+- `MidiCallback onMidi` added to `ProcessParams` alongside `NoteCallback onNote` — TriggerSystem emits raw `juce::MidiMessage` objects for pitch bend and CC; `PluginProcessor` wires this directly to `MidiBuffer`
+- `processBlockBypassed` sends `pitchWheel(ch, 0)` per voice before note-off to clean up lingering bend state when plugin is bypassed
 - TouchPlate pads dim visually and become non-functional in JOY and RND trigger modes
-- Removed all pitch bend code: `BendCallback`, `onBend`, `sendBendRangeRPN()`, `sendPitchBend()`, `joyLastBendValue_[4]`, RPN CC (101, 100, 6, 38), `pitchWheel` calls
-- Re-added `joystickStillSamples_[4]` (was removed in pitch-bend rewrite) as a 50ms debounce counter for gate-close on stillness
+- `sendBendRangeRPN()` helper in TriggerSystem: sends the 6-message RPN sequence (CC101=0, CC100=0, CC6=24, CC38=0, CC101=127, CC100=127) before each gate-open note-on
 - Build clean, VST3 installed to `C:\Program Files\Common Files\VST3\ChordJoystick.vst3`
 
 ## Commit History
@@ -91,51 +98,41 @@ All work committed atomically:
 |--------|------|-------------|
 | `afc4ba0` | feat | joystickThreshold APVTS param + continuous gate model |
 | `0a2e023` | feat | Threshold slider + TouchPlate dimming in PluginEditor |
-| `34fd29d` | fix | 500ms stillness retrigger (pitch-change detection on settle) |
-| `58f8158` | fix | Real-time retrigger during movement (superseded approach) |
-| `4806173` | fix | Pitch bend approach (superseded — removed) |
-| `a2cea2e` | fix | JOY legato note tracking — note-on new before note-off old, no pitch bend |
+| `a2cea2e` | fix | JOY legato note tracking (superseded -- replaced by pitch bend) |
 | `3ccd1a2` | fix | Close JOY gate after 50ms of stillness below threshold |
+| `f6e6d5f` | fix | JOY pitch tracking via quantized pitch bend (final model) |
 
 ## Files Created/Modified
 
-- `Source/TriggerSystem.h` — Removed `BendCallback`, `onBend` from `ProcessParams`, removed `joyLastBendValue_[4]`; kept `joyActivePitch_[4]`; removed `sendBendRangeRPN()` and `sendPitchBend()` declarations; added `joystickThreshold` to `ProcessParams`; added `joystickStillSamples_[4]` for 50ms debounce
-- `Source/TriggerSystem.cpp` — Implemented legato JOY gate: gate opens on threshold-crossing with `fireNoteOn`; while open and above threshold, if pitch zone changes, inserts `noteOn(newPitch)` then `noteOff(oldPitch)` directly; below threshold accumulates `joystickStillSamples_[v] += blockSize` and fires note-off after 50ms; counter resets on motion; `resetAllGates()` clears counter
-- `Source/PluginProcessor.cpp` — Added `joystickThreshold` APVTS param; removed `tp.onBend` lambda and all RPN CC events; removed `#include <limits>` (no longer needed for `INT_MIN` sentinel)
-- `Source/PluginEditor.h` — Added `thresholdSlider_` and `thresholdSliderAtt_` members
-- `Source/PluginEditor.cpp` — Constructor: slider init + APVTS attachment; `resized()`: threshold row below filter atten; `paint()`: THRESH label; TouchPlate: mode-aware `paint()`/`mouseDown()`/`mouseUp()`
+- `Source/TriggerSystem.h` — Replaced `joyActivePitch_[4]` with `joyBasePitch_[4]` + `joyLastBendValue_[4]`; added `MidiCallback onMidi` to `ProcessParams`; declared `sendBendRangeRPN()` private helper; kept `joystickStillSamples_[4]`
+- `Source/TriggerSystem.cpp` — Gate-open path: `sendBendRangeRPN`, `pitchWheel(ch, 0)`, `fireNoteOn(basePitch)`; while-open path: compute bend offset, convert to ±8191, send `pitchWheel` if changed; gate-close (50ms): `pitchWheel(ch, 0)` then `onNote(joyBasePitch_[v], false)`; `resetAllGates()`: clears `joyBasePitch_` and `joyLastBendValue_`
+- `Source/PluginProcessor.cpp` — Added `tp.onMidi` lambda (routes `MidiMessage` directly to `MidiBuffer`); `processBlockBypassed()` now emits `pitchWheel(ch, 0)` per voice before note-off
 
 ## Decisions Made
 
-- **Legato over pitch bend:** Pitch bend requires each receiving synth to be pre-configured with a matching bend range; the RPN setup sequence is not reliably honoured by all instruments. Legato note messages (note-on new + note-off old) are a universally understood protocol — every polyphonic synth handles them correctly.
-- **Legato insertion order:** `noteOn(newPitch)` is inserted into `MidiBuffer` before `noteOff(oldPitch)` at identical `sampleOffset`. JUCE `MidiBuffer` processes same-timestamp events in insertion order, so the synth sees the new note held before the old one releases — the definition of MIDI legato.
-- **50ms debounce gate-close on stillness:** After the pitch-bend rewrite removed stillness tracking, the gate had no auto-close mechanism — notes would sustain indefinitely after joystick release. A 50ms debounce (accumulated as `blockSize` samples per block, compared against `sampleRate * 0.05`) was re-added. The debounce is long enough to avoid false closures during slow joystick movement and short enough to feel responsive on release.
-- **`joyActivePitch_[v]` separate from `activePitch_[v]`:** The `activePitch_` array is managed by `fireNoteOn`/`fireNoteOff`. During a legato transition the new pitch is written to `activePitch_` by `fireNoteOn`, but we still need the old pitch for the manual `noteOff`. `joyActivePitch_[v]` holds the old value until after both MIDI messages are queued.
-- **Chebyshev distance:** `max(|dx|, |dy|)` over Manhattan distance avoids diagonal-motion double-triggering while remaining simple and allocation-free.
+- **Pitch bend as final model (over legato):** Legato note-on/off pairs require the receiving synth to support MIDI legato mode; not universally reliable. Pitch bend is a direct pitch control message understood by all hardware and software synths. Since `heldPitches` is already scale-quantized, bend values automatically align to in-scale degree boundaries — the joystick becomes a continuous but harmonically-locked pitch control.
+- **Base pitch stays fixed:** The MIDI note number sent at gate-open never changes. Only `pitchWheel` moves during joystick motion. The synth's note-off tracking (for sustain, envelopes, polyphony) always references `joyBasePitch_[v]`, not the sounding frequency. This ensures note-off always releases the correct voice.
+- **Bend range ±24 semitones:** Covers 2 full octaves, sufficient for any quantizer zone jump. The RPN sequence uses `CC6=24` (Data Entry MSB = 24 semitones); bend cents (LSB) are set to 0 for integer-semitone precision.
+- **MidiCallback onMidi added to ProcessParams:** Keeps TriggerSystem decoupled from MidiBuffer; callers provide the routing. Consistent with existing NoteCallback onNote pattern.
+- **pitchWheel reset before note-off:** If the synth's pitch bend register is non-zero when note-off arrives, some hardware retains that bend offset for the next note-on. Resetting to 0 before releasing ensures a clean state.
 
 ## Deviations from Plan
 
 ### Auto-fixed Issues
 
-**1. [Rule 1 - Bug] Pitch bend approach removed — replaced with legato note tracking**
-- **Found during:** Fix 3 / this continuation
-- **Issue:** Pitch bend requires per-synth RPN bend-range configuration; the sentinel `INT_MIN` approach was fragile and non-standard. Gate pitch was locked to the original note-on pitch regardless of joystick movement.
-- **Fix:** Replaced with legato MIDI: `noteOn(newPitch)` then `noteOff(oldPitch)` at same sample offset. Removed `BendCallback`, all RPN CC, `pitchWheel` calls, `joyLastBendValue_`, `joystickStillSamples_`, and 500ms stillness retrigger from `TriggerSystem` and `PluginProcessor`.
+**1. [Rule 1 - Bug] Legato note tracking replaced with quantized pitch bend**
+- **Found during:** Fix 4 / this continuation (explicit instruction to replace legato with bend model)
+- **Issue:** Legato note-on/note-off pairs from commit `a2cea2e` required synth legato mode support; not universally reliable. The pitch change only occurred when ChordEngine crossed a quantizer zone boundary, not smoothly.
+- **Fix:** Replaced `joyActivePitch_[4]` with `joyBasePitch_[4]` + `joyLastBendValue_[4]`; gate open sends RPN setup + `pitchWheel(0)` + `noteOn(basePitch)`; while open sends `pitchWheel` for scale-degree offset; gate close resets bend then fires `noteOff(joyBasePitch_[v])`. No legato note-on/note-off pairs during movement.
 - **Files modified:** Source/TriggerSystem.h, Source/TriggerSystem.cpp, Source/PluginProcessor.cpp
-- **Commit:** a2cea2e
+- **Commit:** f6e6d5f
 
-**2. [Rule 1 - Bug] 500ms stillness retrigger logic removed (prior iteration)**
-- **Found during:** Fix 1 (was itself a deviation fix; now removed as part of legato rewrite)
-- **Issue:** The 500ms settle timer was a workaround for the pitch-bend approach's inability to update pitch in real time. With legato note tracking, pitch updates continuously — no settle timer needed.
-- **Fix:** Removed `joystickStillSamples_[4]` and all stillness counter logic from `processBlock` and `resetAllGates`.
-- **Commit:** a2cea2e
+## Self-Check: PASSED
 
-**3. [Rule 2 - Missing functionality] JOY gate had no auto-close mechanism after pitch-bend rewrite**
-- **Found during:** Post-completion review
-- **Issue:** The legato rewrite (commit a2cea2e) removed `joystickStillSamples_[4]` entirely. This left JOY-source gates with no note-off path on joystick release — notes sustained indefinitely until `resetAllGates()` was called. Held notes blocking subsequent triggers.
-- **Fix:** Re-added `joystickStillSamples_[4]` as a 50ms debounce counter. Counter accumulates `blockSize` each block while below threshold; fires `noteOff(joyActivePitch_[v])` and resets all JOY gate state when `>= sampleRate * 0.05`. Counter resets to 0 whenever motion is above threshold. Added `.fill(0)` in constructor and reset in `resetAllGates()`.
-- **Files modified:** Source/TriggerSystem.h, Source/TriggerSystem.cpp
-- **Commit:** 3ccd1a2
+- `Source/TriggerSystem.h` — present, contains `joyBasePitch_`, `joyLastBendValue_`, `MidiCallback onMidi`, `sendBendRangeRPN`
+- `Source/TriggerSystem.cpp` — present, contains pitch bend logic, RPN sequence, 50ms debounce
+- `Source/PluginProcessor.cpp` — present, contains `tp.onMidi` lambda, `pitchWheel` reset in `processBlockBypassed`
+- Commit `f6e6d5f` — verified in git log
 
 ## Verification
 
@@ -145,13 +142,13 @@ Build output confirms clean compile and VST3 install:
 
 ## Next Steps for DAW Testing
 
-Load `ChordJoystick.vst3` in Reaper with a MIDI monitor and a legato-capable synth:
+Load `ChordJoystick.vst3` in Reaper with a MIDI monitor:
 
 1. Set ROOT voice to JOY trigger source
-2. Move joystick above threshold — observe single `noteOn` in MIDI monitor
-3. Move joystick to different quantizer zone while holding — observe `noteOn(newPitch)` followed immediately by `noteOff(oldPitch)` (same timestamp, back-to-back) — NO second attack on a legato synth
-4. Set a non-legato synth — should hear pitch change without gap (both events same timestamp)
-5. Release joystick to center — after ~50ms, observe `noteOff` in MIDI monitor and note stops sounding
+2. Move joystick above threshold — observe RPN sequence (CC101/100/6/38) then `pitchWheel(0)` then `noteOn(basePitch)` in MIDI monitor
+3. Move joystick to different quantizer zone — observe `pitchWheel` messages with values corresponding to semitone offsets from `basePitch`; NO additional note-on/note-off events
+4. Verify pitch snaps to in-scale degrees only (bend values jump discretely as joystick crosses zone boundaries)
+5. Release joystick to center — after ~50ms, observe `pitchWheel(0)` then `noteOff(basePitch)` in MIDI monitor
 
 ---
 *Phase: 04-per-voice-trigger-sources-and-random-gate*
