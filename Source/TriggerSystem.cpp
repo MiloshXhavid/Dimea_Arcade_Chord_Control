@@ -6,8 +6,7 @@ TriggerSystem::TriggerSystem()
     for (auto& a : padPressed_)   a.store(false);
     for (auto& a : padJustFired_) a.store(false);
     for (auto& a : gateOpen_)     a.store(false);
-    joyBasePitch_.fill(0);
-    joyLastBendValue_.fill(0);
+    joyActivePitch_.fill(-1);
     joystickStillSamples_.fill(0);
 }
 
@@ -44,19 +43,6 @@ static double subdivisionBeats(RandomSubdiv s)
         case RandomSubdiv::ThirtySecond: return 0.125;
     }
     return 0.5;
-}
-
-// Send pitch bend range RPN: ±24 semitones on channel ch1based (1-based).
-// Sequence: CC101=0, CC100=0, CC6=24, CC38=0, CC101=127, CC100=127.
-void TriggerSystem::sendBendRangeRPN(int ch1based, int sampleOff, const ProcessParams& p)
-{
-    if (!p.onMidi) return;
-    p.onMidi(juce::MidiMessage::controllerEvent(ch1based, 101,   0), sampleOff);
-    p.onMidi(juce::MidiMessage::controllerEvent(ch1based, 100,   0), sampleOff);
-    p.onMidi(juce::MidiMessage::controllerEvent(ch1based,   6,  24), sampleOff);
-    p.onMidi(juce::MidiMessage::controllerEvent(ch1based,  38,   0), sampleOff);
-    p.onMidi(juce::MidiMessage::controllerEvent(ch1based, 101, 127), sampleOff);
-    p.onMidi(juce::MidiMessage::controllerEvent(ch1based, 100, 127), sampleOff);
 }
 
 void TriggerSystem::processBlock(const ProcessParams& p)
@@ -120,37 +106,19 @@ void TriggerSystem::processBlock(const ProcessParams& p)
                 if (!gateOpen_[v].load())
                 {
                     // ── Gate OPENS ────────────────────────────────────────────
-                    const int basePitch = p.heldPitches[v];
-
-                    // 1. Configure pitch bend range to ±24 semitones via RPN
-                    //    (send before note-on so synth is ready)
-                    sendBendRangeRPN(ch, 0, p);
-
-                    // 2. Reset bend to centre
-                    if (p.onMidi)
-                        p.onMidi(juce::MidiMessage::pitchWheel(ch, 0), 0);
-                    joyLastBendValue_[v] = 0;
-
-                    // 3. Fire note-on
-                    fireNoteOn(v, basePitch, ch - 1, 0, p);   // fireNoteOn expects 0-based ch
-                    joyBasePitch_[v]         = basePitch;
-                    joystickStillSamples_[v] = 0;
+                    const int pitch = p.heldPitches[v];
+                    fireNoteOn(v, pitch, ch - 1, 0, p);   // sets gateOpen_ and activePitch_
+                    joyActivePitch_[v] = pitch;
                 }
                 else
                 {
                     // ── Gate OPEN + above threshold (joystick moving) ─────────
-                    const int targetPitch   = p.heldPitches[v];  // already scale-quantized
-                    const int bendSemitones = juce::jlimit(-24, 24,
-                                                targetPitch - joyBasePitch_[v]);
-
-                    // Convert to MIDI pitch bend value (±8191 maps to ±24 semitones)
-                    const int bendValue = static_cast<int>(
-                        static_cast<float>(bendSemitones) / 24.0f * 8191.0f);
-
-                    if (bendValue != joyLastBendValue_[v] && p.onMidi)
+                    const int newPitch = p.heldPitches[v];
+                    if (newPitch != joyActivePitch_[v])
                     {
-                        p.onMidi(juce::MidiMessage::pitchWheel(ch, bendValue), 0);
-                        joyLastBendValue_[v] = bendValue;
+                        fireNoteOff(v, ch - 1, 0, p);     // old pitch off first
+                        fireNoteOn (v, newPitch, ch - 1, 0, p);  // new pitch on
+                        joyActivePitch_[v] = newPitch;
                     }
                 }
             }
@@ -163,17 +131,8 @@ void TriggerSystem::processBlock(const ProcessParams& p)
                 if (gateOpen_[v].load() && joystickStillSamples_[v] >= closeAfter)
                 {
                     // Joystick has been still for 50ms — close the gate.
-                    // Reset bend to centre before releasing the note.
-                    if (joyLastBendValue_[v] != 0 && p.onMidi)
-                    {
-                        p.onMidi(juce::MidiMessage::pitchWheel(ch, 0), 0);
-                        joyLastBendValue_[v] = 0;
-                    }
-                    // Note-off for the base pitch (the note the synth received at note-on).
-                    p.onNote(v, joyBasePitch_[v], false, 0);
-                    gateOpen_[v].store(false);
-                    activePitch_[v]          = -1;
-                    joyBasePitch_[v]         = 0;
+                    fireNoteOff(v, ch - 1, 0, p);   // clears gateOpen_ and activePitch_
+                    joyActivePitch_[v]       = -1;
                     joystickStillSamples_[v] = 0;
                 }
             }
@@ -204,12 +163,12 @@ void TriggerSystem::resetAllGates()
 {
     for (int v = 0; v < 4; ++v)
     {
-        // Any open JOY gate is silenced here.  Bend reset is the caller's
-        // responsibility (processBlockBypassed flushes MIDI before calling this).
+        // Any open JOY gate is silenced here.
+        // Note: the caller (processBlockBypassed) fires noteOff via getActivePitch()
+        // before calling this, so no MIDI is sent here.
         gateOpen_[v].store(false);
         activePitch_[v]          = -1;
-        joyBasePitch_[v]         = 0;
-        joyLastBendValue_[v]     = 0;
+        joyActivePitch_[v]       = -1;
         joystickStillSamples_[v] = 0;
         padPressed_[v].store(false);
         padJustFired_[v].store(false);
