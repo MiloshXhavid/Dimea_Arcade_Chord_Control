@@ -83,7 +83,7 @@ PluginProcessor::createParameterLayout()
     addInt  (ParamID::fifthInterval,   "Fifth Interval",    0, 12,  7);
     addInt  (ParamID::tensionInterval, "Tension Interval",  0, 12, 10);
     addInt  (ParamID::rootOctave,      "Root Octave",       0, 12,  3);
-    addInt  (ParamID::thirdOctave,     "Third Octave",      0, 12,  3);
+    addInt  (ParamID::thirdOctave,     "Third Octave",      0, 12,  4);
     addInt  (ParamID::fifthOctave,     "Fifth Octave",      0, 12,  3);
     addInt  (ParamID::tensionOctave,   "Tension Octave",    0, 12,  3);
     layout.add(std::make_unique<juce::AudioParameterFloat>(

@@ -35,7 +35,7 @@ public:
         int intervals[4] = {0, 4, 7, 10};
 
         // Octave shifts per voice (0..12), default 3
-        int octaves[4] = {3, 3, 3, 3};
+        int octaves[4] = {3, 4, 3, 3};
 
         // Scale quantization
         bool        useCustomScale = false;
