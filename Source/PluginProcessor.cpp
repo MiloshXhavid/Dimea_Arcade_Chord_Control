@@ -31,7 +31,11 @@ namespace ParamID
     static const juce::String triggerSource2   = "triggerSource2";
     static const juce::String triggerSource3   = "triggerSource3";
     static const juce::String randomDensity    = "randomDensity";
-    static const juce::String randomSubdiv     = "randomSubdiv";
+    static const juce::String randomSubdiv0    = "randomSubdiv0";
+    static const juce::String randomSubdiv1    = "randomSubdiv1";
+    static const juce::String randomSubdiv2    = "randomSubdiv2";
+    static const juce::String randomSubdiv3    = "randomSubdiv3";
+    static const juce::String randomGateTime   = "randomGateTime";
 
     // Filter
     static const juce::String filterXAtten     = "filterXAtten";
@@ -118,9 +122,19 @@ PluginProcessor::createParameterLayout()
     addChoice(ParamID::triggerSource1, "Trigger Source Third",   trigSrcNames, 0);
     addChoice(ParamID::triggerSource2, "Trigger Source Fifth",   trigSrcNames, 0);
     addChoice(ParamID::triggerSource3, "Trigger Source Tension", trigSrcNames, 0);
-    addFloat (ParamID::randomDensity,  "Random Density",   0.0f, 1.0f, 0.5f);
-    addChoice(ParamID::randomSubdiv,   "Random Subdivison",
-              { "1/4", "1/8", "1/16", "1/32" }, 1);
+    addFloat (ParamID::randomDensity,  "Random Density",   1.0f, 8.0f, 4.0f);
+    {
+        const juce::StringArray subdivChoices { "1/4", "1/8", "1/16", "1/32" };
+        layout.add(std::make_unique<juce::AudioParameterChoice>(
+            "randomSubdiv0", "Random Subdiv Root",    subdivChoices, 1));
+        layout.add(std::make_unique<juce::AudioParameterChoice>(
+            "randomSubdiv1", "Random Subdiv Third",   subdivChoices, 1));
+        layout.add(std::make_unique<juce::AudioParameterChoice>(
+            "randomSubdiv2", "Random Subdiv Fifth",   subdivChoices, 1));
+        layout.add(std::make_unique<juce::AudioParameterChoice>(
+            "randomSubdiv3", "Random Subdiv Tension", subdivChoices, 1));
+    }
+    addFloat("randomGateTime", "Random Gate Time", 0.0f, 1.0f, 0.5f);
 
     // ── Filter ────────────────────────────────────────────────────────────────
     addFloat(ParamID::filterXAtten, "Filter Cutoff Attenuator",    0.0f, 127.0f, 64.0f);
@@ -359,9 +373,26 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         tp.heldPitches[v]  = heldPitch_[v];
         tp.midiChannels[v] = voiceChs[v];
     }
-    tp.randomDensity = apvts.getRawParameterValue(ParamID::randomDensity)->load();
-    tp.randomSubdiv  = static_cast<RandomSubdiv>(
-        (int)apvts.getRawParameterValue(ParamID::randomSubdiv)->load());
+    tp.randomDensity  = apvts.getRawParameterValue(ParamID::randomDensity)->load();
+    tp.randomGateTime = apvts.getRawParameterValue(ParamID::randomGateTime)->load();
+    // Per-voice random subdivisions (RandomSubdiv is a file-scope enum class in TriggerSystem.h)
+    for (int v = 0; v < 4; ++v)
+    {
+        const int subdivIdx = static_cast<int>(
+            *apvts.getRawParameterValue("randomSubdiv" + juce::String(v)));
+        tp.randomSubdiv[v] = static_cast<RandomSubdiv>(subdivIdx);
+    }
+    // ppqPosition and isDawPlaying (from the existing AudioPlayHead query above)
+    if (hasDaw && pos.isPlaying)
+    {
+        tp.ppqPosition  = pos.ppqPosition;
+        tp.isDawPlaying = true;
+    }
+    else
+    {
+        tp.ppqPosition  = -1.0;
+        tp.isDawPlaying = false;
+    }
 
     trigger_.processBlock(tp);
 

@@ -49,9 +49,14 @@ public:
         int            heldPitches[4]   = {};   // current quantized pitch per voice
         int            midiChannels[4]  = {};   // 1-based
 
-        // Random trigger params
-        RandomSubdiv   randomSubdiv     = RandomSubdiv::Eighth;
-        float          randomDensity    = 0.5f; // 0..1 probability
+        // Random trigger params (per-voice)
+        RandomSubdiv   randomSubdiv[4]  = {};          // per-voice subdivision (was single value)
+        float          randomDensity     = 4.0f;        // hits per bar (1..8; was 0..1 probability)
+        float          randomGateTime    = 0.5f;        // fraction of subdivision for note duration
+
+        // Timing (for DAW-synced random clock)
+        double         ppqPosition       = -1.0;        // beats since session start; -1 = not available
+        bool           isDawPlaying      = false;
 
         // Joystick absolute position (used by ChordEngine for pitch — kept for reference)
         float          joystickX        = 0.0f;
@@ -95,8 +100,12 @@ private:
     std::array<int, 4>           joyPendingPitch_       {-1,-1,-1,-1}; // candidate new pitch (-1 = none)
     std::array<int, 4>           joyPendingSamples_     {0, 0, 0, 0};  // samples spent at joyPendingPitch_
 
-    // Random trigger clock
-    double   randomPhase_     = 0.0;  // samples since last subdivision
+    // Random trigger clock (per-voice)
+    std::array<double,   4> randomPhase_         {};           // samples since last subdiv (fallback clock)
+    std::array<int64_t,  4> prevSubdivIndex_     {-1,-1,-1,-1}; // ppq subdivision index last seen
+    std::array<int,      4> randomGateRemaining_ {};           // samples until auto note-off
+    bool                    wasPlaying_          = false;      // for transport restart detection
+
     double   prevJoystickX_   = 0.0;
     double   prevJoystickY_   = 0.0;
 

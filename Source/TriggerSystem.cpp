@@ -35,24 +35,28 @@ void TriggerSystem::triggerAllNotes()
 
 // ── Audio thread ──────────────────────────────────────────────────────────────
 
-static double subdivisionBeats(RandomSubdiv s)
-{
-    switch (s)
-    {
+// Subdivision helper lambdas (file-scope statics, computed once)
+static auto subdivBeatsFor = [](RandomSubdiv s) -> double {
+    switch (s) {
         case RandomSubdiv::Quarter:      return 1.0;
         case RandomSubdiv::Eighth:       return 0.5;
         case RandomSubdiv::Sixteenth:    return 0.25;
         case RandomSubdiv::ThirtySecond: return 0.125;
     }
     return 0.5;
+};
+
+static float hitsPerBarToProbability(float density, RandomSubdiv subdiv)
+{
+    const float subdivsPerBar = static_cast<float>(
+        subdiv == RandomSubdiv::Quarter ? 4 :
+        subdiv == RandomSubdiv::Eighth  ? 8 :
+        subdiv == RandomSubdiv::Sixteenth ? 16 : 32);
+    return juce::jlimit(0.0f, 1.0f, density / subdivsPerBar);
 }
 
 void TriggerSystem::processBlock(const ProcessParams& p)
 {
-    const double samplesPerBeat   = (p.sampleRate * 60.0) / p.bpm;
-    const double subdivBeats      = subdivisionBeats(p.randomSubdiv);
-    const double samplesPerSubdiv = samplesPerBeat * subdivBeats;
-
     // ── Per-axis delta magnitude for per-voice gate detection ─────────────────
     // Gate detection uses how much the joystick MOVED this block (delta),
     // not its absolute position.  A joystick resting at Y=-1.0 has absY=1.0
@@ -74,15 +78,45 @@ void TriggerSystem::processBlock(const ProcessParams& p)
         return (v < 2) ? absDeltaY : absDeltaX;
     };
 
-    // ── Per-sample random clock ───────────────────────────────────────────────
+    // ── Transport restart detection ───────────────────────────────────────────
+    // Reset subdivision indices on transport restart to avoid stale index
+    if (p.isDawPlaying && !wasPlaying_)
+    {
+        for (int v = 0; v < 4; ++v)
+            prevSubdivIndex_[v] = -1;
+    }
+    wasPlaying_ = p.isDawPlaying;
+
+    // ── Per-voice random subdivision clock ────────────────────────────────────
     const bool allTrig = allTrigger_.exchange(false);
 
-    bool randomFired = false;
-    randomPhase_ += static_cast<double>(p.blockSize);
-    if (randomPhase_ >= samplesPerSubdiv && samplesPerSubdiv > 0.0)
+    bool randomFired[4] = {};
+    for (int v = 0; v < 4; ++v)
     {
-        randomPhase_ = std::fmod(randomPhase_, samplesPerSubdiv);
-        randomFired = true;
+        const double beats            = subdivBeatsFor(p.randomSubdiv[v]);
+        const double beatsPerSec      = p.bpm / 60.0;
+        const double samplesPerSubdiv = (p.sampleRate / beatsPerSec) * beats;
+
+        if (p.isDawPlaying && p.ppqPosition >= 0.0)
+        {
+            // DAW-synced: fire when subdivision index changes
+            const int64_t idx = static_cast<int64_t>(p.ppqPosition / beats);
+            if (idx != prevSubdivIndex_[v])
+            {
+                prevSubdivIndex_[v] = idx;
+                randomFired[v] = true;
+            }
+        }
+        else
+        {
+            // Transport stopped: sample-count fallback
+            randomPhase_[v] += static_cast<double>(p.blockSize);
+            if (samplesPerSubdiv > 0.0 && randomPhase_[v] >= samplesPerSubdiv)
+            {
+                randomPhase_[v] = std::fmod(randomPhase_[v], samplesPerSubdiv);
+                randomFired[v] = true;
+            }
+        }
     }
 
     // ── Per-voice processing ─────────────────────────────────────────────────
@@ -209,16 +243,51 @@ void TriggerSystem::processBlock(const ProcessParams& p)
         }
         else if (src == TriggerSource::Random)
         {
-            if (randomFired && nextRandom() < p.randomDensity)
-                trigger = true;
+            if (randomFired[v])
+            {
+                const float prob = hitsPerBarToProbability(p.randomDensity, p.randomSubdiv[v]);
+                if (nextRandom() < prob)
+                    trigger = true;
+            }
         }
 
         if (trigger)
         {
-            if (gateOpen_[v].load())
-                fireNoteOff(v, ch - 1, 0, p);   // stop previous note first
-            fireNoteOn(v, p.heldPitches[v], ch - 1, 0, p);
+            if (src == TriggerSource::Random)
+            {
+                // Random source: fire note-on and start gate-time countdown
+                if (gateOpen_[v].load())
+                    fireNoteOff(v, ch - 1, 0, p);
+                fireNoteOn(v, p.heldPitches[v], ch - 1, 0, p);
+
+                const double beats            = subdivBeatsFor(p.randomSubdiv[v]);
+                const double beatsPerSec      = p.bpm / 60.0;
+                const double samplesPerSubdiv = (p.sampleRate / beatsPerSec) * beats;
+                const int minDurationSamples  = static_cast<int>(0.010 * p.sampleRate); // 10ms floor
+                randomGateRemaining_[v] = std::max(minDurationSamples,
+                    static_cast<int>(p.randomGateTime * samplesPerSubdiv));
+            }
+            else
+            {
+                if (gateOpen_[v].load())
+                    fireNoteOff(v, ch - 1, 0, p);   // stop previous note first
+                fireNoteOn(v, p.heldPitches[v], ch - 1, 0, p);
+            }
         }
+
+        // Auto note-off countdown for RND source
+        if (src == TriggerSource::Random && gateOpen_[v].load() && randomGateRemaining_[v] > 0)
+        {
+            randomGateRemaining_[v] -= p.blockSize;
+            if (randomGateRemaining_[v] <= 0)
+            {
+                randomGateRemaining_[v] = 0;
+                fireNoteOff(v, ch - 1, p.blockSize - 1, p);
+            }
+        }
+        // Clear countdown if mode is not RND (prevents ghost note-off on mode switch)
+        if (src != TriggerSource::Random)
+            randomGateRemaining_[v] = 0;
     }
 
     // joystickTrig_ is kept for external callers (notifyJoystickMoved) but the
@@ -241,9 +310,15 @@ void TriggerSystem::resetAllGates()
         joyPendingSamples_[v]    = 0;
         padPressed_[v].store(false);
         padJustFired_[v].store(false);
+
+        // Per-voice random clock state
+        randomPhase_[v]         = 0.0;
+        prevSubdivIndex_[v]     = -1;
+        randomGateRemaining_[v] = 0;
     }
     allTrigger_.store(false);
     joystickTrig_.store(false);
+    wasPlaying_ = false;
 }
 
 void TriggerSystem::fireNoteOn(int voice, int pitch, int ch, int sampleOff,
