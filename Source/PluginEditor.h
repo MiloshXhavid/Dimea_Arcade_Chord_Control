@@ -117,6 +117,7 @@ private:
     // ── Touchplates ───────────────────────────────────────────────────────────
     TouchPlate       padRoot_, padThird_, padFifth_, padTension_;
     GlobalTouchPlate padAll_;
+    std::array<juce::TextButton, 4> padHoldBtn_;
 
     // ── Scale ─────────────────────────────────────────────────────────────────
     ScaleKeyboard scaleKeys_;

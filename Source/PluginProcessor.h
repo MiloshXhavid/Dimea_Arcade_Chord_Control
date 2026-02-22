@@ -48,6 +48,9 @@ public:
     void setPadState(int voice, bool pressed) { trigger_.setPadState(voice, pressed); }
     bool isGateOpen(int voice) const          { return trigger_.isGateOpen(voice); }
 
+    // Per-voice hold: when true, mouseUp on the pad does not send note-off
+    std::atomic<bool> padHold_[4] {};
+
     // Looper transport (UI / gamepad)
     void looperStartStop() { looper_.startStop(); }
     void looperRecord()    { looper_.record();    }

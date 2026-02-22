@@ -86,7 +86,7 @@ void TouchPlate::mouseUp(const juce::MouseEvent&)
 {
     const int src = static_cast<int>(
         proc_.apvts.getRawParameterValue("triggerSource" + juce::String(voice_))->load());
-    if (src == 0)
+    if (src == 0 && !proc_.padHold_[voice_].load())
         proc_.setPadState(voice_, false);
     repaint();  // always repaint so dim state stays current
 }
@@ -441,6 +441,23 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(padFifth_); addAndMakeVisible(padTension_);
     addAndMakeVisible(padAll_);
 
+    // ── Per-voice hold buttons (overlaid on top of each touchplate) ───────────
+    for (int v = 0; v < 4; ++v)
+    {
+        padHoldBtn_[v].setButtonText("HOLD");
+        padHoldBtn_[v].setClickingTogglesState(true);
+        padHoldBtn_[v].setTooltip("Hold — pad stays on after release. Toggle off to send note-off.");
+        styleButton(padHoldBtn_[v]);
+        addAndMakeVisible(padHoldBtn_[v]);
+        padHoldBtn_[v].onClick = [this, v]()
+        {
+            const bool nowHeld = padHoldBtn_[v].getToggleState();
+            proc_.padHold_[v].store(nowHeld);
+            if (!nowHeld)
+                proc_.setPadState(v, false);
+        };
+    }
+
     // ── Chord intervals ───────────────────────────────────────────────────────
     styleKnob(transposeKnob_);   styleLabel(transposeLabel_,  "Transpose");
     styleKnob(thirdIntKnob_);    styleLabel(thirdIntLabel_,   "3rd Intv");
@@ -672,14 +689,18 @@ void PluginEditor::resized()
 
     right.removeFromTop(6);
 
-    // Touchplates (4 individual pads)
+    // Touchplates + hold buttons (HOLD overlaid on top 18px of each pad)
     {
         auto row = right.removeFromTop(70);
         const int pw = (row.getWidth() - 9) / 4;
-        padRoot_   .setBounds(row.removeFromLeft(pw));  row.removeFromLeft(3);
-        padThird_  .setBounds(row.removeFromLeft(pw));  row.removeFromLeft(3);
-        padFifth_  .setBounds(row.removeFromLeft(pw));  row.removeFromLeft(3);
-        padTension_.setBounds(row.removeFromLeft(pw));
+        juce::Component* pads[4] = { &padRoot_, &padThird_, &padFifth_, &padTension_ };
+        for (int v = 0; v < 4; ++v)
+        {
+            auto b = row.removeFromLeft(pw);
+            pads[v]->setBounds(b);
+            padHoldBtn_[v].setBounds(b.removeFromTop(18).reduced(2, 2));
+            if (v < 3) row.removeFromLeft(3);
+        }
     }
 
     right.removeFromTop(3);
