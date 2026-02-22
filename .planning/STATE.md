@@ -9,8 +9,8 @@ Core value: Continuous harmonic navigation via joystick with per-voice sample-an
 ## Current Position
 
 - **Phase:** 04 of 7 — Per-Voice Trigger Sources and Random Gate
-- **Plan:** 04-01 (paused at human-verify checkpoint — Task 3)
-- **Status:** Awaiting Reaper verification of JOY gate and pad dimming
+- **Plan:** 04-01 (complete — legato note tracking implemented; awaiting DAW verification)
+- **Status:** Awaiting Reaper verification of JOY legato gate behavior
 
 ## Progress
 
@@ -42,8 +42,9 @@ Overall: [████░░░░░░] ~40% (Phase 01 partial, Phase 02 compl
 - **[NEW] ChordEngine 9-case test suite added; combined suite 15 tests, 0 failures; axis routing, transpose, octave offsets, MIDI clamping, scale quantization verified (02-02)**
 - **[NEW] TriggerSystem::resetAllGates() added; processBlockBypassed() flushes note-offs on bypass; releaseResources() calls resetAllGates(); noteOff uses explicit (uint8_t)0; green gate LEDs; channel conflict warning (03-01)**
 - **[NEW] DAW verification complete: all 6 Reaper tests passed — 4-voice note-on/off, retrigger safety, bypass flush, transport sustain, green LEDs, channel conflict warning (03-02)**
-- **[NEW] Continuous joystick gate model: Chebyshev magnitude threshold, 50ms note-off floor, joystickStillSamples_[4], joystickThreshold APVTS param (04-01)**
+- **[NEW] Continuous joystick gate model: Chebyshev magnitude threshold, joystickThreshold APVTS param (04-01)**
 - **[NEW] THRESHOLD horizontal slider in PluginEditor right column; TouchPlate pads dim and disable in JOY/RND mode (04-01)**
+- **[NEW] JOY legato note tracking: noteOn(newPitch) before noteOff(oldPitch) at same sampleOffset; no pitch bend; gate holds indefinitely; joyActivePitch_[4] tracks sounding pitch per voice (04-01 Fix 3)**
 
 ## Key Decisions
 
@@ -69,7 +70,10 @@ Overall: [████░░░░░░] ~40% (Phase 01 partial, Phase 02 compl
 | Reaper as DAW verification target | Ableton crashes on instantiation (deferred); Reaper provides full MIDI monitoring without the crash |
 | 6-test structured DAW protocol | Discrete test cases: basic output, LED color, retrigger, bypass flush, transport, conflict UI — all passed 03-02 |
 | Chebyshev distance for joystick magnitude | max(abs(dx), abs(dy)) avoids diagonal bias vs Manhattan distance |
-| 50ms gate floor via sample counter | joystickStillSamples_[v] += blockSize — simple, no heap allocation |
+| JOY gate holds indefinitely | No auto-close on stillness; closes only via resetAllGates() or voice mode switch |
+| Legato MIDI ordering | noteOn(newPitch) inserted before noteOff(oldPitch) at identical sampleOffset — JUCE MidiBuffer uses insertion order for same-timestamp events |
+| Legato over pitch bend | Bend requires per-synth RPN config; legato note-on/off is universally understood by all polyphonic synths |
+| joyActivePitch_[v] separate from activePitch_[v] | Needed to target old-pitch noteOff correctly after fireNoteOn overwrites activePitch_ |
 | TouchPlate dimming reads APVTS in paint() | getRawParameterValue()->load() is safe from message thread (atomic<float>*) |
 
 ## Known Issues (Must Fix Before Shipping)
@@ -94,5 +98,5 @@ Overall: [████░░░░░░] ~40% (Phase 01 partial, Phase 02 compl
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: 04-01-PLAN.md Tasks 1+2 complete, paused at Task 3 human-verify checkpoint. Load ChordJoystick.vst3 in Reaper, verify JOY gate sustain + pad dimming + 50ms floor, type "approved" to continue.
-Resume file: .planning/phases/04-per-voice-trigger-sources-and-random-gate/04-01-PLAN.md (Task 3 checkpoint)
+Stopped at: 04-01 complete — legato note tracking implemented (a2cea2e). All pitch bend code removed. Load ChordJoystick.vst3 in Reaper, verify JOY legato gate: move joystick across quantizer zones and confirm noteOn(newPitch)+noteOff(oldPitch) pairs in MIDI monitor with no envelope restart on a legato synth.
+Resume file: .planning/phases/04-per-voice-trigger-sources-and-random-gate/04-02-PLAN.md

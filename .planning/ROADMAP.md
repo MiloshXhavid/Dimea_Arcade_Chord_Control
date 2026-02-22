@@ -57,7 +57,7 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — Note-off guarantee and LED fix (TriggerSystem::resetAllGates, processBlockBypassed, releaseResources, green gate LED, channel conflict warning) — DONE: build clean, 15/15 tests pass
-- [ ] 03-02-PLAN.md — Build + DAW verification in Reaper (6-test structured verification, checkpoint)
+- [x] 03-02-PLAN.md — Build + DAW verification in Reaper (6-test structured verification, checkpoint) — DONE: all 6 Reaper tests passed
 
 ---
 
@@ -71,12 +71,12 @@ Plans:
 - Joystick motion trigger with configurable threshold
 - AudioPlayHead integration for ppqPosition-based timing
 
-**Status:** pending
+**Status:** in-progress (1/2 plans complete)
 
 **Plans:** 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Joystick motion trigger: continuous gate model, joystickThreshold APVTS param, THRESHOLD slider, TouchPlate dimming in JOY/RND mode
+- [x] 04-01-PLAN.md — Joystick motion trigger: continuous gate model, joystickThreshold APVTS param, THRESHOLD slider, TouchPlate dimming in JOY/RND mode, legato note-on/note-off tracking — DONE: build clean, VST3 installed, awaiting DAW verify
 - [ ] 04-02-PLAN.md — Random gate: per-voice subdivision clock (ppqPosition sync + wall-clock fallback), density 1–8 hits/bar, randomGateTime knob, 4 per-voice subdiv combo boxes
 
 ---
