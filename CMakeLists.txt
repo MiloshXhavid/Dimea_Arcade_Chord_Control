@@ -35,6 +35,53 @@ set(SDL_SENSOR          OFF CACHE BOOL "" FORCE)
 set(SDL2_DISABLE_INSTALL ON  CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(SDL2)
 
+# ─── Catch2 (unit tests, opt-in) ─────────────────────────────────────────────
+option(BUILD_TESTS "Build unit tests" OFF)
+
+if(BUILD_TESTS)
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v3.8.1
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(Catch2)
+
+    add_executable(ChordJoystickTests
+        Source/ScaleQuantizer.cpp
+        Source/ChordEngine.cpp
+        Tests/ScaleQuantizerTests.cpp
+        Tests/ChordEngineTests.cpp
+    )
+
+    set_target_properties(ChordJoystickTests PROPERTIES
+        CXX_STANDARD          17
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    target_compile_definitions(ChordJoystickTests PRIVATE
+        JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1
+        JUCE_MODULE_AVAILABLE_juce_audio_processors=1
+        JUCE_STANDALONE_APPLICATION=0
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_DISABLE_ASSERTIONS=1
+    )
+
+    target_include_directories(ChordJoystickTests PRIVATE Source)
+
+    target_link_libraries(ChordJoystickTests PRIVATE
+        juce::juce_audio_processors
+        Catch2::Catch2WithMain
+    )
+
+    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+    enable_testing()
+    include(CTest)
+    include(Catch)
+    catch_discover_tests(ChordJoystickTests)
+endif()
+
 # ─── Plugin target ───────────────────────────────────────────────────────────
 juce_add_plugin(ChordJoystick
     PRODUCT_NAME            "ChordJoystick"
