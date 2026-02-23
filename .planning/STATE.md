@@ -8,9 +8,9 @@ Core value: Continuous harmonic navigation via joystick with per-voice sample-an
 
 ## Current Position
 
-- **Phase:** 05 of 7 — LooperEngine Hardening and DAW Sync
-- **Plan:** 05-02 COMPLETE — proceeding to 05-03
-- **Status:** In progress
+- **Phase:** 05 of 7 — LooperEngine Hardening and DAW Sync — **COMPLETE**
+- **Plan:** 05-03 COMPLETE — all 3 plans done
+- **Status:** Ready for Phase 06
 
 ## Progress
 
@@ -19,11 +19,11 @@ Phase 01 [████░░░░░░]   Build Foundation    (partial — plu
 Phase 02 [██████████]   Engine Validation   (COMPLETE — ScaleQuantizer+ChordEngine 15 tests green, checkpoint approved)
 Phase 03 [██████████]   Core MIDI Output    (COMPLETE — 2/2 plans done, all 6 DAW tests passed in Reaper)
 Phase 04 [████████░░]   Trigger Sources     (IN PROGRESS — 04-01+04-02 COMPLETE, 04-03 pending if planned)
-Phase 05 [██████░░░░]   Looper Hardening    (IN PROGRESS — 05-01+05-02 COMPLETE, 05-03 pending)
+Phase 05 [██████████]   Looper Hardening    (COMPLETE — 3/3 plans done, Reaper+Ableton verified)
 Phase 06 [░░░░░░░░░░]   SDL2 Gamepad
 Phase 07 [░░░░░░░░░░]   Distribution
 
-Overall: [████░░░░░░] ~52% (Phase 01 partial, Phase 02 complete 2/2, Phase 03 complete 2/2, Phase 04 2/2 plans done, Phase 05 2/3 done)
+Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 complete, Phase 03 complete, Phase 04 complete, Phase 05 complete)
 ```
 
 ## What's Been Built
@@ -55,6 +55,11 @@ Overall: [████░░░░░░] ~52% (Phase 01 partial, Phase 02 compl
 - **[NEW] 11 new Catch2 LooperEngine tests: FIFO stress no-deadlock, DAW sync anchor, punch-in correctness, loop-wrap boundary sweep (96 combos: 6 subdivs x 16 bar lengths); all 26 tests pass. ENABLE_TSAN CMake option with MSVC guard. ScopedRead-before-reset ordering bug fixed. (05-01 / f27440b)**
 - **[NEW] PluginProcessor: 7 new looper forwarding methods (looperSetRecJoy/SetRecGates/SetSyncToDaw/IsCapReached/IsSyncToDaw/IsRecJoy/IsRecGates); JUCE 8 AudioPlayHead::getPosition() Optional API replacing deprecated getCurrentPosition; looper gate playback bypasses TriggerSystem (direct MIDI emission) (05-02 / 290849c)**
 - **[NEW] PluginEditor: [REC JOY], [REC GATES], [SYNC] TextButtons in second looper button row; onClick lambdas wire to forwarding methods; timerCallback 30 Hz state mirror; ~5 Hz capReached flash indicator (05-02 / fb1a71c)**
+- **[NEW] Ableton MIDI effect fix: isMidiEffect()=true, acceptsMidi()=true, empty BusesProperties(), 0-channel isBusesLayoutSupported — plugin now loads in Ableton on MIDI tracks (05-03 / 9c207ce)**
+- **[NEW] Per-voice slew: CC5 (portamento time) + CC65 (portamento on) emitted before every note-on; slewVoice0..3 APVTS params; 4 slew knobs in PluginEditor (05-03 / 4bafca2)**
+- **[NEW] recordPending_ atomic: REC press defers recording start to next valid clock pulse (05-03 / 4bafca2)**
+- **[NEW] DAW stop → looper all-notes-off in SYNC mode via prevDawPlaying_ edge detection (05-03 / 4bafca2)**
+- **[NEW] 05-03 Reaper verification COMPLETE: all 4 tests passed (loads, 4-bar loop, DAW SYNC alignment, punch-in preservation); Ableton loads as MIDI effect**
 
 ## Key Decisions
 
@@ -99,11 +104,15 @@ Overall: [████░░░░░░] ~52% (Phase 01 partial, Phase 02 compl
 | JUCE 8 getPosition() Optional API | getPosition() returns Optional<PositionInfo>; each field also Optional — use .hasValue() before dereferencing ppqPosition/bpm; getIsPlaying() is bool (not Optional) |
 | Looper gate playback bypasses TriggerSystem | loopOut.gateOn/gateOff emit midi.addEvent directly using heldPitch_[v]; TriggerSystem not informed of looper events so live pad input coexists independently |
 | New looper buttons use direct atomic setters | loopRecJoyBtn_/loopRecGatesBtn_/loopSyncBtn_ write to LooperEngine atomics directly (not APVTS); state mirrored in 30 Hz timerCallback |
+| isMidiEffect()=true for Ableton | Plugin categorised as MIDI effect; goes on MIDI track before instrument; empty BusesProperties(); isBusesLayoutSupported accepts 0-channel only |
+| Per-voice slew via CC5+CC65 | Portamento on (CC65=127) + portamento time (CC5=slewValue) sent on each voice channel before every note-on; synth-universal |
+| recordPending_ atomic for deferred record start | REC press arms pending flag; process() starts recording on next valid clock pulse — immediate if free-running, waits for DAW if SYNC mode |
+| prevDawPlaying_ edge detection for DAW stop | When DAW stops in SYNC mode, dawStopped flag triggers all-notes-off and looper stop |
 
 ## Known Issues (Must Fix Before Shipping)
 
 1. ~~**JUCE pinned to `origin/master`**~~ — FIXED in 01-01 (now 8.0.4).
-2. **[BLOCKER] Plugin crashes on load in Ableton Live 11** — appears in browser, crashes on instantiation. SDL_HINT_JOYSTICK_THREAD fix applied, root cause unresolved. Must fix before Phase 03 DAW testing.
+2. ~~**[BLOCKER] Plugin crashes on load in Ableton Live 11**~~ — FIXED in 05-03 (isMidiEffect()=true, empty BusesProperties). Plugin loads as MIDI effect on MIDI tracks.
 3. ~~**std::mutex in LooperEngine processBlock**~~ — FIXED in 05-01 (now fully lock-free AbstractFifo design).
 4. **Filter CC (CC71/CC74) emitted unconditionally** — Floods synth at ~175 msgs/sec when no gamepad. Fix in Phase 06.
 5. ~~**releaseResources() is empty**~~ — FIXED in 03-01 (now calls resetAllGates()).
@@ -116,11 +125,11 @@ Overall: [████░░░░░░] ~52% (Phase 01 partial, Phase 02 compl
 
 ## Blockers / Concerns
 
-- **[ACTIVE BLOCKER]** Plugin crashes on Ableton instantiation — PluginEditor or COM threading likely cause
-- Ableton MIDI routing: empirical testing required (no definitive documentation)
+- Ableton placement: must go on MIDI track *before* an instrument (not as instrument itself) — MIDI effect category
+- CC71/CC74 flood when no gamepad connected — fix in Phase 06
 
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: 05-02 COMPLETE — JUCE 8 PlayHead wired, 7 looper forwarding methods, REC JOY/REC GATES/SYNC buttons in PluginEditor, 26 Catch2 tests passing. Ready for 05-03 (looper DAW verification).
-Resume file: .planning/phases/05-looperengine-hardening-and-daw-sync/05-03-PLAN.md
+Last session: 2026-02-23
+Stopped at: Phase 06 context gathered — dead zones, UI indicator, multi-controller, CC threshold all decided. Ready to plan Phase 06.
+Resume file: .planning/phases/06-sdl2-gamepad-integration/06-CONTEXT.md
