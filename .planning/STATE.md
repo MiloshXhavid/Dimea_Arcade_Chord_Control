@@ -9,8 +9,8 @@ Core value: Continuous harmonic navigation via joystick with per-voice sample-an
 ## Current Position
 
 - **Phase:** 06 of 7 — SDL2 Gamepad Integration — **IN PROGRESS**
-- **Plan:** 06-03 COMPLETE — 3/3 plans done (06-04 WIP exists)
-- **Status:** Ready for Phase 06 Plan 04 (or close out Phase 06)
+- **Plan:** 06-04 IN PROGRESS — Task 1 complete (commit + build green), awaiting Task 2 human DAW verification
+- **Status:** Checkpoint:human-verify — 8-test DAW verification required
 
 ## Progress
 
@@ -20,7 +20,7 @@ Phase 02 [██████████]   Engine Validation   (COMPLETE — Sc
 Phase 03 [██████████]   Core MIDI Output    (COMPLETE — 2/2 plans done, all 6 DAW tests passed in Reaper)
 Phase 04 [████████░░]   Trigger Sources     (IN PROGRESS — 04-01+04-02 COMPLETE, 04-03 pending if planned)
 Phase 05 [██████████]   Looper Hardening    (COMPLETE — 3/3 plans done, Reaper+Ableton verified)
-Phase 06 [█████████░]   SDL2 Gamepad        (IN PROGRESS — 06-01+02+03 done: SdlContext, CC gating, toggle UI, verified; 06-04 WIP)
+Phase 06 [█████████░]   SDL2 Gamepad        (IN PROGRESS — 06-01+02+03+04 Task1 done: commit e6dd2a6 clean, build green; awaiting 8-test DAW checkpoint)
 Phase 07 [░░░░░░░░░░]   Distribution
 
 Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 complete, Phase 03 complete, Phase 04 complete, Phase 05 complete)
@@ -69,6 +69,7 @@ Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 compl
 - **[NEW] Always-editable scale keyboard: auto-copies preset into scaleNote0..11 + flips useCustomScale=true on first click; customScaleToggle_ kept invisible so APVTS param persists (06-03 / c1a1f19)**
 - **[NEW] Looper auto-stop: recordedBeats_ accumulator fires finaliseRecording() when loop length reached; [REC TOUCH] button defers recording start until next note-on (recWaitForTrigger_/recWaitArmed_ atomics) (06-03 / c1a1f19)**
 - **[NEW] 06-03 DAW verification COMPLETE: all 7 gamepad tests passed (connection indicator, right stick, voice buttons, no CC flood, CC reset, toggle, hot-plug)**
+- **[NEW] 06-04 Task 1 COMPLETE (e6dd2a6): looper auto-stop (recordedBeats_ accumulator), REC TOUCH (recWaitForTrigger_/recWaitArmed_), always-editable scale keyboard, CMakeLists Ableton fix — build Release green, VST3 installed**
 
 ## Key Decisions
 
@@ -148,5 +149,5 @@ Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 compl
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: 06-03 human checkpoint approved (7/7 gamepad tests passed). 06-03-SUMMARY.md written. WIP commits exist for 06-04 (UI polish, gamepad remap, JOY pitch CV, filter CC DAW display).
-Resume file: .planning/phases/06-sdl2-gamepad-integration/06-03-PLAN.md (COMPLETE)
+Stopped at: 06-04 Task 1 complete (commit e6dd2a6, build green). Awaiting Task 2 checkpoint:human-verify — 8-test DAW verification.
+Resume file: .planning/phases/06-sdl2-gamepad-integration/06-04-PLAN.md (Task 2 pending)
