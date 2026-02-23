@@ -115,6 +115,7 @@ private:
     std::atomic<bool> gamepadActive_ { true };
 
     bool gamepadVoiceWasHeld_[4] = {};  // audio thread only — tracks previous gamepad held state
+    bool allNotesWasHeld_ = false;       // audio thread only — tracks previous L3 held state
 
     // ── CC dedup: last emitted integer values for CC74 and CC71 ──────────────
     // -1 = never sent; forces emission on first connect.

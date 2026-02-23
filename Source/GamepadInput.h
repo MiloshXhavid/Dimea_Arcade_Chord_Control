@@ -44,6 +44,8 @@ public:
 
     // ── Special button rising-edge flags ─────────────────────────────────────
     bool consumeAllNotesTrigger();
+    // Held state for L3 — true while left stick is physically pressed
+    bool getAllNotesHeld() const { return allNotesHeld_.load(std::memory_order_relaxed); }
     bool consumeLooperStartStop();
     bool consumeLooperRecord();
     bool consumeLooperReset();
@@ -103,6 +105,7 @@ private:
     std::atomic<bool>  dpadRightTrig_ {false};
 
     std::atomic<bool>  allNotesTrig_    {false};
+    std::atomic<bool>  allNotesHeld_    {false};
     std::atomic<bool>  looperStartStop_ {false};
     std::atomic<bool>  looperRecord_    {false};
     std::atomic<bool>  looperReset_     {false};

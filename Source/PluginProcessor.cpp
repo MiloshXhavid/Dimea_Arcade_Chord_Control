@@ -88,7 +88,25 @@ PluginProcessor::createParameterLayout()
     };
 
     // ── Chord ─────────────────────────────────────────────────────────────────
-    addInt  (ParamID::globalTranspose, "Global Transpose",   0, 11,  0);
+    // Transpose: 12 discrete semitone values displayed as note names (C..B)
+    {
+        static const char* kNoteNames[12] = {
+            "C","C#/Db","D","D#/Eb","E","F","F#/Gb","G","G#/Ab","A","A#/Bb","B"
+        };
+        layout.add(std::make_unique<juce::AudioParameterInt>(
+            juce::ParameterID { ParamID::globalTranspose, 1 },
+            "Global Transpose", 0, 11, 0,
+            juce::AudioParameterIntAttributes{}
+                .withStringFromValueFunction([](int v, int) -> juce::String {
+                    return juce::String(kNoteNames[juce::jlimit(0, 11, v)]);
+                })
+                .withValueFromStringFunction([](const juce::String& s) -> int {
+                    for (int i = 0; i < 12; ++i)
+                        if (s.equalsIgnoreCase(kNoteNames[i])) return i;
+                    return s.getIntValue();
+                })
+        ));
+    }
     addInt  (ParamID::thirdInterval,   "Third Interval",    0, 12,  4);
     addInt  (ParamID::fifthInterval,   "Fifth Interval",    0, 12,  7);
     addInt  (ParamID::tensionInterval, "Tension Interval",  0, 12, 10);
@@ -319,7 +337,24 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             gamepadVoiceWasHeld_[v] = held;
         }
 
-        if (gamepad_.consumeAllNotesTrigger()) trigger_.triggerAllNotes();
+        // L3 (left stick press): trigger all PAD-mode voices, held while pressed.
+        // Mirrors the ALL touchplate — only voices in PAD mode (src == 0) are affected.
+        {
+            const bool held = gamepad_.getAllNotesHeld();
+            if (held != allNotesWasHeld_)
+            {
+                for (int v = 0; v < 4; ++v)
+                {
+                    const int src = (int)apvts.getRawParameterValue(
+                        "triggerSource" + juce::String(v))->load();
+                    if (src == 0)
+                        trigger_.setPadState(v, held);
+                }
+                allNotesWasHeld_ = held;
+            }
+            // Consume the rising-edge flag so it doesn't accumulate
+            gamepad_.consumeAllNotesTrigger();
+        }
 
         if (gamepad_.consumeLooperStartStop()) looper_.startStop();
         if (gamepad_.consumeLooperRecord())    looper_.record();

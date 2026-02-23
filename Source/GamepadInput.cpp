@@ -144,11 +144,12 @@ void GamepadInput::timerCallback()
         voiceHeld_[i].store(btnVoice_[i].prev, std::memory_order_relaxed);
     }
 
-    // ── L3 (left stick click) → all-notes trigger ─────────────────────────────
+    // ── L3 (left stick click) → all-notes trigger + held state ──────────────
     {
         const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_LEFTSTICK) != 0;
         if (debounce(cur, btnAllNotes_) && btnAllNotes_.prev)
             allNotesTrig_.store(true);
+        allNotesHeld_.store(btnAllNotes_.prev, std::memory_order_relaxed);
     }
 
     // ── Looper buttons: Cross(A)/Circle(B)/Square(X)/Triangle(Y) ─────────────
