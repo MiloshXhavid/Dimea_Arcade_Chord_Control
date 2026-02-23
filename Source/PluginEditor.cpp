@@ -74,17 +74,82 @@ void PixelLookAndFeel::drawButtonBackground(juce::Graphics& g,
 {
     auto bounds = button.getLocalBounds().toFloat();
     const bool isOn = button.getToggleState();
-    constexpr float cr = 4.0f;
 
     juce::Colour fill = isOn ? Clr::accent.brighter(0.3f) : backgroundColour;
     if (shouldDrawButtonAsDown)      fill = fill.darker(0.25f);
     else if (shouldDrawButtonAsHighlighted) fill = fill.brighter(0.12f);
 
-    g.setColour(fill);
-    g.fillRoundedRectangle(bounds, cr);
+    if (button.getName() == "round")
+    {
+        // Draw as circle (for RND SYNC button)
+        const float size = juce::jmin(bounds.getWidth(), bounds.getHeight()) - 4.0f;
+        const auto eb = bounds.withSizeKeepingCentre(size, size);
+        g.setColour(fill);
+        g.fillEllipse(eb);
+        g.setColour(isOn ? Clr::highlight : Clr::accent.brighter(0.5f));
+        g.drawEllipse(eb.reduced(0.75f), 2.0f);
+    }
+    else if (button.getName() == "lrtoggle")
+    {
+        // Pill toggle: left option | right option, active side highlighted
+        const juce::String text = button.getButtonText();
+        const int sep = text.indexOf("|");
+        const juce::String leftLabel  = sep >= 0 ? text.substring(0, sep).trim() : text;
+        const juce::String rightLabel = sep >= 0 ? text.substring(sep + 1).trim() : "";
+        const bool rightActive = button.getToggleState();
 
-    g.setColour(isOn ? Clr::highlight : Clr::accent.brighter(0.5f));
-    g.drawRoundedRectangle(bounds.reduced(0.75f), cr, 1.5f);
+        constexpr float pr = 8.0f;
+
+        // Dark pill background
+        g.setColour(Clr::panel.brighter(0.12f));
+        g.fillRoundedRectangle(bounds, pr);
+
+        // Active half — clip the rounded rect to just that half for clean edges
+        {
+            const juce::Rectangle<float> activeHalf = rightActive
+                ? bounds.withLeft(bounds.getCentreX())
+                : bounds.withRight(bounds.getCentreX());
+            juce::Graphics::ScopedSaveState ss(g);
+            g.reduceClipRegion(activeHalf.toNearestInt());
+            g.setColour(Clr::highlight.withAlpha(0.70f));
+            g.fillRoundedRectangle(bounds, pr);
+        }
+
+        // Pill outline
+        g.setColour(Clr::accent.brighter(0.5f));
+        g.drawRoundedRectangle(bounds.reduced(0.5f), pr, 1.0f);
+
+        // Centre divider
+        g.setColour(Clr::accent.brighter(0.4f));
+        g.drawLine(bounds.getCentreX(), bounds.getY() + 3.0f,
+                   bounds.getCentreX(), bounds.getBottom() - 3.0f, 1.0f);
+
+        // Option text (drawn here; drawButtonText is suppressed for lrtoggle)
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 8.5f, juce::Font::bold));
+
+        g.setColour(!rightActive ? Clr::text : Clr::textDim.withAlpha(0.55f));
+        g.drawText(leftLabel,  bounds.withRight(bounds.getCentreX()), juce::Justification::centred, true);
+
+        g.setColour(rightActive ? Clr::text : Clr::textDim.withAlpha(0.55f));
+        g.drawText(rightLabel, bounds.withLeft(bounds.getCentreX()),  juce::Justification::centred, true);
+    }
+    else
+    {
+        constexpr float cr = 4.0f;
+        g.setColour(fill);
+        g.fillRoundedRectangle(bounds, cr);
+        g.setColour(isOn ? Clr::highlight : Clr::accent.brighter(0.5f));
+        g.drawRoundedRectangle(bounds.reduced(0.75f), cr, 1.5f);
+    }
+}
+
+void PixelLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& button,
+    bool isHighlighted, bool isDown)
+{
+    // "lrtoggle" and "round" buttons draw their own content in drawButtonBackground
+    if (button.getName() == "lrtoggle" || button.getName() == "round")
+        return;
+    LookAndFeel_V4::drawButtonText(g, button, isHighlighted, isDown);
 }
 
 void PixelLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height,
@@ -622,12 +687,12 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     pixelLaf_.setPixelFont(pixelFont_);
     setLookAndFeel(&pixelLaf_);
 
-    setSize(920, 700);
+    setSize(920, 760);
 
     // ── Joystick ──────────────────────────────────────────────────────────────
     addAndMakeVisible(joystickPad_);
-    styleKnob(joyXAttenKnob_); joyXAttenKnob_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0); styleLabel(joyXAttenLabel_, "X Range");
-    styleKnob(joyYAttenKnob_); joyYAttenKnob_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0); styleLabel(joyYAttenLabel_, "Y Range");
+    styleKnob(joyXAttenKnob_); joyXAttenKnob_.setTextValueSuffix(" st"); styleLabel(joyXAttenLabel_, "X Range");
+    styleKnob(joyYAttenKnob_); joyYAttenKnob_.setTextValueSuffix(" st"); styleLabel(joyYAttenLabel_, "Y Range");
     addAndMakeVisible(joyXAttenKnob_); addAndMakeVisible(joyXAttenLabel_);
     addAndMakeVisible(joyYAttenKnob_); addAndMakeVisible(joyYAttenLabel_);
 
@@ -722,11 +787,13 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     }
 
     randomDensityKnob_.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    randomDensityKnob_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    randomDensityKnob_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 40, 14);
     randomDensityKnob_.setTooltip("Random density (hits per bar, 1-8)");
     randomDensityKnob_.setColour(juce::Slider::rotarySliderFillColourId,   Clr::highlight);
     randomDensityKnob_.setColour(juce::Slider::rotarySliderOutlineColourId, Clr::accent);
     randomDensityKnob_.setColour(juce::Slider::thumbColourId,              Clr::text);
+    randomDensityKnob_.setColour(juce::Slider::textBoxTextColourId,        Clr::textDim);
+    randomDensityKnob_.setColour(juce::Slider::textBoxOutlineColourId,     juce::Colours::transparentBlack);
     addAndMakeVisible(randomDensityKnob_);
     randomDensityAtt_ = std::make_unique<SliderAtt>(p.apvts, "randomDensity", randomDensityKnob_);
 
@@ -746,17 +813,20 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     }
 
     randomGateTimeKnob_.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    randomGateTimeKnob_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    randomGateTimeKnob_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 40, 14);
     randomGateTimeKnob_.setTooltip("Random gate time (fraction of subdivision)");
     randomGateTimeKnob_.setColour(juce::Slider::rotarySliderFillColourId,  Clr::highlight);
     randomGateTimeKnob_.setColour(juce::Slider::rotarySliderOutlineColourId, Clr::accent);
     randomGateTimeKnob_.setColour(juce::Slider::thumbColourId,             Clr::text);
+    randomGateTimeKnob_.setColour(juce::Slider::textBoxTextColourId,       Clr::textDim);
+    randomGateTimeKnob_.setColour(juce::Slider::textBoxOutlineColourId,    juce::Colours::transparentBlack);
     addAndMakeVisible(randomGateTimeKnob_);
     randomGateTimeKnobAtt_ = std::make_unique<juce::SliderParameterAttachment>(
         *p.apvts.getParameter("randomGateTime"), randomGateTimeKnob_);
 
-    // Sync toggle
+    // Sync toggle (round button — drawn as circle, same size as a knob)
     randomSyncButton_.setButtonText("RND SYNC");
+    randomSyncButton_.setName("round");
     randomSyncButton_.setClickingTogglesState(true);
     randomSyncButton_.setToggleState(true, juce::dontSendNotification);
     randomSyncButton_.setTooltip("When ON: random triggers only fire while DAW plays. When OFF: free tempo.");
@@ -777,8 +847,8 @@ PluginEditor::PluginEditor(PluginProcessor& p)
         *p.apvts.getParameter("randomFreeTempo"), randomFreeTempoKnob_);
 
     // ── Filter attenuators ────────────────────────────────────────────────────
-    styleKnob(filterXAttenKnob_); filterXAttenKnob_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0); styleLabel(filterXAttenLabel_, "Cut Atten");
-    styleKnob(filterYAttenKnob_); filterYAttenKnob_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0); styleLabel(filterYAttenLabel_, "Res Atten");
+    styleKnob(filterXAttenKnob_); styleLabel(filterXAttenLabel_, "Cutoff Atten");
+    styleKnob(filterYAttenKnob_); styleLabel(filterYAttenLabel_, "Res Atten");
     addAndMakeVisible(filterXAttenKnob_); addAndMakeVisible(filterXAttenLabel_);
     addAndMakeVisible(filterYAttenKnob_); addAndMakeVisible(filterYAttenLabel_);
     filterXAttenAtt_ = std::make_unique<SliderAtt>(p.apvts, "filterXAtten", filterXAttenKnob_);
@@ -926,6 +996,23 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     if (p.getGamepad().isConnected())
         gamepadStatusLabel_.setText("GAMEPAD: connected", juce::dontSendNotification);
 
+    // Gamepad left-stick axis mode toggles — pill style: left=default, right=alt
+    filterYModeBox_.addItem("Resonance (CC71)", 1);
+    filterYModeBox_.addItem("LFO Rate  (CC76)", 2);
+    filterYModeBox_.addItem("Mod Wheel (CC1)",  3);
+    filterYModeBox_.setTooltip("Left stick Y axis: what CC the Y axis controls");
+    styleCombo(filterYModeBox_);
+    addAndMakeVisible(filterYModeBox_);
+    filterYModeAtt_ = std::make_unique<ComboAtt>(p.apvts, "filterYMode", filterYModeBox_);
+
+    filterXModeBox_.addItem("Cutoff    (CC74)", 1);
+    filterXModeBox_.addItem("VCF LFO   (CC12)", 2);
+    filterXModeBox_.addItem("Mod Wheel (CC1)",  3);
+    filterXModeBox_.setTooltip("Left stick X axis: what CC the X axis controls");
+    styleCombo(filterXModeBox_);
+    addAndMakeVisible(filterXModeBox_);
+    filterXModeAtt_ = std::make_unique<ComboAtt>(p.apvts, "filterXMode", filterXModeBox_);
+
     // ── Slew knobs ────────────────────────────────────────────────────────────
     {
         static const juce::String slewLabels[4] = { "Root Slew", "3rd Slew", "5th Slew", "Ten Slew" };
@@ -938,14 +1025,6 @@ PluginEditor::PluginEditor(PluginProcessor& p)
             slewAtt_[v] = std::make_unique<SliderAtt>(p.apvts, "slewVoice" + juce::String(v), slewKnob_[v]);
         }
     }
-
-    // Channel conflict warning
-    channelConflictLabel_.setText("! Channel conflict", juce::dontSendNotification);
-    channelConflictLabel_.setFont(juce::Font(10.0f, juce::Font::bold));
-    channelConflictLabel_.setJustificationType(juce::Justification::centred);
-    channelConflictLabel_.setColour(juce::Label::textColourId, Clr::highlight);
-    channelConflictLabel_.setVisible(false);
-    addAndMakeVisible(channelConflictLabel_);
 
     startTimerHz(30);
 }
@@ -961,7 +1040,8 @@ PluginEditor::~PluginEditor()
 void PluginEditor::resized()
 {
     auto area = getLocalBounds().reduced(8);
-    area.removeFromTop(28);  // header bar
+    area.removeFromTop(28);   // header bar
+    area.removeFromBottom(60); // footer instructions
     const int rowH   = area.getHeight();
     const int colW   = area.getWidth();
 
@@ -980,7 +1060,7 @@ void PluginEditor::resized()
 
     // Attenuator knobs: one per pad column — X Range / Y Range / Cut / Res
     {
-        auto row = right.removeFromTop(74);
+        auto row = right.removeFromTop(90);
         const int pw = (row.getWidth() - 9) / 4;
         juce::Slider* knobs[4]  = { &joyXAttenKnob_,   &joyYAttenKnob_,
                                     &filterXAttenKnob_, &filterYAttenKnob_ };
@@ -1029,8 +1109,11 @@ void PluginEditor::resized()
         gamepadStatusLabel_.setBounds(row);
     }
 
-    // Channel conflict warning
-    channelConflictLabel_.setBounds(right.removeFromTop(16));
+    // Gamepad left-stick axis mode combos (label drawn above via drawAbove in paint())
+    right.removeFromTop(12);
+    filterYModeBox_.setBounds(right.removeFromTop(22));
+    right.removeFromTop(12);
+    filterXModeBox_.setBounds(right.removeFromTop(22));
 
     // ── LEFT COLUMN ───────────────────────────────────────────────────────────
 
@@ -1124,21 +1207,20 @@ void PluginEditor::resized()
 
         left.removeFromTop(14);
 
-        // Random controls row — one control per voice column, aligned under subdiv combos
-        // [DENS knob] | [GATE knob] | [FREE BPM knob] | [SYNC button]
+        // Random controls row — [DENS] | [GATE] | [RND SYNC (round)] | [FREE BPM knob]
         {
             auto rndRow = left.removeFromTop(60);
             randomDensityKnob_ .setBounds(rndRow.removeFromLeft(cw));
             randomGateTimeKnob_.setBounds(rndRow.removeFromLeft(cw));
-            randomFreeTempoKnob_.setBounds(rndRow.removeFromLeft(cw));
-            randomSyncButton_  .setBounds(rndRow);
+            randomSyncButton_  .setBounds(rndRow.removeFromLeft(cw));  // round button, 3rd col
+            randomFreeTempoKnob_.setBounds(rndRow);                    // FREE BPM, 4th col
         }
 
-        // BPM display: aligned under the FREE BPM knob (3rd column)
+        // BPM display: under FREE BPM knob (4th column)
         {
             auto bpmRow = left.removeFromTop(16);
-            bpmRow.removeFromLeft(cw * 2);          // skip DENS + GATE columns
-            bpmDisplayLabel_.setBounds(bpmRow.removeFromLeft(cw));
+            bpmRow.removeFromLeft(cw * 3);          // skip DENS + GATE + SYNC columns
+            bpmDisplayLabel_.setBounds(bpmRow);
         }
     }
 
@@ -1158,14 +1240,14 @@ void PluginEditor::resized()
 
         section.removeFromTop(2);
 
-        // Buttons row 2: REC GATES / REC JOY / DAW SYNC / REC TOUCH (four columns)
+        // Buttons row 2: REC GATES / REC JOY / REC TOUCH / DAW SYNC (four columns)
         {
             auto row2 = section.removeFromTop(28);
             const int bw4 = (row2.getWidth() - 6) / 4;
             loopRecGatesBtn_.setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(2);
             loopRecJoyBtn_  .setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(2);
-            loopSyncBtn_    .setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(2);
-            loopRecWaitBtn_ .setBounds(row2);
+            loopRecWaitBtn_ .setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(2);
+            loopSyncBtn_    .setBounds(row2);
         }
 
         section.removeFromTop(4);
@@ -1249,9 +1331,45 @@ void PluginEditor::paint(juce::Graphics& g)
             g.drawText(t, c.getX(), c.getY() - 12, c.getWidth(), 12,
                        juce::Justification::centred);
     };
-    drawAbove(randomDensityKnob_,  "DENS");
-    drawAbove(randomGateTimeKnob_, "GATE");
+    drawAbove(randomDensityKnob_,   "RND DENS");
+    drawAbove(randomGateTimeKnob_,  "RND GATE");
+    drawAbove(randomSyncButton_,    "RND SYNC");
     drawAbove(randomFreeTempoKnob_, "FREE BPM");
+    drawAbove(filterYModeBox_,      "LEFT Y");
+    drawAbove(filterXModeBox_,      "LEFT X");
+
+    // ── Footer: how-to-use instructions (left column only) ───────────────────
+    {
+        // Constrain to left column — same right edge as the column divider
+        const int footerRight = joystickPad_.isVisible() ? (joystickPad_.getX() - 4) : getWidth();
+        auto footer = juce::Rectangle<int>(0, getHeight() - 60, footerRight, 60).reduced(8, 0);
+
+        // Separator line
+        g.setColour(Clr::accent.withAlpha(0.5f));
+        g.drawLine((float)footer.getX(), (float)footer.getY() + 1.0f,
+                   (float)footer.getRight(), (float)footer.getY() + 1.0f, 1.0f);
+
+        footer.removeFromTop(5);
+
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
+        g.setColour(Clr::textDim.withAlpha(0.8f));
+
+        // 3 rows × 2 columns — each column is half the footer width so long text fits
+        auto drawRow = [&](const juce::String& left, const juce::String& right)
+        {
+            auto row = footer.removeFromTop(14);
+            const int w = row.getWidth() / 2;
+            g.drawFittedText(left,  row.getX(),     row.getY(), w, row.getHeight(),
+                             juce::Justification::centredLeft, 1, 0.75f);
+            g.drawFittedText(right, row.getX() + w, row.getY(), w, row.getHeight(),
+                             juce::Justification::centredLeft, 1, 0.75f);
+            footer.removeFromTop(3);
+        };
+
+        drawRow("1. Plugin in MIDI Track",                              "2. Synth in separate Track");
+        drawRow("3. Set MIDI In of Synth Track to Plugin MIDI Track",   "4. Arm Rec on Synth Track");
+        drawRow("5. Set Synth Env. Sustain high",                       "6. Have fun!");
+    }
 
 }
 
@@ -1332,23 +1450,4 @@ void PluginEditor::timerCallback()
         proc_.joystickY.store(gpY);
     }
 
-    // Detect MIDI channel conflicts at 30 Hz
-    {
-        const int chs[4] = {
-            (int)proc_.apvts.getRawParameterValue("voiceCh0")->load(),
-            (int)proc_.apvts.getRawParameterValue("voiceCh1")->load(),
-            (int)proc_.apvts.getRawParameterValue("voiceCh2")->load(),
-            (int)proc_.apvts.getRawParameterValue("voiceCh3")->load()
-        };
-        bool conflict = false;
-        for (int i = 0; i < 4 && !conflict; ++i)
-            for (int j = i + 1; j < 4; ++j)
-                if (chs[i] == chs[j]) { conflict = true; break; }
-
-        if (conflict != channelConflictShown_)
-        {
-            channelConflictShown_ = conflict;
-            channelConflictLabel_.setVisible(conflict);
-        }
-    }
 }
