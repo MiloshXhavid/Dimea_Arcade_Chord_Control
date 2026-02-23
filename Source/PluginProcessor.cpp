@@ -202,7 +202,9 @@ PluginProcessor::createParameterLayout()
 // ─── Constructor ──────────────────────────────────────────────────────────────
 
 PluginProcessor::PluginProcessor()
-    : AudioProcessor(BusesProperties()),
+    : AudioProcessor(BusesProperties()
+          .withInput ("Input",  juce::AudioChannelSet::stereo(), false)
+          .withOutput("Output", juce::AudioChannelSet::stereo(), false)),
       apvts(*this, nullptr, "ChordJoystick", createParameterLayout())
 {
     gamepad_.onConnectionChange = [this](bool connected)
