@@ -10,37 +10,32 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 
 ## Requirements
 
-### Validated
+### Validated — v1.0
 
-(None yet — ship to validate)
+- ✓ Plugin compiles to VST3 and loads in a DAW (Ableton, Reaper) without crashes — v1.0
+- ✓ Plugin generates MIDI note data (no audio output, pure MIDI generator) — v1.0
+- ✓ XY joystick (mouse-driven): Y axis controls Root + Third pitch, X axis controls Fifth + Tension pitch — v1.0
+- ✓ 4 individual interval knobs (Root always 0, Third/Fifth/Tension relative to root, 0–12 semitones) — v1.0
+- ✓ Global transpose knob (0–11 semitones / key selector with note-name display) — v1.0
+- ✓ Per-voice octave offset knobs (−3 to +3 octaves precision adder) — v1.0
+- ✓ Joystick X and Y attenuator knobs (0–127 range, scales joystick output to MIDI range) — v1.0
+- ✓ 12 piano-style scale buttons for custom scale entry (always-editable, auto-copies preset) — v1.0
+- ✓ Scale preset selector (20+ presets: Major, Minor, Harmonic Minor, Pentatonic, Blues, modes, etc.) — v1.0
+- ✓ Quantization: nearest note in scale, ties go DOWN, search over 2 octaves — v1.0
+- ✓ 4 touchplates (Root / Third / Fifth / Tension): press = sample-and-hold pitch + MIDI note-on, release = note-off — v1.0
+- ✓ Per-voice trigger source: TouchPlate, Joystick movement, or Random — v1.0
+- ✓ Random gate: synced subdivisions (1/4, 1/8, 1/16, 1/32) with density knob — v1.0
+- ✓ Looper: record/play/stop/reset/delete, DAW-synced, time signatures (3/4 4/4 5/4 7/8 9/8 11/8), 1–16 bars length — v1.0
+- ✓ Looper records both joystick position AND gate events timestamped to beat position — v1.0
+- ✓ PS4 / Xbox controller support via SDL2 (optional — plugin fully usable with mouse only) — v1.0
+- ✓ Filter CC attenuators: separate X/Y knobs scaling gamepad left-stick output (0–127) — v1.0
+- ✓ Per-voice MIDI channel routing (voices 1–4 to any MIDI channel 1–16) — v1.0
+- ✓ Filter CC MIDI channel selector — v1.0
+- ✓ State persistence (all APVTS parameters saved/recalled per DAW session/preset) — v1.0
 
 ### Active
 
-- [ ] Plugin compiles to VST3 and loads in a DAW (Ableton, Reaper) without crashes
-- [ ] Plugin generates MIDI note data (no audio output, pure MIDI generator)
-- [ ] XY joystick (mouse-driven): Y axis controls Root + Third pitch, X axis controls Fifth + Tension pitch
-- [ ] 4 individual interval knobs (Root always 0, Third/Fifth/Tension relative to root, 0–12 semitones)
-- [ ] Global transpose knob (−24 to +24 semitones, shifts all voices)
-- [ ] Per-voice octave offset knobs (−3 to +3 octaves precision adder)
-- [ ] Joystick X and Y attenuator knobs (0–127 range, scales joystick output to MIDI range)
-- [ ] 12 piano-style scale buttons for custom scale entry (chromatic order)
-- [ ] Scale preset selector (20+ presets: Major, Minor, Harmonic Minor, Pentatonic, Blues, modes, etc.)
-- [ ] Quantization: nearest note in scale, ties go DOWN, search over 2 octaves
-- [ ] 4 touchplates (Root / Third / Fifth / Tension): press = sample-and-hold pitch + MIDI note-on, release = note-off
-- [ ] Per-voice trigger source: TouchPlate, Joystick movement, or Random
-- [ ] Random gate: synced subdivisions (1/4, 1/8, 1/16, 1/32) with density knob
-- [ ] Looper: record/play/stop/reset/delete, DAW-synced, time signatures (3/4 4/4 5/4 7/8 9/8 11/8), 1–16 bars length
-- [ ] Looper records both joystick position AND gate events timestamped to beat position
-- [ ] PS4 / Xbox controller support via SDL2 (optional — plugin fully usable with mouse only):
-  - Right stick → pitch joystick XY
-  - R1 = Root, R2 = Third, L1 = Fifth, L2 = Tension triggers
-  - Left stick X → CC74 (filter cutoff), Y → CC71 (filter resonance)
-  - L3 (left stick click) → trigger all 4 notes simultaneously
-  - Cross = looper start/stop, Square = reset, Triangle = record, Circle = delete
-- [ ] Filter CC attenuators: separate X/Y knobs scaling gamepad left-stick output (0–127)
-- [ ] Per-voice MIDI channel routing (voices 1–4 to any MIDI channel 1–16)
-- [ ] Filter CC MIDI channel selector
-- [ ] State persistence (all APVTS parameters saved/recalled per DAW session/preset)
+(None — clean slate for v1.1)
 
 ### Out of Scope
 
@@ -48,19 +43,21 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - Built-in preset browser — v1 relies on DAW preset management
 - MIDI input processing — plugin generates MIDI, does not process incoming MIDI
 - Standalone app mode — VST3 host required
-- macOS / Linux support — Windows first, cross-platform is v2
+- macOS / Linux support — Windows first, cross-platform deferred to v2
 - MPE / polyphonic expression — standard MIDI channels only
 - Physical hardware touchplates/joystick — UI controls only (gamepad is the hardware bridge)
+- Code signing — SmartScreen "More info / Run anyway" acceptable for v1; deferred to v2
 
-## Context
+## Current State (v1.0)
 
-- **Codebase status**: Full implementation already written in this session — CMakeLists.txt + 14 source files in Source/. Not yet compiled or tested.
-- **Build system**: JUCE 8 via CMake FetchContent + SDL2 static (release-2.30.9). VST3 target only.
-- **Language**: C++17, JUCE 8, SDL2 for gamepad
-- **Development OS**: Windows 11 Pro
-- **Target DAWs**: Ableton Live, Reaper (primary test targets)
-- **Distribution plan**: Paid release via Gumroad or own website
-- **Audience**: Releasing to other musicians — UI polish, stability, and usability without a gamepad all matter
+- **Shipped:** 2026-02-23
+- **Codebase:** ~3,966 C++ LOC, 14 source files in Source/
+- **Build:** JUCE 8.0.4 + CMake FetchContent + SDL2 2.30.9 static, VS 18 2026, Release
+- **Tests:** 26 Catch2 tests passing (ScaleQuantizer 218 assertions, ChordEngine 9 cases, LooperEngine 11 tests)
+- **Validation:** pluginval strictness level 5 — 19/19 suites passed
+- **Installer:** `installer/Output/DimaChordJoystick-Setup.exe` (3.5 MB, Inno Setup 6.7.1)
+- **Distribution:** Gumroad (upload pending)
+- **Known limitation:** COPY_PLUGIN_AFTER_BUILD requires elevation — use fix-install.ps1 manually after rebuild
 
 ## Constraints
 
@@ -68,19 +65,26 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - **Gamepad**: SDL2 static lib — must initialize with `SDL_INIT_GAMECONTROLLER` only (no video subsystem)
 - **MIDI**: 4 voices across configurable channels + filter CCs (CC74 cutoff, CC71 resonance)
 - **Platform**: Windows 11 first; macOS/Linux deferred
-- **No audio buses**: Plugin is pure MIDI effect — `isBusesLayoutSupported` must reject all audio buses
+- **No audio buses**: Plugin is pure MIDI effect — `isBusesLayoutSupported` must reject all audio buses (accepts only 0,0 and 2,2 with disabled buses for pluginval)
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| JUCE 8 + CMake FetchContent | Modern JUCE build, no Projucer dependency | — Pending |
-| SDL2 for gamepad (static) | Cross-platform controller support, normalizes PS4+Xbox | — Pending |
-| VST3 only (no AU/Standalone) | Windows target, reduce complexity for v1 | — Pending |
-| CC74 cutoff + CC71 resonance | MIDI standard filter CCs, maximum synth compatibility | — Pending |
-| Sample-and-hold pitch | Pitch only updates when pad is triggered, not on joystick move | — Pending |
-| Quantize ties → down | Deterministic behavior at scale note equidistance | — Pending |
-| 4 voices on channels 1–4 default | Simple routing default, user-configurable per voice | — Pending |
+| JUCE 8 + CMake FetchContent | Modern JUCE build, no Projucer dependency | ✓ Good — reproducible, pinned to 8.0.4 |
+| SDL2 for gamepad (static) | Cross-platform controller support, normalizes PS4+Xbox | ✓ Good — static CRT + SDL2 static = no runtime deps |
+| VST3 only (no AU/Standalone) | Windows target, reduce complexity for v1 | ✓ Good — shipped cleanly |
+| CC74 cutoff + CC71 resonance | MIDI standard filter CCs, maximum synth compatibility | ✓ Good |
+| Sample-and-hold pitch | Pitch only updates when pad is triggered, not on joystick move | ✓ Good — core interaction model |
+| Quantize ties → down | Deterministic behavior at scale note equidistance | ✓ Good |
+| 4 voices on channels 1–4 default | Simple routing default, user-configurable per voice | ✓ Good |
+| isMidiEffect()=true + disabled stereo buses | Ableton MIDI track placement + pluginval bus tests both satisfied | ✓ Good — key discovery |
+| Lock-free LooperEngine (AbstractFifo) | Audio-thread safety, no std::mutex in processBlock | ✓ Good — 11 passing stress tests |
+| SdlContext process-level singleton | One SDL_Init/SDL_Quit per process, no multi-instance crash | ✓ Good |
+| JOY retrigger on scale-degree boundary | noteOff(old)+noteOn(new) — universal synth compat, no RPN/pitchBend needed | ✓ Good |
+| PPQ subdivision index (int64_t) | Integer comparison avoids float equality issues; fires once per boundary | ✓ Good |
+| Static CRT (MultiThreaded) | No MSVC redistributable on clean machine | ✓ Good — clean-machine validated |
+| Code signing deferred to v2 | SmartScreen acceptable for v1; unsigned EXE validated on clean machine | ✓ Acceptable |
 
 ---
-*Last updated: 2026-02-22 after initialization*
+*Last updated: 2026-02-23 after v1.0 milestone*

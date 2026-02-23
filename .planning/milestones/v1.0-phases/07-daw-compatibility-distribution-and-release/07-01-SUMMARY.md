@@ -129,6 +129,14 @@ None. One minor note: the system VST3 at `C:\Program Files\Common Files\VST3\Cho
 - System VST3 path requires manual admin copy for Ableton re-scan (not a blocker for packaging)
 - Build configuration: Release, Visual Studio 18 2026, CMake FetchContent, JUCE 8.0.4
 
+## Self-Check: PASSED
+
+- FOUND: `.planning/phases/07-daw-compatibility-distribution-and-release/07-01-SUMMARY.md`
+- FOUND: `Source/PluginProcessor.cpp`
+- FOUND: commit `ae0becc` (Task 1 — pre-flight audit)
+- FOUND: commit `889356e` (Task 2 — pluginval pass)
+- FOUND: commit `b3eac0a` (metadata — SUMMARY + STATE + ROADMAP)
+
 ---
 *Phase: 07-daw-compatibility-distribution-and-release*
 *Completed: 2026-02-23*
