@@ -136,23 +136,22 @@ Plans:
 
 ## Phase 07: DAW Compatibility, Distribution, and Release
 
-**Goal:** Resolve Ableton MIDI routing, pass pluginval, and produce a signed installer ready for Gumroad distribution.
+**Goal:** Pass pluginval at strictness level 5 and produce a signed-ready Windows installer (`DimaChordJoystick-Setup.exe`) for Gumroad distribution.
 
 **Delivers:**
-- Ableton Live 11/12 and Reaper 7 confirmed MIDI routing (VST3 category finalized)
-- pluginval passing at strictness level 5
-- Inno Setup installer placing bundle in `%COMMONPROGRAMFILES%\VST3\`
-- Code signing applied to DLL and installer
-- SmartScreen not blocking on clean Windows 11 VM
+- pluginval passing at strictness level 5 (level 4 acceptable per fallback policy)
+- Release build verified and installed at `%COMMONPROGRAMFILES%\VST3\ChordJoystick.vst3`
+- Inno Setup 6 installer placing bundle in `%COMMONPROGRAMFILES%\VST3\` with uninstaller
+- `DimaChordJoystick-Setup.exe` tested on a clean Windows machine without dev tools
+- Code-signing placeholder in installer script (unsigned for v1 per decision)
 
-**Research flag:** Needs /gsd:research-phase — correct IS_SYNTH / IS_MIDI_EFFECT / VST3_CATEGORIES combo for Ableton MIDI output routing is empirically determined.
+**Status:** pending — PLANNED
 
-**Status:** pending
+**Plans:** 2 plans
 
 Plans:
-- [ ] 07-01: VST3 category configuration and Ableton routing validation
-- [ ] 07-02: pluginval validation (strictness 5) and fix any reported issues
-- [ ] 07-03: Inno Setup installer + code signing
+- [ ] 07-01-PLAN.md — Release build + pluginval validation at strictness level 5 + code audit
+- [ ] 07-02-PLAN.md — Inno Setup installer script + EXE build + clean-machine test checkpoint
 
 ---
 
