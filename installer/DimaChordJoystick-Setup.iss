@@ -1,34 +1,34 @@
 ; DimaChordJoystick-Setup.iss
-; Inno Setup 6.7.1 installer for ChordJoystick VST3 v1.0.0
+; Inno Setup 6.7.1 installer for ChordJoystick MK2 VST3 v2.0.0
 ; Place this file in the installer/ subdirectory of the project root.
 
 [Setup]
-AppName=ChordJoystick
-AppVersion=1.0.0
+AppName=ChordJoystick MK2
+AppVersion=2.0.0
 AppPublisher=Dima Xhavid
 AppPublisherURL=https://gumroad.com
-OutputBaseFilename=DimaChordJoystick-Setup
+OutputBaseFilename=DimaChordJoystickMK2-Setup
 OutputDir=Output
-DefaultDirName={commoncf64}\VST3\ChordJoystick.vst3
+DefaultDirName={commoncf64}\VST3\ChordJoystick MK2.vst3
 LicenseFile=..\LICENSE.txt
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 DisableDirPage=yes
 Compression=lzma
 SolidCompression=yes
-UninstallDisplayName=ChordJoystick VST3
+UninstallDisplayName=ChordJoystick MK2 VST3
 
 [Files]
 ; Copies the entire .vst3 bundle (directory tree) to the standard VST3 system path.
 ; Source ends in \* so Inno Setup recurses into the directory.
 ; DestDir creates ChordJoystick.vst3\ at the destination.
-Source: "..\build\ChordJoystick_artefacts\Release\VST3\ChordJoystick.vst3\*"; \
-    DestDir: "{commoncf64}\VST3\ChordJoystick.vst3"; \
+Source: "..\build\ChordJoystick_artefacts\Release\VST3\ChordJoystick MK2.vst3\*"; \
+    DestDir: "{commoncf64}\VST3\ChordJoystick MK2.vst3"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 
 [UninstallDelete]
 ; Ensure the whole .vst3 bundle directory is removed on uninstall.
-Type: filesandordirs; Name: "{commoncf64}\VST3\ChordJoystick.vst3"
+Type: filesandordirs; Name: "{commoncf64}\VST3\ChordJoystick MK2.vst3"
 
 ; -- Code-signing placeholder --------------------------------------------------
 ; Uncomment and fill in when a certificate is acquired:

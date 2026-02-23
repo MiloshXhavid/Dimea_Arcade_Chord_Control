@@ -1,18 +1,133 @@
 #include "PluginEditor.h"
 #include "ScaleQuantizer.h"
+#include <BinaryData.h>
 #include <cmath>
 
 // ─── Colours ─────────────────────────────────────────────────────────────────
 namespace Clr
 {
-    static const juce::Colour bg        { 0xFF1A1A2E };
-    static const juce::Colour panel     { 0xFF16213E };
-    static const juce::Colour accent    { 0xFF0F3460 };
-    static const juce::Colour highlight { 0xFFE94560 };
-    static const juce::Colour text      { 0xFFEAEAEA };
-    static const juce::Colour textDim   { 0xFF888899 };
-    static const juce::Colour gateOn    { 0xFF4CAF50 };
-    static const juce::Colour gateOff   { 0xFF333355 };
+    static const juce::Colour bg        { 0xFF000000 };  // pure black
+    static const juce::Colour panel     { 0xFF0D0D0D };  // near-black
+    static const juce::Colour accent    { 0xFF00FFFF };  // cyan
+    static const juce::Colour highlight { 0xFFFF00FF };  // magenta
+    static const juce::Colour text      { 0xFFFFFFFF };  // white
+    static const juce::Colour textDim   { 0xFF888888 };  // mid-gray
+    static const juce::Colour gateOn    { 0xFF00FFFF };  // cyan
+    static const juce::Colour gateOff   { 0xFF222222 };  // dark gray
+}
+
+// ─── PixelLookAndFeel implementation ─────────────────────────────────────────
+
+void PixelLookAndFeel::drawRotarySlider(juce::Graphics& g,
+    int x, int y, int width, int height,
+    float sliderPosProportional,
+    float rotaryStartAngle, float rotaryEndAngle,
+    juce::Slider& /*slider*/)
+{
+    const float cx = x + width  * 0.5f;
+    const float cy = y + height * 0.5f;
+    const float r  = juce::jmin(width, height) * 0.5f - 4.0f;
+
+    // Track arc (dim)
+    juce::Path trackArc;
+    trackArc.addArc(cx - r, cy - r, r * 2.0f, r * 2.0f,
+                    rotaryStartAngle, rotaryEndAngle, true);
+    g.setColour(Clr::gateOff);
+    g.strokePath(trackArc, juce::PathStrokeType(3.0f));
+
+    // Filled arc (cyan)
+    const float endAngle = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
+    juce::Path fillArc;
+    fillArc.addArc(cx - r, cy - r, r * 2.0f, r * 2.0f,
+                   rotaryStartAngle, endAngle, true);
+    g.setColour(Clr::accent);
+    g.strokePath(fillArc, juce::PathStrokeType(3.0f));
+
+    // Pointer line (magenta, 2px)
+    const float px = cx + (r - 6.0f) * std::sin(endAngle);
+    const float py = cy - (r - 6.0f) * std::cos(endAngle);
+    g.setColour(Clr::highlight);
+    g.drawLine(cx, cy, px, py, 2.0f);
+}
+
+void PixelLookAndFeel::drawButtonBackground(juce::Graphics& g,
+    juce::Button& button,
+    const juce::Colour& backgroundColour,
+    bool /*shouldDrawButtonAsHighlighted*/,
+    bool /*shouldDrawButtonAsDown*/)
+{
+    auto bounds = button.getLocalBounds().toFloat();
+    const bool isOn = button.getToggleState();
+
+    g.setColour(isOn ? Clr::accent : backgroundColour);
+    g.fillRect(bounds);
+
+    g.setColour(isOn ? Clr::highlight : Clr::accent);
+    g.drawRect(bounds, 2.0f);
+}
+
+void PixelLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height,
+    bool /*isButtonDown*/,
+    int /*buttonX*/, int /*buttonY*/, int /*buttonW*/, int /*buttonH*/,
+    juce::ComboBox& box)
+{
+    auto bounds = juce::Rectangle<float>(0, 0, (float)width, (float)height);
+    g.setColour(Clr::panel);
+    g.fillRect(bounds);
+    g.setColour(Clr::accent);
+    g.drawRect(bounds, 1.0f);
+
+    // Arrow (simple downward triangle)
+    const float ax = width - 14.0f;
+    const float ay = height * 0.5f - 3.0f;
+    g.setColour(box.isEnabled() ? Clr::accent : Clr::textDim);
+    juce::Path arrow;
+    arrow.addTriangle(ax, ay, ax + 8.0f, ay, ax + 4.0f, ay + 6.0f);
+    g.fillPath(arrow);
+}
+
+void PixelLookAndFeel::drawLinearSlider(juce::Graphics& g,
+    int x, int y, int width, int height,
+    float sliderPos, float /*minSliderPos*/, float /*maxSliderPos*/,
+    juce::Slider::SliderStyle style, juce::Slider& /*slider*/)
+{
+    if (style != juce::Slider::LinearHorizontal)
+    {
+        // Fall back for any vertical linear sliders (none expected but be safe)
+        LookAndFeel_V4::drawLinearSlider(g, x, y, width, height,
+            sliderPos, 0.0f, 0.0f, style, *reinterpret_cast<juce::Slider*>(nullptr));
+        return;
+    }
+
+    const float trackY  = y + height * 0.5f - 3.0f;
+    const float trackH  = 6.0f;
+
+    // Background track
+    g.setColour(Clr::gateOff);
+    g.fillRect(juce::Rectangle<float>((float)x, trackY, (float)width, trackH));
+
+    // Filled portion
+    g.setColour(Clr::accent);
+    g.fillRect(juce::Rectangle<float>((float)x, trackY, sliderPos - x, trackH));
+
+    // Thumb (3px wide white rect)
+    g.setColour(Clr::text);
+    g.fillRect(juce::Rectangle<float>(sliderPos - 1.5f, (float)y, 3.0f, (float)height));
+}
+
+juce::Font PixelLookAndFeel::getLabelFont(juce::Label& /*label*/)
+{
+    return pixelFont_;
+}
+
+juce::Font PixelLookAndFeel::getComboBoxFont(juce::ComboBox& /*box*/)
+{
+    return pixelFont_;
+}
+
+juce::Font PixelLookAndFeel::getTextButtonFont(juce::TextButton& /*button*/, int /*buttonHeight*/)
+{
+    return pixelFont_;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -43,7 +158,7 @@ void JoystickPad::paint(juce::Graphics& g)
 {
     const auto b = getLocalBounds().toFloat();
     g.setColour(Clr::accent);
-    g.fillRoundedRectangle(b, 6.0f);
+    g.fillRect(b);
 
     // 12-step grid: 11 interior lines per axis (one per semitone at 1-octave range)
     g.setColour(juce::Colours::white.withAlpha(0.18f));
@@ -69,7 +184,7 @@ void JoystickPad::paint(juce::Graphics& g)
 
     // Border
     g.setColour(Clr::highlight.withAlpha(0.5f));
-    g.drawRoundedRectangle(b.reduced(1), 6.0f, 1.5f);
+    g.drawRect(b.reduced(1), 2.0f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -111,14 +226,14 @@ void TouchPlate::paint(juce::Graphics& g)
         : Clr::gateOff.darker(0.3f);  // dimmed in JOY or RND mode
 
     g.setColour(fillClr);
-    g.fillRoundedRectangle(getLocalBounds().toFloat(), 8.0f);
+    g.fillRect(getLocalBounds().toFloat());
 
     g.setColour(isPadMode ? Clr::text : Clr::textDim);
     g.setFont(juce::Font(14.0f, juce::Font::bold));
     g.drawText(label_, getLocalBounds(), juce::Justification::centred);
 
     g.setColour((active ? Clr::gateOn : Clr::accent).brighter(isPadMode ? 0.2f : 0.0f));
-    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), 8.0f, 1.5f);
+    g.drawRect(getLocalBounds().toFloat().reduced(1.0f), 2.0f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -175,7 +290,7 @@ void GlobalTouchPlate::paint(juce::Graphics& g)
                                              : allGateOff;
 
     g.setColour(fillClr);
-    g.fillRoundedRectangle(getLocalBounds().toFloat(), 8.0f);
+    g.fillRect(getLocalBounds().toFloat());
 
     g.setColour(anyPadMode ? Clr::text : Clr::textDim);
     g.setFont(juce::Font(14.0f, juce::Font::bold));
@@ -185,7 +300,7 @@ void GlobalTouchPlate::paint(juce::Graphics& g)
                                              : (anyPadMode ? allGateOff.brighter(0.4f)
                                                            : Clr::accent);
     g.setColour(borderClr);
-    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), 8.0f, 1.5f);
+    g.drawRect(getLocalBounds().toFloat().reduced(1.0f), 2.0f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -456,6 +571,13 @@ PluginEditor::PluginEditor(PluginProcessor& p)
       padAll_    (p),
       scaleKeys_ (p.apvts)
 {
+    // ── Pixel font + LookAndFeel ───────────────────────────────────────────────
+    pixelFont_ = juce::Font(juce::Typeface::createSystemTypefaceFor(
+        BinaryData::PressStart2PRegular_ttf,
+        BinaryData::PressStart2PRegular_ttfSize)).withHeight(10.0f);
+    pixelLaf_.setPixelFont(pixelFont_);
+    setLookAndFeel(&pixelLaf_);
+
     setSize(920, 700);
 
     // ── Joystick ──────────────────────────────────────────────────────────────
@@ -786,6 +908,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
 
 PluginEditor::~PluginEditor()
 {
+    setLookAndFeel(nullptr);
     stopTimer();
 }
 
@@ -794,6 +917,7 @@ PluginEditor::~PluginEditor()
 void PluginEditor::resized()
 {
     auto area = getLocalBounds().reduced(8);
+    area.removeFromTop(28);  // header bar
     const int rowH   = area.getHeight();
     const int colW   = area.getWidth();
 
@@ -1024,6 +1148,20 @@ void PluginEditor::paint(juce::Graphics& g)
 {
     g.fillAll(Clr::bg);
 
+    // Header bar
+    auto header = getLocalBounds().removeFromTop(28);
+    g.setColour(Clr::panel);
+    g.fillRect(header);
+    g.setColour(Clr::accent);
+    g.drawRect(header, 1);
+    g.setFont(pixelFont_.withHeight(12.0f));
+    g.setColour(Clr::accent);
+    g.drawText("CHORD JOYSTICK MK2", header, juce::Justification::centred);
+
+    // Outer border
+    g.setColour(Clr::accent);
+    g.drawRect(getLocalBounds().reduced(2), 2);
+
     // Section labels
     g.setColour(Clr::textDim);
     g.setFont(juce::Font(9.5f, juce::Font::bold));
@@ -1058,8 +1196,6 @@ void PluginEditor::paint(juce::Graphics& g)
     drawAbove(randomGateTimeKnob_, "GATE");
     drawAbove(randomFreeTempoKnob_, "FREE BPM");
 
-    g.setColour(Clr::accent);
-    g.drawRect(getLocalBounds().reduced(4), 1);
 }
 
 // ─── Timer (UI refresh) ───────────────────────────────────────────────────────

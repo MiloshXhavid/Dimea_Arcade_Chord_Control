@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(ChordJoystick VERSION 1.0.0)
+project(ChordJoystick VERSION 2.0.0)
 
 # Static CRT — must precede all FetchContent calls so JUCE internals also get /MT
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -98,11 +98,15 @@ if(BUILD_TESTS)
 endif()
 
 # ─── Plugin target ───────────────────────────────────────────────────────────
+juce_add_binary_data(ChordJoystickFonts
+    SOURCES Fonts/PressStart2P-Regular.ttf
+)
+
 juce_add_plugin(ChordJoystick
-    PRODUCT_NAME            "ChordJoystick"
+    PRODUCT_NAME            "ChordJoystick MK2"
     FORMATS                 VST3
     PLUGIN_MANUFACTURER_CODE "MxCJ"
-    PLUGIN_CODE             "CJoy"
+    PLUGIN_CODE             "CJM2"
     VST3_CATEGORIES         "Fx" "MIDI"
     IS_SYNTH                FALSE
     NEEDS_MIDI_INPUT        TRUE
@@ -135,6 +139,7 @@ target_compile_definitions(ChordJoystick PRIVATE
 )
 
 target_link_libraries(ChordJoystick PRIVATE
+    ChordJoystickFonts
     juce::juce_audio_processors
     juce::juce_audio_utils
     juce::juce_gui_basics

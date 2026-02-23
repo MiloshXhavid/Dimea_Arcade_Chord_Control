@@ -3,6 +3,39 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "PluginProcessor.h"
 
+// ─── PixelLookAndFeel ─────────────────────────────────────────────────────────
+// Arcade / 8-bit aesthetic: flat fills, sharp corners, pixel font, cyan + magenta.
+
+class PixelLookAndFeel : public juce::LookAndFeel_V4
+{
+public:
+    void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
+                          float sliderPosProportional, float rotaryStartAngle,
+                          float rotaryEndAngle, juce::Slider& slider) override;
+
+    void drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                               const juce::Colour& backgroundColour,
+                               bool shouldDrawButtonAsHighlighted,
+                               bool shouldDrawButtonAsDown) override;
+
+    void drawComboBox(juce::Graphics& g, int width, int height, bool isButtonDown,
+                      int buttonX, int buttonY, int buttonW, int buttonH,
+                      juce::ComboBox& box) override;
+
+    void drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height,
+                          float sliderPos, float minSliderPos, float maxSliderPos,
+                          juce::Slider::SliderStyle style, juce::Slider& slider) override;
+
+    juce::Font getLabelFont(juce::Label& label) override;
+    juce::Font getComboBoxFont(juce::ComboBox& box) override;
+    juce::Font getTextButtonFont(juce::TextButton& button, int buttonHeight) override;
+
+    void setPixelFont(const juce::Font& f) { pixelFont_ = f; }
+
+private:
+    juce::Font pixelFont_ { 10.0f };
+};
+
 // ─── JoystickPad ─────────────────────────────────────────────────────────────
 // Mouse-draggable XY pad that writes into processor.joystickX/Y
 
@@ -97,6 +130,9 @@ public:
 
 private:
     PluginProcessor& proc_;
+
+    PixelLookAndFeel pixelLaf_;
+    juce::Font       pixelFont_ { 10.0f };
 
     void timerCallback() override;
 
