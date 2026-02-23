@@ -6,14 +6,14 @@
 // ─── Colours ─────────────────────────────────────────────────────────────────
 namespace Clr
 {
-    static const juce::Colour bg        { 0xFF000000 };  // pure black
-    static const juce::Colour panel     { 0xFF0D0D0D };  // near-black
-    static const juce::Colour accent    { 0xFF00FFFF };  // cyan
-    static const juce::Colour highlight { 0xFFFF00FF };  // magenta
-    static const juce::Colour text      { 0xFFFFFFFF };  // white
-    static const juce::Colour textDim   { 0xFF888888 };  // mid-gray
-    static const juce::Colour gateOn    { 0xFF00FFFF };  // cyan
-    static const juce::Colour gateOff   { 0xFF222222 };  // dark gray
+    static const juce::Colour bg        { 0xFF1A1A2E };  // deep navy
+    static const juce::Colour panel     { 0xFF16213E };  // dark blue-navy
+    static const juce::Colour accent    { 0xFF0F3460 };  // deep blue
+    static const juce::Colour highlight { 0xFFE94560 };  // coral-red
+    static const juce::Colour text      { 0xFFEAEAEA };  // off-white
+    static const juce::Colour textDim   { 0xFF888899 };  // blue-gray
+    static const juce::Colour gateOn    { 0xFF4CAF50 };  // green
+    static const juce::Colour gateOff   { 0xFF333355 };  // dark blue-purple
 }
 
 // ─── PixelLookAndFeel implementation ─────────────────────────────────────────
