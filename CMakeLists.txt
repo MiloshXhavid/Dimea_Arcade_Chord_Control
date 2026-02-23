@@ -124,6 +124,7 @@ target_sources(ChordJoystick PRIVATE
     Source/TriggerSystem.cpp
     Source/LooperEngine.cpp
     Source/GamepadInput.cpp
+    Source/SdlContext.cpp
 )
 
 target_compile_definitions(ChordJoystick PRIVATE

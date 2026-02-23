@@ -18,7 +18,7 @@ bool SdlContext::acquire()
 
         const bool ok = (SDL_Init(SDL_INIT_GAMECONTROLLER) == 0);
         if (!ok)
-            DBG("SdlContext: SDL_Init failed: " << SDL_GetError());
+            (void)SDL_GetError();  // SDL_Init failed; error string available via SDL_GetError() in debugger
         gAvailable.store(ok, std::memory_order_release);
         return ok;
     }

@@ -2,26 +2,24 @@
 
 // Include SDL2 only in the .cpp to avoid polluting headers
 #include <SDL.h>
+#include "SdlContext.h"
 
-static constexpr int   kTriggerThreshold = 8000;  // SDL axis > this = pressed
-static constexpr float kDeadzone         = 0.08f;
+static constexpr int kTriggerThreshold = 8000;  // SDL axis > this = pressed
 
 GamepadInput::GamepadInput()
 {
     for (auto& a : voiceTrig_)    a.store(false);
 
-    // Background thread for joystick I/O — must be set before SDL_Init.
-    // Without this, SDL2 on Windows tries to process WM_DEVICECHANGE on the
-    // calling thread. DAW plugin threads have no message loop → crash on load.
-    SDL_SetHint(SDL_HINT_JOYSTICK_THREAD, "1");
-    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+    // Acquire the process-level SDL singleton.
+    // SdlContext sets SDL hints (JOYSTICK_THREAD, BACKGROUND_EVENTS) before
+    // calling SDL_Init on the first instance — no per-instance hint/init needed.
+    sdlInitialised_ = SdlContext::acquire();
 
-    if (SDL_Init(SDL_INIT_GAMECONTROLLER) != 0)
+    if (!sdlInitialised_)
     {
-        DBG("SDL_Init failed: " << SDL_GetError());
+        DBG("GamepadInput: SdlContext::acquire() failed — no gamepad support");
         return;
     }
-    sdlInitialised_ = true;
 
     tryOpenController();
     startTimerHz(60);
@@ -32,7 +30,7 @@ GamepadInput::~GamepadInput()
     stopTimer();
     closeController();
     if (sdlInitialised_)
-        SDL_Quit();
+        SdlContext::release();
 }
 
 void GamepadInput::tryOpenController()
@@ -43,8 +41,12 @@ void GamepadInput::tryOpenController()
         if (SDL_IsGameController(i))
         {
             controller_ = SDL_GameControllerOpen(i);
-            if (controller_ && onConnectionChange)
-                onConnectionChange(true);
+            if (controller_)
+            {
+                // Fire both callback slots — processor handles pending flags, editor handles UI
+                if (onConnectionChange)   onConnectionChange(true);
+                if (onConnectionChangeUI) onConnectionChangeUI(true);
+            }
             return;
         }
     }
@@ -56,15 +58,16 @@ void GamepadInput::closeController()
     {
         SDL_GameControllerClose(controller_);
         controller_ = nullptr;
-        if (onConnectionChange)
-            onConnectionChange(false);
+        // Fire both callback slots
+        if (onConnectionChange)   onConnectionChange(false);
+        if (onConnectionChangeUI) onConnectionChangeUI(false);
     }
 }
 
 float GamepadInput::normaliseAxis(int16_t raw) const
 {
     const float v = static_cast<float>(raw) / 32767.0f;
-    return std::abs(v) < kDeadzone ? 0.0f : v;
+    return std::abs(v) < deadZone_.load(std::memory_order_relaxed) ? 0.0f : v;
 }
 
 bool GamepadInput::triggerPressed(int16_t axisValue) const
@@ -76,6 +79,21 @@ bool GamepadInput::triggerPressed(int16_t axisValue) const
 
 void GamepadInput::timerCallback()
 {
+    const uint32_t now = SDL_GetTicks();
+
+    // Debounce helper: returns true on a confirmed state transition
+    // (cur != prev AND at least kDebounceMsBtn ms have elapsed since last change).
+    auto debounce = [&](bool cur, ButtonState& s) -> bool {
+        if (cur != s.prev && (now - s.lastMs) >= kDebounceMsBtn)
+        {
+            s.prev   = cur;
+            s.lastMs = now;
+            return true;
+        }
+        return false;
+    };
+
+    // SDL event loop
     SDL_Event ev;
     while (SDL_PollEvent(&ev))
     {
@@ -87,23 +105,27 @@ void GamepadInput::timerCallback()
 
     if (!controller_) return;
 
-    // ── Right stick → pitch joystick ─────────────────────────────────────────
+    // ── Right stick → pitch joystick (with sample-and-hold) ──────────────────
     {
-        const float x =  normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTX));
-        const float y = -normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTY));
-        pitchX_.store(x);
-        pitchY_.store(y);
+        const float rawX =  normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTX));
+        const float rawY = -normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTY));
+        if (rawX != 0.0f) lastPitchX_ = rawX;
+        if (rawY != 0.0f) lastPitchY_ = rawY;
+        pitchX_.store(lastPitchX_, std::memory_order_relaxed);
+        pitchY_.store(lastPitchY_, std::memory_order_relaxed);
     }
 
-    // ── Left stick → filter ───────────────────────────────────────────────────
+    // ── Left stick → filter (with sample-and-hold) ───────────────────────────
     {
-        const float x =  normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_LEFTX));
-        const float y = -normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_LEFTY));
-        filterX_.store(x);
-        filterY_.store(y);
+        const float rawX =  normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_LEFTX));
+        const float rawY = -normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_LEFTY));
+        if (rawX != 0.0f) lastFilterX_ = rawX;
+        if (rawY != 0.0f) lastFilterY_ = rawY;
+        filterX_.store(lastFilterX_, std::memory_order_relaxed);
+        filterY_.store(lastFilterY_, std::memory_order_relaxed);
     }
 
-    // ── Voice triggers: R1/R2/L1/L2 ──────────────────────────────────────────
+    // ── Voice triggers: R1/R2/L1/L2 (debounced) ──────────────────────────────
     // R1 = right shoulder button  → voice 0 (Root)
     // R2 = right trigger (axis)   → voice 1 (Third)
     // L1 = left  shoulder button  → voice 2 (Fifth)
@@ -115,23 +137,20 @@ void GamepadInput::timerCallback()
         SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)  != 0,
         triggerPressed(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_TRIGGERLEFT)),
     };
-
     for (int i = 0; i < 4; ++i)
     {
-        if (curVoice[i] && !prevVoice_[i])
-            voiceTrig_[i].store(true);   // rising edge
-        prevVoice_[i] = curVoice[i];
+        if (debounce(curVoice[i], btnVoice_[i]) && btnVoice_[i].prev)
+            voiceTrig_[i].store(true);  // rising edge after debounce
     }
 
     // ── L3 (left stick click) → all-notes trigger ─────────────────────────────
     {
         const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_LEFTSTICK) != 0;
-        if (cur && !prevAllNotes_)
+        if (debounce(cur, btnAllNotes_) && btnAllNotes_.prev)
             allNotesTrig_.store(true);
-        prevAllNotes_ = cur;
     }
 
-    // ── Looper buttons: Cross/Square/Triangle/Circle ──────────────────────────
+    // ── Looper buttons: Cross(A)/Circle(B)/Square(X)/Triangle(Y) ─────────────
     // SDL A=Cross(X), B=Circle, X=Square, Y=Triangle
     {
         const bool curSS  = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_A) != 0;
@@ -139,15 +158,10 @@ void GamepadInput::timerCallback()
         const bool curRst = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_X) != 0;
         const bool curRec = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_Y) != 0;
 
-        if (curSS  && !prevStartStop_) looperStartStop_.store(true);
-        if (curDel && !prevDelete_)    looperDelete_.store(true);
-        if (curRst && !prevReset_)     looperReset_.store(true);
-        if (curRec && !prevRecord_)    looperRecord_.store(true);
-
-        prevStartStop_ = curSS;
-        prevDelete_    = curDel;
-        prevReset_     = curRst;
-        prevRecord_    = curRec;
+        if (debounce(curSS,  btnStartStop_) && btnStartStop_.prev) looperStartStop_.store(true);
+        if (debounce(curDel, btnDelete_)    && btnDelete_.prev)    looperDelete_.store(true);
+        if (debounce(curRst, btnReset_)     && btnReset_.prev)     looperReset_.store(true);
+        if (debounce(curRec, btnRecord_)    && btnRecord_.prev)    looperRecord_.store(true);
     }
 }
 

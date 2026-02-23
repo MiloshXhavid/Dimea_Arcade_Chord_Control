@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <atomic>
+#include <cstdint>
 #include <functional>
 
 // SDL2 forward declarations (avoid including SDL headers in headers)
@@ -50,8 +51,20 @@ public:
     // Whether a gamepad is connected
     bool isConnected() const { return controller_ != nullptr; }
 
-    // Called when controller connects/disconnects (for UI feedback)
+    // ── Dead zone setter ──────────────────────────────────────────────────────
+    // Called from processBlock via PluginProcessor — sets dead zone threshold
+    // from the joystickThreshold APVTS parameter (single source of truth).
+    void setDeadZone(float t) { deadZone_.store(t, std::memory_order_relaxed); }
+
+    // ── Connection callbacks — two independent slots ──────────────────────────
+    // Called on message thread when a controller connects or disconnects.
+    // PluginProcessor ctor sets this slot to handle pendingAllNotesOff_ / pendingCcReset_.
     std::function<void(bool)> onConnectionChange;
+
+    // Called on message thread when a controller connects or disconnects.
+    // PluginEditor sets this slot to update the status label and gamepadActiveBtn_.
+    // Kept separate from onConnectionChange so both fire independently.
+    std::function<void(bool)> onConnectionChangeUI;
 
 private:
     void timerCallback() override;
@@ -62,10 +75,19 @@ private:
 
     SDL_GameController* controller_ = nullptr;
 
+    // Dead zone — set from processBlock via setDeadZone(); replaces hard-coded kDeadzone
+    std::atomic<float> deadZone_ { 0.08f };  // conservative default until first setDeadZone call
+
     std::atomic<float> pitchX_  {0.0f};
     std::atomic<float> pitchY_  {0.0f};
     std::atomic<float> filterX_ {0.0f};
     std::atomic<float> filterY_ {0.0f};
+
+    // Sample-and-hold: hold last non-dead-zone value when stick returns to center
+    float lastPitchX_  = 0.0f;
+    float lastPitchY_  = 0.0f;
+    float lastFilterX_ = 0.0f;
+    float lastFilterY_ = 0.0f;
 
     std::atomic<bool>  voiceTrig_[4]    {};
     std::atomic<bool>  allNotesTrig_    {false};
@@ -74,13 +96,20 @@ private:
     std::atomic<bool>  looperReset_     {false};
     std::atomic<bool>  looperDelete_    {false};
 
-    // Previous button states for edge detection
-    bool prevVoice_[4]      = {};
-    bool prevAllNotes_      = false;
-    bool prevStartStop_     = false;
-    bool prevRecord_        = false;
-    bool prevReset_         = false;
-    bool prevDelete_        = false;
+    // 20ms button debounce — each button tracks previous state and last-change timestamp
+    struct ButtonState
+    {
+        bool     prev   = false;
+        uint32_t lastMs = 0;  // SDL_GetTicks() ms timestamp of last state change
+    };
+    static constexpr uint32_t kDebounceMsBtn = 20;
 
-    bool sdlInitialised_    = false;  // guard: SDL_Quit() only if SDL_Init() succeeded
+    ButtonState btnVoice_[4];
+    ButtonState btnAllNotes_;
+    ButtonState btnStartStop_;
+    ButtonState btnRecord_;
+    ButtonState btnReset_;
+    ButtonState btnDelete_;
+
+    bool sdlInitialised_    = false;  // guard: SdlContext::release() only if acquire() succeeded
 };
