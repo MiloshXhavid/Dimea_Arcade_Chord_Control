@@ -117,12 +117,12 @@ Plans:
 - Left stick → CC74/CC71 gated on `isConnected()` (no CC flood when unplugged)
 - PS4 and Xbox controller confirmed working
 
-**Status:** planned (3 plans)
+**Status:** In Progress (1/3 plans done)
 
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — SdlContext process-level singleton + GamepadInput refactor (dead zone, sample-and-hold, 20ms button debounce)
+- [x] 06-01-PLAN.md — SdlContext process-level singleton + GamepadInput refactor (dead zone, sample-and-hold, 20ms button debounce) — DONE: plugin builds, SdlContext singleton + GamepadInput hardening complete
 - [ ] 06-02-PLAN.md — PluginProcessor CC gating (isConnected + gamepadActive_), CC dedup, disconnect pending flags, joystickThreshold forwarding
 - [ ] 06-03-PLAN.md — PluginEditor [GAMEPAD ON/OFF] toggle + status label fix + DAW verification checkpoint
 

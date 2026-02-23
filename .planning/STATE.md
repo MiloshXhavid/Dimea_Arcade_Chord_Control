@@ -8,9 +8,9 @@ Core value: Continuous harmonic navigation via joystick with per-voice sample-an
 
 ## Current Position
 
-- **Phase:** 05 of 7 — LooperEngine Hardening and DAW Sync — **COMPLETE**
-- **Plan:** 05-03 COMPLETE — all 3 plans done
-- **Status:** Ready for Phase 06
+- **Phase:** 06 of 7 — SDL2 Gamepad Integration — **IN PROGRESS**
+- **Plan:** 06-01 COMPLETE — 1/3 plans done
+- **Status:** Ready for Phase 06 Plan 02
 
 ## Progress
 
@@ -20,7 +20,7 @@ Phase 02 [██████████]   Engine Validation   (COMPLETE — Sc
 Phase 03 [██████████]   Core MIDI Output    (COMPLETE — 2/2 plans done, all 6 DAW tests passed in Reaper)
 Phase 04 [████████░░]   Trigger Sources     (IN PROGRESS — 04-01+04-02 COMPLETE, 04-03 pending if planned)
 Phase 05 [██████████]   Looper Hardening    (COMPLETE — 3/3 plans done, Reaper+Ableton verified)
-Phase 06 [░░░░░░░░░░]   SDL2 Gamepad
+Phase 06 [███░░░░░░░]   SDL2 Gamepad        (IN PROGRESS — 06-01 done: SdlContext singleton, GamepadInput hardening)
 Phase 07 [░░░░░░░░░░]   Distribution
 
 Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 complete, Phase 03 complete, Phase 04 complete, Phase 05 complete)
@@ -60,6 +60,8 @@ Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 compl
 - **[NEW] recordPending_ atomic: REC press defers recording start to next valid clock pulse (05-03 / 4bafca2)**
 - **[NEW] DAW stop → looper all-notes-off in SYNC mode via prevDawPlaying_ edge detection (05-03 / 4bafca2)**
 - **[NEW] 05-03 Reaper verification COMPLETE: all 4 tests passed (loads, 4-bar loop, DAW SYNC alignment, punch-in preservation); Ableton loads as MIDI effect**
+- **[NEW] SdlContext.h/cpp: process-level SDL2 singleton with atomic ref-count (SDL_Init once per process, SDL_Quit on last release) — eliminates multi-instance DAW crash (06-01 / 0779877)**
+- **[NEW] GamepadInput refactored: SdlContext::acquire/release, deadZone_ atomic + setDeadZone(), sample-and-hold on both sticks, ButtonState 20ms debounce on all 8 buttons, dual onConnectionChange/onConnectionChangeUI slots (06-01 / cb35c78)**
 
 ## Key Decisions
 
@@ -108,6 +110,10 @@ Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 compl
 | Per-voice slew via CC5+CC65 | Portamento on (CC65=127) + portamento time (CC5=slewValue) sent on each voice channel before every note-on; synth-universal |
 | recordPending_ atomic for deferred record start | REC press arms pending flag; process() starts recording on next valid clock pulse — immediate if free-running, waits for DAW if SYNC mode |
 | prevDawPlaying_ edge detection for DAW stop | When DAW stops in SYNC mode, dawStopped flag triggers all-notes-off and looper stop |
+| SdlContext as file-scope static atomics | gRefCount + gAvailable as file-scope statics in SdlContext.cpp — no Meyers singleton, no JUCE header dependency in SDL-only translation unit |
+| setDeadZone() uses memory_order_relaxed | Dead zone read once per 60Hz timer tick; full sequential consistency unnecessary overhead for this use case |
+| Dual onConnectionChange / onConnectionChangeUI | Two independent callback slots prevent PluginEditor assignment from silently stomping PluginProcessor disconnect handler |
+| DBG() not available in SdlContext.cpp | SdlContext.cpp is SDL-only (no JUCE headers); SDL_Init failure logged via (void)SDL_GetError() — readable in debugger without JUCE macro dependency |
 
 ## Known Issues (Must Fix Before Shipping)
 
@@ -116,7 +122,7 @@ Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 compl
 3. ~~**std::mutex in LooperEngine processBlock**~~ — FIXED in 05-01 (now fully lock-free AbstractFifo design).
 4. **Filter CC (CC71/CC74) emitted unconditionally** — Floods synth at ~175 msgs/sec when no gamepad. Fix in Phase 06.
 5. ~~**releaseResources() is empty**~~ — FIXED in 03-01 (now calls resetAllGates()).
-6. **SDL_Init/SDL_Quit per instance** — Multi-instance race condition. Fix in Phase 06.
+6. ~~**SDL_Init/SDL_Quit per instance**~~ — FIXED in 06-01 (SdlContext singleton, atomic ref-count, SDL_Init once per process).
 7. **COPY_PLUGIN_AFTER_BUILD requires elevated process** — manual copy needed each rebuild.
 
 ## Pending Todos
@@ -131,5 +137,5 @@ Overall: [█████░░░░░] ~62% (Phase 01 partial, Phase 02 compl
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Phase 06 context gathered — dead zones, UI indicator, multi-controller, CC threshold all decided. Ready to plan Phase 06.
-Resume file: .planning/phases/06-sdl2-gamepad-integration/06-CONTEXT.md
+Stopped at: Completed 06-01-PLAN.md — SdlContext singleton and GamepadInput hardening complete. Ready for 06-02.
+Resume file: .planning/phases/06-sdl2-gamepad-integration/06-02-PLAN.md
