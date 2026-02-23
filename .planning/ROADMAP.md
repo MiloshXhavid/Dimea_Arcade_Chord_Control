@@ -95,14 +95,14 @@ Plans:
 - 9 new Catch2 tests (multi-thread stress + loop-wrap + DAW sync anchor)
 - Verified 4-bar loop in Reaper; Ableton best-effort
 
-**Status:** in-progress (1/3 plans done)
+**Status:** COMPLETE (3/3 plans done — all 4 Reaper tests passed, Ableton loads as MIDI effect)
 
 **Plans:** 3 plans
 
 Plans:
 - [x] 05-01-PLAN.md — Lock-free LooperEngine rewrite (AbstractFifo + double-buffer) + Catch2 tests + CMake TSAN option — DONE: 26 tests pass, ScopedRead ordering bug fixed
-- [ ] 05-02-PLAN.md — PluginProcessor DAW sync wiring (JUCE 8 ppqPosition API) + PluginEditor [REC JOY]/[REC GATES]/[SYNC] buttons
-- [ ] 05-03-PLAN.md — Release build + full Catch2 suite + Reaper 4-test DAW verification (human checkpoint)
+- [x] 05-02-PLAN.md — PluginProcessor DAW sync wiring (JUCE 8 ppqPosition API) + PluginEditor [REC JOY]/[REC GATES]/[SYNC] buttons — DONE
+- [x] 05-03-PLAN.md — Release build + full Catch2 suite + Reaper 4-test DAW verification — DONE: all 4 Reaper tests pass, Ableton fix applied (isMidiEffect=true)
 
 ---
 
@@ -117,14 +117,14 @@ Plans:
 - Left stick → CC74/CC71 gated on `isConnected()` (no CC flood when unplugged)
 - PS4 and Xbox controller confirmed working
 
-**Research flag:** Needs /gsd:research-phase — verify SDL_HINT_JOYSTICK_THREAD behavior in SDL2 2.30.9.
+**Status:** planned (3 plans)
 
-**Status:** pending
+**Plans:** 3 plans
 
 Plans:
-- [ ] 06-01: SDL singleton lifecycle + hint configuration
-- [ ] 06-02: Gamepad axis and button wiring + hot-plug test
-- [ ] 06-03: Filter CC gating (CC71/CC74 on isConnected() + value-change only)
+- [ ] 06-01-PLAN.md — SdlContext process-level singleton + GamepadInput refactor (dead zone, sample-and-hold, 20ms button debounce)
+- [ ] 06-02-PLAN.md — PluginProcessor CC gating (isConnected + gamepadActive_), CC dedup, disconnect pending flags, joystickThreshold forwarding
+- [ ] 06-03-PLAN.md — PluginEditor [GAMEPAD ON/OFF] toggle + status label fix + DAW verification checkpoint
 
 ---
 
