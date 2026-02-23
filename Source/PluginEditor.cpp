@@ -6,14 +6,14 @@
 // ─── Colours ─────────────────────────────────────────────────────────────────
 namespace Clr
 {
-    static const juce::Colour bg        { 0xFF1A1A2E };  // deep navy
-    static const juce::Colour panel     { 0xFF16213E };  // dark blue-navy
-    static const juce::Colour accent    { 0xFF0F3460 };  // deep blue
-    static const juce::Colour highlight { 0xFFE94560 };  // coral-red
-    static const juce::Colour text      { 0xFFEAEAEA };  // off-white
-    static const juce::Colour textDim   { 0xFF888899 };  // blue-gray
-    static const juce::Colour gateOn    { 0xFF4CAF50 };  // green
-    static const juce::Colour gateOff   { 0xFF333355 };  // dark blue-purple
+    static const juce::Colour bg        { 0xFF131525 };  // deep navy
+    static const juce::Colour panel     { 0xFF1A1D35 };  // panel background
+    static const juce::Colour accent    { 0xFF1E3A6E };  // mid-blue (borders, inactive arcs)
+    static const juce::Colour highlight { 0xFFFF3D6E };  // bright pink-red (active arcs, pointer)
+    static const juce::Colour text      { 0xFFF0F0F8 };  // near-white
+    static const juce::Colour textDim   { 0xFF7A8AB0 };  // blue-grey labels
+    static const juce::Colour gateOn    { 0xFF00E676 };  // bright green
+    static const juce::Colour gateOff   { 0xFF252843 };  // dark inactive pads
 }
 
 // ─── PixelLookAndFeel implementation ─────────────────────────────────────────
@@ -28,42 +28,63 @@ void PixelLookAndFeel::drawRotarySlider(juce::Graphics& g,
     const float cy = y + height * 0.5f;
     const float r  = juce::jmin(width, height) * 0.5f - 4.0f;
 
+    // Filled circle background
+    g.setColour(Clr::panel.brighter(0.18f));
+    g.fillEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
+
+    // Subtle rim
+    g.setColour(Clr::accent.brighter(0.4f));
+    g.drawEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f, 1.0f);
+
+    const juce::PathStrokeType arcStroke (3.0f,
+        juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+
     // Track arc (dim)
     juce::Path trackArc;
     trackArc.addArc(cx - r, cy - r, r * 2.0f, r * 2.0f,
                     rotaryStartAngle, rotaryEndAngle, true);
-    g.setColour(Clr::gateOff);
-    g.strokePath(trackArc, juce::PathStrokeType(3.0f));
+    g.setColour(Clr::accent.withAlpha(0.6f));
+    g.strokePath(trackArc, arcStroke);
 
-    // Filled arc (cyan)
+    // Filled arc (highlight — visible against dark background)
     const float endAngle = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
     juce::Path fillArc;
     fillArc.addArc(cx - r, cy - r, r * 2.0f, r * 2.0f,
                    rotaryStartAngle, endAngle, true);
-    g.setColour(Clr::accent);
-    g.strokePath(fillArc, juce::PathStrokeType(3.0f));
-
-    // Pointer line (magenta, 2px)
-    const float px = cx + (r - 6.0f) * std::sin(endAngle);
-    const float py = cy - (r - 6.0f) * std::cos(endAngle);
     g.setColour(Clr::highlight);
+    g.strokePath(fillArc, arcStroke);
+
+    // Pointer line (white, crisp)
+    const float pr = r - 6.0f;
+    const float px = cx + pr * std::sin(endAngle);
+    const float py = cy - pr * std::cos(endAngle);
+    g.setColour(Clr::text);
     g.drawLine(cx, cy, px, py, 2.0f);
+
+    // Centre dot
+    g.setColour(Clr::accent.brighter(0.6f));
+    g.fillEllipse(cx - 3.0f, cy - 3.0f, 6.0f, 6.0f);
 }
 
 void PixelLookAndFeel::drawButtonBackground(juce::Graphics& g,
     juce::Button& button,
     const juce::Colour& backgroundColour,
-    bool /*shouldDrawButtonAsHighlighted*/,
-    bool /*shouldDrawButtonAsDown*/)
+    bool shouldDrawButtonAsHighlighted,
+    bool shouldDrawButtonAsDown)
 {
     auto bounds = button.getLocalBounds().toFloat();
     const bool isOn = button.getToggleState();
+    constexpr float cr = 4.0f;
 
-    g.setColour(isOn ? Clr::accent : backgroundColour);
-    g.fillRect(bounds);
+    juce::Colour fill = isOn ? Clr::accent.brighter(0.3f) : backgroundColour;
+    if (shouldDrawButtonAsDown)      fill = fill.darker(0.25f);
+    else if (shouldDrawButtonAsHighlighted) fill = fill.brighter(0.12f);
 
-    g.setColour(isOn ? Clr::highlight : Clr::accent);
-    g.drawRect(bounds, 2.0f);
+    g.setColour(fill);
+    g.fillRoundedRectangle(bounds, cr);
+
+    g.setColour(isOn ? Clr::highlight : Clr::accent.brighter(0.5f));
+    g.drawRoundedRectangle(bounds.reduced(0.75f), cr, 1.5f);
 }
 
 void PixelLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height,
@@ -72,15 +93,18 @@ void PixelLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height,
     juce::ComboBox& box)
 {
     auto bounds = juce::Rectangle<float>(0, 0, (float)width, (float)height);
-    g.setColour(Clr::panel);
-    g.fillRect(bounds);
-    g.setColour(Clr::accent);
-    g.drawRect(bounds, 1.0f);
+    constexpr float cr = 3.0f;
 
-    // Arrow (simple downward triangle)
+    g.setColour(Clr::panel.brighter(0.1f));
+    g.fillRoundedRectangle(bounds, cr);
+
+    g.setColour(Clr::accent.brighter(0.5f));
+    g.drawRoundedRectangle(bounds.reduced(0.5f), cr, 1.0f);
+
+    // Arrow (downward triangle)
     const float ax = width - 14.0f;
     const float ay = height * 0.5f - 3.0f;
-    g.setColour(box.isEnabled() ? Clr::accent : Clr::textDim);
+    g.setColour(box.isEnabled() ? Clr::highlight : Clr::textDim);
     juce::Path arrow;
     arrow.addTriangle(ax, ay, ax + 8.0f, ay, ax + 4.0f, ay + 6.0f);
     g.fillPath(arrow);
@@ -115,19 +139,24 @@ void PixelLookAndFeel::drawLinearSlider(juce::Graphics& g,
     g.fillRect(juce::Rectangle<float>(sliderPos - 1.5f, (float)y, 3.0f, (float)height));
 }
 
-juce::Font PixelLookAndFeel::getLabelFont(juce::Label& /*label*/)
+juce::Font PixelLookAndFeel::getLabelFont(juce::Label& label)
 {
-    return pixelFont_;
+    // Use the label's own height/style but with a clean sans-serif typeface.
+    auto f = label.getFont();
+    return juce::Font(juce::Font::getDefaultSansSerifFontName(),
+                      f.getHeight(), f.getStyleFlags());
 }
 
 juce::Font PixelLookAndFeel::getComboBoxFont(juce::ComboBox& /*box*/)
 {
-    return pixelFont_;
+    return juce::Font(juce::Font::getDefaultSansSerifFontName(), 10.5f, juce::Font::plain);
 }
 
-juce::Font PixelLookAndFeel::getTextButtonFont(juce::TextButton& /*button*/, int /*buttonHeight*/)
+juce::Font PixelLookAndFeel::getTextButtonFont(juce::TextButton& /*button*/, int buttonHeight)
 {
-    return pixelFont_;
+    return juce::Font(juce::Font::getDefaultSansSerifFontName(),
+                      juce::jmin(11.0f, (float)buttonHeight * 0.5f),
+                      juce::Font::bold);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -173,14 +202,27 @@ void JoystickPad::paint(juce::Graphics& g)
     g.drawLine(b.getCentreX(), b.getY(),    b.getCentreX(), b.getBottom(), 1.5f);
     g.drawLine(b.getX(),       b.getCentreY(), b.getRight(), b.getCentreY(), 1.5f);
 
-    // Cursor dot
+    // Cursor dot + crosshair ticks
     const float cx = (proc_.joystickX.load() + 1.0f) * 0.5f * b.getWidth()  + b.getX();
     const float cy = (1.0f - (proc_.joystickY.load() + 1.0f) * 0.5f) * b.getHeight() + b.getY();
 
+    constexpr float dotR = 7.0f;
+    constexpr float tickLen = 5.0f;
+    // Outer glow
+    g.setColour(Clr::highlight.withAlpha(0.25f));
+    g.fillEllipse(cx - dotR - 3.0f, cy - dotR - 3.0f, (dotR + 3.0f) * 2.0f, (dotR + 3.0f) * 2.0f);
+    // Dot fill
     g.setColour(Clr::highlight);
-    g.fillEllipse(cx - 8, cy - 8, 16, 16);
+    g.fillEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f);
+    // Dot outline
     g.setColour(Clr::text);
-    g.drawEllipse(cx - 8, cy - 8, 16, 16, 1.5f);
+    g.drawEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f, 1.5f);
+    // Crosshair ticks
+    g.setColour(Clr::text.withAlpha(0.7f));
+    g.drawLine(cx - dotR - tickLen, cy, cx - dotR - 1.0f, cy, 1.0f);
+    g.drawLine(cx + dotR + 1.0f,   cy, cx + dotR + tickLen, cy, 1.0f);
+    g.drawLine(cx, cy - dotR - tickLen, cx, cy - dotR - 1.0f, 1.0f);
+    g.drawLine(cx, cy + dotR + 1.0f,   cx, cy + dotR + tickLen, 1.0f);
 
     // Border
     g.setColour(Clr::highlight.withAlpha(0.5f));
@@ -225,15 +267,16 @@ void TouchPlate::paint(juce::Graphics& g)
         ? (active ? Clr::gateOn : Clr::gateOff)
         : Clr::gateOff.darker(0.3f);  // dimmed in JOY or RND mode
 
+    constexpr float padR = 4.0f;
     g.setColour(fillClr);
-    g.fillRect(getLocalBounds().toFloat());
+    g.fillRoundedRectangle(getLocalBounds().toFloat(), padR);
 
     g.setColour(isPadMode ? Clr::text : Clr::textDim);
-    g.setFont(juce::Font(14.0f, juce::Font::bold));
+    g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 13.0f, juce::Font::bold));
     g.drawText(label_, getLocalBounds(), juce::Justification::centred);
 
-    g.setColour((active ? Clr::gateOn : Clr::accent).brighter(isPadMode ? 0.2f : 0.0f));
-    g.drawRect(getLocalBounds().toFloat().reduced(1.0f), 2.0f);
+    g.setColour((active ? Clr::gateOn : Clr::accent).brighter(isPadMode ? 0.35f : 0.0f));
+    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), padR, 1.5f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -289,18 +332,19 @@ void GlobalTouchPlate::paint(juce::Graphics& g)
                                 : pressed_   ? allGateOn
                                              : allGateOff;
 
+    constexpr float allR = 4.0f;
     g.setColour(fillClr);
-    g.fillRect(getLocalBounds().toFloat());
+    g.fillRoundedRectangle(getLocalBounds().toFloat(), allR);
 
     g.setColour(anyPadMode ? Clr::text : Clr::textDim);
-    g.setFont(juce::Font(14.0f, juce::Font::bold));
+    g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 13.0f, juce::Font::bold));
     g.drawText("ALL", getLocalBounds(), juce::Justification::centred);
 
     const juce::Colour borderClr = pressed_ ? allGateOn.brighter(0.3f)
-                                             : (anyPadMode ? allGateOff.brighter(0.4f)
+                                             : (anyPadMode ? allGateOff.brighter(0.5f)
                                                            : Clr::accent);
     g.setColour(borderClr);
-    g.drawRect(getLocalBounds().toFloat().reduced(1.0f), 2.0f);
+    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), allR, 1.5f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -482,9 +526,9 @@ void ScaleKeyboard::paint(juce::Graphics& g)
         }
 
         g.setColour(fill);
-        g.fillRect(r);
-        g.setColour(juce::Colours::black);
-        g.drawRect(r);
+        g.fillRoundedRectangle(r.reduced(0.5f), 2.0f);
+        g.setColour(juce::Colours::black.withAlpha(0.6f));
+        g.drawRoundedRectangle(r.reduced(0.5f), 2.0f, 0.8f);
     }
     // Black keys on top
     for (int n = 0; n < 12; ++n)
@@ -495,24 +539,24 @@ void ScaleKeyboard::paint(juce::Graphics& g)
         juce::Colour fill;
         if (editingCustom)
         {
-            fill = isNoteActive(n) ? Clr::highlight : juce::Colours::black;
+            fill = isNoteActive(n) ? Clr::highlight : juce::Colour(0xFF1A1D2E);
         }
         else
         {
             const bool inScale = (activeScaleMask_ >> n) & 1;
-            fill = inScale ? Clr::highlight.darker(0.35f) : juce::Colours::black;
+            fill = inScale ? Clr::highlight.darker(0.25f) : juce::Colour(0xFF1A1D2E);
         }
 
         g.setColour(fill);
-        g.fillRect(r);
+        g.fillRoundedRectangle(r, 2.0f);
     }
 
-    // Draw borders on black keys for visibility
-    g.setColour(juce::Colours::darkgrey.withAlpha(0.5f));
+    // Borders on black keys
+    g.setColour(juce::Colours::black.withAlpha(0.4f));
     for (int n = 0; n < 12; ++n)
     {
         if (!kIsBlack[n]) continue;
-        g.drawRect(noteRect(n), 0.5f);
+        g.drawRoundedRectangle(noteRect(n), 2.0f, 0.5f);
     }
 }
 
@@ -536,7 +580,7 @@ static void styleKnob(juce::Slider& s)
 static void styleLabel(juce::Label& l, const juce::String& text)
 {
     l.setText(text, juce::dontSendNotification);
-    l.setFont(juce::Font(11.0f));
+    l.setFont(juce::Font(11.0f));   // height passed through to getLabelFont
     l.setJustificationType(juce::Justification::centred);
     l.setColour(juce::Label::textColourId, Clr::textDim);
 }
@@ -1150,17 +1194,30 @@ void PluginEditor::paint(juce::Graphics& g)
 
     // Header bar
     auto header = getLocalBounds().removeFromTop(28);
-    g.setColour(Clr::panel);
+    // Subtle gradient from panel to slightly brighter
+    g.setGradientFill(juce::ColourGradient(
+        Clr::panel.brighter(0.08f), (float)header.getX(), (float)header.getY(),
+        Clr::panel,                 (float)header.getX(), (float)header.getBottom(),
+        false));
     g.fillRect(header);
-    g.setColour(Clr::accent);
+    g.setColour(Clr::accent.brighter(0.6f));
     g.drawRect(header, 1);
-    g.setFont(pixelFont_.withHeight(12.0f));
-    g.setColour(Clr::accent);
+    // Title: pixel font for branding, but bright/readable
+    g.setFont(pixelFont_.withHeight(11.0f));
+    g.setColour(Clr::text);
     g.drawText("CHORD JOYSTICK MK2", header, juce::Justification::centred);
 
     // Outer border
-    g.setColour(Clr::accent);
-    g.drawRect(getLocalBounds().reduced(2), 2);
+    g.setColour(Clr::accent.brighter(0.5f));
+    g.drawRect(getLocalBounds().reduced(2), 1);
+
+    // Subtle vertical divider between left and right columns
+    if (joystickPad_.isVisible())
+    {
+        const int divX = joystickPad_.getX() - 4;
+        g.setColour(Clr::accent.withAlpha(0.5f));
+        g.drawLine((float)divX, 32.0f, (float)divX, (float)getHeight() - 8, 1.0f);
+    }
 
     // Section labels
     g.setColour(Clr::textDim);
@@ -1176,16 +1233,16 @@ void PluginEditor::paint(juce::Graphics& g)
     // THRESH label above threshold slider
     if (thresholdSlider_.isVisible())
     {
-        g.setColour(Clr::textDim);
-        g.setFont(juce::Font(9.5f));
+        g.setColour(Clr::textDim.brighter(0.2f));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
         g.drawText("THRESH",
                    thresholdSlider_.getX(), thresholdSlider_.getY() - 12,
                    60, 12, juce::Justification::left);
     }
 
     // Labels above the 3 random knobs (SYNC button has its own text)
-    g.setColour(Clr::textDim);
-    g.setFont(juce::Font(9.5f));
+    g.setColour(Clr::textDim.brighter(0.2f));
+    g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
     auto drawAbove = [&](juce::Component& c, const juce::String& t)
     {
         if (c.isVisible())

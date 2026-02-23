@@ -57,6 +57,10 @@ int ChordEngine::computePitch(int voiceIndex, const Params& p)
         quantized = ScaleQuantizer::quantize(rawMidi, pat, size);
     }
 
-    // Global transpose applied after quantization so it shifts the whole key chromatically
+    // Transpose is applied AFTER quantization.
+    // This is correct: every C-major note shifts by N semitones, landing exactly
+    // on C#-major notes (or whatever target key).  Doing it before quantization
+    // would cause the quantizer to snap back to the original key, neutralising
+    // the transpose — which was the pre-fix bug.
     return juce::jlimit(0, 127, quantized + p.globalTranspose);
 }
