@@ -33,9 +33,23 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - ✓ Filter CC MIDI channel selector — v1.0
 - ✓ State persistence (all APVTS parameters saved/recalled per DAW session/preset) — v1.0
 
-### Active
+### Active — v1.1
 
-(None — clean slate for v1.1)
+## Current Milestone: v1.1 Polish & Quantization
+
+**Goal:** Formalize post-v1.0 patches, improve MIDI panic to a full reset sweep, add live + post-record trigger quantization, and polish the UI with better visual grouping and a playback position indicator.
+
+**Target features:**
+- Formalize 6 post-v1.0 patches with REQ-IDs (sustain CC, hold mode, filter mod, MIDI mute, filter looper, threshold fix)
+- Improved MIDI panic — full CC reset sweep on all 16 channels
+- Animated mute state visual feedback
+- Live trigger quantization (gate events snapped to grid during recording)
+- Post-record QUANTIZE button (re-snap existing loop)
+- Quantize subdivision selector (independent from random gate)
+- Section visual grouping in plugin UI
+- Gamepad status shows controller type
+- Looper playback position bar
+- Installer rebuilt for v1.1
 
 ### Out of Scope
 
@@ -87,4 +101,4 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 | Code signing deferred to v2 | SmartScreen acceptable for v1; unsigned EXE validated on clean machine | ✓ Acceptable |
 
 ---
-*Last updated: 2026-02-23 after v1.0 milestone*
+*Last updated: 2026-02-24 — v1.1 milestone started*
