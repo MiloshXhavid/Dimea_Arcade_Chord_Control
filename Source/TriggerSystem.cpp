@@ -287,6 +287,7 @@ void TriggerSystem::resetAllGates()
         randomPhase_[v]         = 0.0;
         prevSubdivIndex_[v]     = -1;
         randomGateRemaining_[v] = 0;
+
     }
     allTrigger_.store(false);
     joystickTrig_.store(false);

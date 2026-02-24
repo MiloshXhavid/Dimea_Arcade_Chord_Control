@@ -1036,8 +1036,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     // Gamepad left-stick axis mode toggles — pill style: left=default, right=alt
     filterYModeBox_.addItem("Resonance (CC71)", 1);
     filterYModeBox_.addItem("LFO Rate  (CC76)", 2);
-    filterYModeBox_.addItem("Sustain   (CC64)", 3);
-    filterYModeBox_.setTooltip("Left stick Y axis: what CC the Y axis controls");
+    filterYModeBox_.setTooltip("Left stick Y axis: CC71 Resonance or CC76 LFO Rate (scale with Res Atten knob)");
     styleCombo(filterYModeBox_);
     addAndMakeVisible(filterYModeBox_);
     filterYModeAtt_ = std::make_unique<ComboAtt>(p.apvts, "filterYMode", filterYModeBox_);
@@ -1343,7 +1342,7 @@ void PluginEditor::paint(juce::Graphics& g)
     drawAbove(randomFreeTempoKnob_, "FREE BPM");
     drawAbove(filterYModeBox_,      "LEFT Y");
     drawAbove(filterXModeBox_,      "LEFT X");
-    drawAbove(gateTimeSlider_,      "JOY GATE (s)");
+    drawAbove(gateTimeSlider_,      "JOYSTICK GATE LENGTH");
     drawAbove(thresholdSlider_,     "JOY THRESH");
 
     // ── Footer: how-to-use instructions (left column only) ───────────────────

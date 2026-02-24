@@ -170,7 +170,7 @@ PluginProcessor::createParameterLayout()
     addFloat(ParamID::filterYAtten, "Filter Resonance Attenuator", 0.0f, 127.0f, 127.0f);
     addInt  (ParamID::filterMidiCh, "Filter MIDI Channel",  1, 16, 1);
     {
-        juce::StringArray yModes { "Resonance", "LFO Rate", "Sustain" };
+        juce::StringArray yModes { "Resonance", "LFO Rate" };
         juce::StringArray xModes { "Cutoff",    "VCF LFO",  "Mod Wheel" };
         addChoice("filterYMode", "Left Stick Y Mode", yModes, 0);  // 0=CC71 Res, 1=CC76 LFO Rate, 2=CC64 Sustain
         addChoice("filterXMode", "Left Stick X Mode", xModes, 0);  // 0=CC74 Cut, 1=CC12 VCF LFO, 2=CC1 Mod
@@ -593,7 +593,6 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         {
             midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 74, 0), 0);  // cutoff
             midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 71, 0), 0);  // resonance
-            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 64, 0), 0);  // sustain off
             midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 12, 0), 0);  // VCF LFO amount
             midi.addEvent(juce::MidiMessage::controllerEvent(fCh,  1, 0), 0);  // mod wheel
             midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 76, 0), 0);  // LFO rate
@@ -608,25 +607,22 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             const float yAtten = apvts.getRawParameterValue(ParamID::filterYAtten)->load();
 
             // X axis: 0=CC74 Cutoff, 1=CC12 VCF LFO amount, 2=CC1 Mod Wheel
-            // Y axis: 0=CC71 Resonance, 1=CC76 LFO Rate, 2=CC1 Mod Wheel
+            // Y axis: 0=CC71 Resonance, 1=CC76 LFO Rate
+            // Both attenuators (xAtten/yAtten) scale their respective axis for all modes.
             const int xMode  = (int)apvts.getRawParameterValue("filterXMode")->load();
             const int yMode  = (int)apvts.getRawParameterValue("filterYMode")->load();
             const int ccXnum = (xMode == 1) ? 12 : (xMode == 2) ? 1 : 74;
-            const int ccYnum = (yMode == 1) ? 76 : (yMode == 2) ? 64 : 71;  // 2=Sustain CC64
+            const int ccYnum = (yMode == 1) ? 76 : 71;
 
-            const float gfx = gamepad_.getFilterX();
-            // CC64 (Sustain) uses raw Y — no sample-and-hold so releasing stick
-            // to dead zone sends CC64=0 (sustain off) immediately.
-            // Other Y modes use the S&H value for smooth expression.
-            const float gfyRaw = gamepad_.getFilterYRaw();
-            const float gfy    = (yMode == 2) ? gfyRaw : gamepad_.getFilterY();
+            // Reset dedup counters when mode changes so first emission in new mode fires.
+            if (xMode != prevXMode_) { prevCcCut_.store(-1, std::memory_order_relaxed); prevXMode_ = xMode; }
+            if (yMode != prevYMode_) { prevCcRes_.store(-1, std::memory_order_relaxed); prevYMode_ = yMode; }
 
-            // Map (-1..+1) → (0..atten), clamp to 0..127
-            const int ccCut = juce::jlimit(0, 127, (int)(((gfx + 1.0f) * 0.5f) * xAtten));
-            const int ccRes = juce::jlimit(0, 127, (int)(((gfy + 1.0f) * 0.5f) * yAtten));
+            const float gfx   = gamepad_.getFilterX();
+            const float gfy   = gamepad_.getFilterY();
+            const int   ccCut = juce::jlimit(0, 127, (int)(((gfx + 1.0f) * 0.5f) * xAtten));
+            const int   ccRes = juce::jlimit(0, 127, (int)(((gfy + 1.0f) * 0.5f) * yAtten));
 
-            // Value-change dedup: only emit if integer value changed by >= 1.
-            // prevCcCut_/prevCcRes_ are atomic<int>; use load/store for thread safety.
             if (ccCut != prevCcCut_.load(std::memory_order_relaxed))
             {
                 midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccXnum, ccCut), 0);
@@ -637,7 +633,6 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                 midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccYnum, ccRes), 0);
                 prevCcRes_.store(ccRes, std::memory_order_relaxed);
             }
-            // Expose live CC values to DAW parameter display (consumed on message thread).
             filterCutDisplay_.store(static_cast<float>(ccCut), std::memory_order_relaxed);
             filterResDisplay_.store(static_cast<float>(ccRes), std::memory_order_relaxed);
         }
