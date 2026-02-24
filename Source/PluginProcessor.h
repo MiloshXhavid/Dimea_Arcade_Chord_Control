@@ -61,13 +61,15 @@ public:
     bool looperIsRecordArmed() const { return looper_.isRecordArmed(); }
 
     // New looper API (Phase 05)
-    void looperSetRecJoy(bool b)     { looper_.setRecJoy(b);    }
-    void looperSetRecGates(bool b)   { looper_.setRecGates(b);  }
-    void looperSetSyncToDaw(bool b)  { looper_.setSyncToDaw(b); }
+    void looperSetRecJoy(bool b)     { looper_.setRecJoy(b);     }
+    void looperSetRecGates(bool b)   { looper_.setRecGates(b);   }
+    void looperSetRecFilter(bool b)  { looper_.setRecFilter(b);  }
+    void looperSetSyncToDaw(bool b)  { looper_.setSyncToDaw(b);  }
     bool looperIsCapReached()  const { return looper_.isCapReached(); }
     bool looperIsSyncToDaw()   const { return looper_.isSyncToDaw();  }
     bool looperIsRecJoy()      const { return looper_.isRecJoy();     }
     bool looperIsRecGates()    const { return looper_.isRecGates();   }
+    bool looperIsRecFilter()   const { return looper_.isRecFilter();  }
 
     void looperSetRecWaitForTrigger(bool b) { looper_.setRecWaitForTrigger(b); }
     bool looperIsRecWaitForTrigger()  const { return looper_.isRecWaitForTrigger(); }
@@ -83,12 +85,29 @@ public:
     void setGamepadActive(bool b) { gamepadActive_.store(b, std::memory_order_relaxed); }
     bool isGamepadActive()  const { return gamepadActive_.load(std::memory_order_relaxed); }
 
+    // Left-joystick filter mod on/off (PluginEditor button, default OFF)
+    void setFilterModActive(bool b) { filterModActive_.store(b, std::memory_order_relaxed); }
+    bool isFilterModActive()  const { return filterModActive_.load(std::memory_order_relaxed); }
+
+    // MIDI mute — when true, all MIDI output is blocked after allNotesOff fires on activation
+    void setMidiMuted(bool b) { midiMuted_.store(b, std::memory_order_relaxed); }
+    bool isMidiMuted()  const { return midiMuted_.load(std::memory_order_relaxed); }
+
     // D-pad BPM delta: set from processBlock (audio thread), consumed on message thread
     std::atomic<int> pendingBpmDelta_ { 0 };
 
     // Gamepad button flash signals: incremented on audio thread, consumed by UI timer
     std::atomic<int> flashLoopReset_  { 0 };
     std::atomic<int> flashLoopDelete_ { 0 };
+    std::atomic<int> flashPanic_      { 0 };
+
+    // MIDI panic — sends all-notes-off on all voice channels (UI button or R3 gamepad)
+    // Always clears midiMuted_ so the UI panic button can recover from an R3-triggered mute.
+    void triggerPanic()
+    {
+        midiMuted_.store(false, std::memory_order_relaxed);
+        pendingPanic_.store(true, std::memory_order_relaxed);
+    }
 
     // Live filter CC values — written by audio thread, read by message thread (timerCallback)
     // to call setValueNotifyingHost on "filterCutLive" / "filterResLive" APVTS params.
@@ -116,13 +135,17 @@ private:
     // ── Gamepad per-instance active flag ─────────────────────────────────────
     // Written by PluginEditor toggle button (message thread).
     // Read in processBlock (audio thread). No mutex — atomic only.
-    std::atomic<bool> gamepadActive_ { true };
+    std::atomic<bool> gamepadActive_    { true  };
+    std::atomic<bool> filterModActive_  { false };  // left-joystick filter mod on/off
+    std::atomic<bool> midiMuted_        { false };  // true = block all MIDI output
 
     bool gamepadVoiceWasHeld_[4] = {};  // audio thread only — tracks previous gamepad held state
     bool allNotesWasHeld_ = false;       // audio thread only — tracks previous L3 held state
     bool prevIsDawPlaying_ = false;      // audio thread only — for DAW stop detection
-    int  prevXMode_ = -1;               // audio thread only — dedup reset on X mode change
-    int  prevYMode_ = -1;               // audio thread only — dedup reset on Y mode change
+    int   prevXMode_    = -1;            // audio thread only — dedup reset on X mode change
+    int   prevYMode_    = -1;            // audio thread only — dedup reset on Y mode change
+    float prevFilterX_  = -99.0f;       // audio thread only — raw joystick X, -99 = uninitialised
+    float prevFilterY_  = -99.0f;       // audio thread only — raw joystick Y, -99 = uninitialised
 
     // ── CC dedup: last emitted integer values for CC74 and CC71 ──────────────
     // -1 = never sent; forces emission on first connect.
@@ -137,6 +160,7 @@ private:
     // Use atomic so audio thread and message thread share correctly without mutex.
     std::atomic<bool> pendingAllNotesOff_ { false };
     std::atomic<bool> pendingCcReset_     { false };
+    std::atomic<bool> pendingPanic_       { false };
 
     // Held (sample-and-hold) pitches for each voice
     std::array<int, 4> heldPitch_ {60, 64, 67, 70};

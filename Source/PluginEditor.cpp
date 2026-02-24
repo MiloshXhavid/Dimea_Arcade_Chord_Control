@@ -1478,18 +1478,17 @@ void PluginEditor::timerCallback()
         loopDeleteBtn_.setColour(juce::TextButton::textColourOffId, Clr::text);
     }
 
-    // Sync panic button toggle state to processor's midiMuted_ flag.
-    // R3 on gamepad calls triggerPanic() but doesn't toggle the UI button,
-    // so we sync here so the UI always reflects the true muted state.
+    // Panic button: show MUTED (from R3 toggle) or flash on press, otherwise dark red.
+    // triggerPanic() always clears midiMuted_, so pressing the UI button always unmutes.
     {
         const bool muted = proc_.isMidiMuted();
-        panicBtn_.setToggleState(muted, juce::dontSendNotification);
         panicBtn_.setButtonText(muted ? "MUTED" : "MIDI PANIC");
-    }
-    // Flash for R3 press (only when not muted — when muted the button is already lit)
-    if (!proc_.isMidiMuted())
-    {
-        if (panicFlashCounter_ > 0)
+        if (muted)
+        {
+            panicBtn_.setColour(juce::TextButton::buttonColourId,  Clr::highlight);
+            panicBtn_.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        }
+        else if (panicFlashCounter_ > 0)
         {
             --panicFlashCounter_;
             panicBtn_.setColour(juce::TextButton::buttonColourId,  Clr::highlight);
