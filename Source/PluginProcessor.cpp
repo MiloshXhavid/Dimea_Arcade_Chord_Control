@@ -104,7 +104,7 @@ PluginProcessor::createParameterLayout()
     }
     addInt  (ParamID::thirdInterval,   "Third Interval",    0, 12,  4);
     addInt  (ParamID::fifthInterval,   "Fifth Interval",    0, 12,  7);
-    addInt  (ParamID::tensionInterval, "Tension Interval",  0, 12, 10);
+    addInt  (ParamID::tensionInterval, "Tension Interval",  0, 12, 11);
     addInt  (ParamID::rootOctave,      "Root Octave",       0, 12,  2);
     addInt  (ParamID::thirdOctave,     "Third Octave",      0, 12,  4);
     addInt  (ParamID::fifthOctave,     "Fifth Octave",      0, 12,  3);
@@ -166,8 +166,12 @@ PluginProcessor::createParameterLayout()
         juce::NormalisableRange<float>(30.0f, 240.0f, 0.1f), 120.0f));
 
     // ── Filter ────────────────────────────────────────────────────────────────
-    addFloat(ParamID::filterXAtten, "Filter Cutoff Attenuator",    0.0f, 127.0f, 127.0f);
-    addFloat(ParamID::filterYAtten, "Filter Resonance Attenuator", 0.0f, 127.0f, 127.0f);
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        ParamID::filterXAtten, "Filter Cutoff Attenuator",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 100.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        ParamID::filterYAtten, "Filter Resonance Attenuator",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 100.0f));
     addInt  (ParamID::filterMidiCh, "Filter MIDI Channel",  1, 16, 1);
     {
         juce::StringArray yModes { "Resonance", "LFO Rate" };
@@ -369,6 +373,14 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         if (gamepad_.consumeLooperRecord())    looper_.record();
         if (gamepad_.consumeLooperReset())   { looper_.reset();       flashLoopReset_.fetch_add(1,  std::memory_order_relaxed); }
         if (gamepad_.consumeLooperDelete())  { looper_.deleteLoop();  flashLoopDelete_.fetch_add(1, std::memory_order_relaxed); }
+        if (gamepad_.consumeRightStickTrigger())
+        {
+            // R3 toggles mute: if currently muted, unmute; if not muted, mute + panic
+            const bool wasMuted = midiMuted_.load(std::memory_order_relaxed);
+            midiMuted_.store(!wasMuted, std::memory_order_relaxed);
+            if (!wasMuted)
+                pendingPanic_.store(true, std::memory_order_relaxed);
+        }
 
         // D-pad: BPM and looper recording toggles
         if (gamepad_.consumeDpadUp())    pendingBpmDelta_.fetch_add(1,  std::memory_order_relaxed);
@@ -453,6 +465,22 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         }
     }
 
+    // ── MIDI Panic / Mute ─────────────────────────────────────────────────────
+    // pendingPanic_ fires unconditionally: stops looper, sends allNotesOff, resets gates.
+    // This happens BEFORE the mute gate so allNotesOff always reaches the synth.
+    if (pendingPanic_.exchange(false, std::memory_order_acq_rel))
+    {
+        if (looper_.isPlaying()) looper_.startStop();
+        for (int v = 0; v < 4; ++v)
+            midi.addEvent(juce::MidiMessage::allNotesOff(voiceChs[v]), 0);
+        trigger_.resetAllGates();
+        flashPanic_.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    // When muted: allNotesOff is already in the buffer above; block all further MIDI output.
+    if (midiMuted_.load(std::memory_order_relaxed))
+        return;
+
     // Looper gate playback: emit MIDI directly, bypassing TriggerSystem.
     // This satisfies the locked decision: live pad input passes through independently
     // because TriggerSystem is not informed of looper events — it only sees live pad state.
@@ -461,6 +489,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         const int ch0 = voiceChs[v] - 1;  // 0-based for MIDI message
         if (loopOut.gateOn[v])
         {
+            // PATCH-01: CC64=127 sustain-on before every note-on
+            midi.addEvent(juce::MidiMessage::controllerEvent(ch0 + 1, 64, 127), 0);
             midi.addEvent(juce::MidiMessage::noteOn(ch0 + 1, heldPitch_[v], (uint8_t)100), 0);
         }
         if (loopOut.gateOff[v])
@@ -498,6 +528,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                 : looper_.getPlaybackBeat();
             looper_.recordGate(beatPos, voice, true);
 
+            // PATCH-01: CC64=127 sustain-on before every note-on
+            midi.addEvent(juce::MidiMessage::controllerEvent(ch0 + 1, 64, 127), sampleOff);
             midi.addEvent(juce::MidiMessage::noteOn(ch0 + 1, pitch, (uint8_t)100),
                           sampleOff);
         }
@@ -576,21 +608,27 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     if (anyNoteOnThisBlock)
         looper_.activateRecordingNow();  // no-op if not wait-armed
 
-    // ── Looper joystick recording ─────────────────────────────────────────────
+    // ── Looper joystick + filter recording ───────────────────────────────────
     {
         const double beatPos = (isDawPlaying && ppqPos >= 0.0)
             ? ppqPos : looper_.getPlaybackBeat();
         looper_.recordJoystick(beatPos, chordP.joystickX, chordP.joystickY);
+
+        // Record filter (left stick) into looper when REC FILTER is armed.
+        if (gamepad_.isConnected() && gamepadActive_.load(std::memory_order_relaxed))
+            looper_.recordFilter(beatPos, gamepad_.getFilterX(), gamepad_.getFilterY());
     }
 
-    // ── Filter CC from gamepad left stick ─────────────────────────────────────
-    // Gated on isConnected() AND gamepadActive_.
-    // CC reset on disconnect via pendingCcReset_ atomic flag (set from message thread).
-    // All-notes-off on disconnect via pendingAllNotesOff_ (set from message thread).
+    // ── Filter CC ─────────────────────────────────────────────────────────────
+    // Sources (in priority order):
+    //   1. Looper playback  (loopOut.hasFilterX/Y — works without gamepad)
+    //   2. Live gamepad left stick
+    // Atten knobs scale range but do NOT emit CC on their own (joyMoved guard).
+    // CC reset on disconnect via pendingCcReset_ (set from message thread).
     {
         const int fCh = (int)apvts.getRawParameterValue(ParamID::filterMidiCh)->load();
 
-        // Handle disconnect events — emit MIDI from audio thread via pending flags.
+        // Handle disconnect events.
         if (pendingAllNotesOff_.exchange(false, std::memory_order_acq_rel))
         {
             for (int v = 0; v < 4; ++v)
@@ -599,50 +637,69 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
         if (pendingCcReset_.exchange(false, std::memory_order_acq_rel))
         {
-            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 74, 0), 0);  // cutoff
-            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 71, 0), 0);  // resonance
-            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 12, 0), 0);  // VCF LFO amount
-            midi.addEvent(juce::MidiMessage::controllerEvent(fCh,  1, 0), 0);  // mod wheel
-            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 76, 0), 0);  // LFO rate
+            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 74, 0), 0);
+            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 71, 0), 0);
+            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 12, 0), 0);
+            midi.addEvent(juce::MidiMessage::controllerEvent(fCh,  1, 0), 0);
+            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 76, 0), 0);
             prevCcCut_.store(0, std::memory_order_relaxed);
             prevCcRes_.store(0, std::memory_order_relaxed);
         }
 
-        // Normal CC emission — only when connected AND this instance is active.
-        if (gamepad_.isConnected() && gamepadActive_.load(std::memory_order_relaxed))
+        // Determine filter source — all gated by the filterMod on/off toggle.
+        const bool filterModOn   = filterModActive_.load(std::memory_order_relaxed);
+        const bool looperDriving = filterModOn && (loopOut.hasFilterX || loopOut.hasFilterY);
+        const bool liveGamepad   = filterModOn && gamepad_.isConnected() && gamepadActive_.load(std::memory_order_relaxed);
+
+        if (looperDriving || liveGamepad)
         {
             const float xAtten = apvts.getRawParameterValue(ParamID::filterXAtten)->load();
             const float yAtten = apvts.getRawParameterValue(ParamID::filterYAtten)->load();
 
-            // X axis: 0=CC74 Cutoff, 1=CC12 VCF LFO amount, 2=CC1 Mod Wheel
-            // Y axis: 0=CC71 Resonance, 1=CC76 LFO Rate
-            // Both attenuators (xAtten/yAtten) scale their respective axis for all modes.
             const int xMode  = (int)apvts.getRawParameterValue("filterXMode")->load();
             const int yMode  = (int)apvts.getRawParameterValue("filterYMode")->load();
             const int ccXnum = (xMode == 1) ? 12 : (xMode == 2) ? 1 : 74;
             const int ccYnum = (yMode == 1) ? 76 : 71;
 
-            // Reset dedup counters when mode changes so first emission in new mode fires.
             if (xMode != prevXMode_) { prevCcCut_.store(-1, std::memory_order_relaxed); prevXMode_ = xMode; }
             if (yMode != prevYMode_) { prevCcRes_.store(-1, std::memory_order_relaxed); prevYMode_ = yMode; }
 
-            const float gfx   = gamepad_.getFilterX();
-            const float gfy   = gamepad_.getFilterY();
-            const int   ccCut = juce::jlimit(0, 127, (int)(((gfx + 1.0f) * 0.5f) * xAtten));
-            const int   ccRes = juce::jlimit(0, 127, (int)(((gfy + 1.0f) * 0.5f) * yAtten));
+            // Looper output overrides live stick; live stick used when looper has no filter event.
+            const float gfx = loopOut.hasFilterX ? loopOut.filterX
+                                                  : (liveGamepad ? gamepad_.getFilterX() : prevFilterX_);
+            const float gfy = loopOut.hasFilterY ? loopOut.filterY
+                                                  : (liveGamepad ? gamepad_.getFilterY() : prevFilterY_);
 
-            if (ccCut != prevCcCut_.load(std::memory_order_relaxed))
+            // Emit only when the joystick physically moved beyond the threshold, or when the looper
+            // drives a filter event. This prevents gamepad axis noise and atten-knob changes from
+            // firing CC — the synth filter value stays put until the stick actually moves.
+            const bool looperUpdate = loopOut.hasFilterX || loopOut.hasFilterY;
+            const float fThresh = apvts.getRawParameterValue("joystickThreshold")->load();
+            const bool filterMoved = looperUpdate
+                || (std::abs(gfx - prevFilterX_) > fThresh)
+                || (std::abs(gfy - prevFilterY_) > fThresh);
+
+            if (filterMoved)
             {
-                midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccXnum, ccCut), 0);
-                prevCcCut_.store(ccCut, std::memory_order_relaxed);
+                prevFilterX_ = gfx;
+                prevFilterY_ = gfy;
+
+                const int ccCut = juce::jlimit(0, 127, (int)(((gfx + 1.0f) * 0.5f) * 127.0f * (xAtten / 100.0f)));
+                const int ccRes = juce::jlimit(0, 127, (int)(((gfy + 1.0f) * 0.5f) * 127.0f * (yAtten / 100.0f)));
+
+                if (ccCut != prevCcCut_.load(std::memory_order_relaxed))
+                {
+                    midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccXnum, ccCut), 0);
+                    prevCcCut_.store(ccCut, std::memory_order_relaxed);
+                }
+                if (ccRes != prevCcRes_.load(std::memory_order_relaxed))
+                {
+                    midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccYnum, ccRes), 0);
+                    prevCcRes_.store(ccRes, std::memory_order_relaxed);
+                }
+                filterCutDisplay_.store(static_cast<float>(ccCut), std::memory_order_relaxed);
+                filterResDisplay_.store(static_cast<float>(ccRes), std::memory_order_relaxed);
             }
-            if (ccRes != prevCcRes_.load(std::memory_order_relaxed))
-            {
-                midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccYnum, ccRes), 0);
-                prevCcRes_.store(ccRes, std::memory_order_relaxed);
-            }
-            filterCutDisplay_.store(static_cast<float>(ccCut), std::memory_order_relaxed);
-            filterResDisplay_.store(static_cast<float>(ccRes), std::memory_order_relaxed);
         }
     }
 
