@@ -243,8 +243,12 @@ juce::Font PixelLookAndFeel::getComboBoxFont(juce::ComboBox& /*box*/)
     return juce::Font(juce::Font::getDefaultSansSerifFontName(), 10.5f, juce::Font::plain);
 }
 
-juce::Font PixelLookAndFeel::getTextButtonFont(juce::TextButton& /*button*/, int buttonHeight)
+juce::Font PixelLookAndFeel::getTextButtonFont(juce::TextButton& button, int buttonHeight)
 {
+    if (button.getName() == "small")
+        return juce::Font(juce::Font::getDefaultSansSerifFontName(),
+                          juce::jmin(8.0f, (float)buttonHeight * 0.38f),
+                          juce::Font::bold);
     return juce::Font(juce::Font::getDefaultSansSerifFontName(),
                       juce::jmin(11.0f, (float)buttonHeight * 0.5f),
                       juce::Font::bold);
@@ -883,8 +887,8 @@ PluginEditor::PluginEditor(PluginProcessor& p)
         *p.apvts.getParameter("randomFreeTempo"), randomFreeTempoKnob_);
 
     // ── Filter attenuators ────────────────────────────────────────────────────
-    styleKnob(filterXAttenKnob_); styleLabel(filterXAttenLabel_, "Cutoff Atten");
-    styleKnob(filterYAttenKnob_); styleLabel(filterYAttenLabel_, "Res Atten");
+    styleKnob(filterXAttenKnob_); filterXAttenKnob_.setTextValueSuffix(" %"); styleLabel(filterXAttenLabel_, "Cutoff Atten");
+    styleKnob(filterYAttenKnob_); filterYAttenKnob_.setTextValueSuffix(" %"); styleLabel(filterYAttenLabel_, "Res Atten");
     addAndMakeVisible(filterXAttenKnob_); addAndMakeVisible(filterXAttenLabel_);
     addAndMakeVisible(filterYAttenKnob_); addAndMakeVisible(filterYAttenLabel_);
     filterXAttenAtt_ = std::make_unique<SliderAtt>(p.apvts, "filterXAtten", filterXAttenKnob_);
@@ -962,14 +966,11 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(loopRecGatesBtn_);
     addAndMakeVisible(loopSyncBtn_);
 
-    loopRecWaitBtn_.setButtonText("REC TOUCH");
-    loopRecWaitBtn_.setClickingTogglesState(true);
+    loopRecWaitBtn_.setButtonText("START REC BY TOUCH");
+    loopRecWaitBtn_.setName("small");
+    loopRecWaitBtn_.setTriggeredOnMouseDown(true);
     styleButton(loopRecWaitBtn_);
-    loopRecWaitBtn_.onClick = [this] {
-        const bool newVal = !proc_.looperIsRecWaitForTrigger();
-        proc_.looperSetRecWaitForTrigger(newVal);
-        loopRecWaitBtn_.setToggleState(newVal, juce::dontSendNotification);
-    };
+    loopRecWaitBtn_.onClick = [this] { proc_.looperRecord(); };
     addAndMakeVisible(loopRecWaitBtn_);
 
     bpmDisplayLabel_.setText("120.0 BPM", juce::dontSendNotification);
@@ -1043,6 +1044,21 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     if (p.getGamepad().isConnected())
         gamepadStatusLabel_.setText("GAMEPAD: connected", juce::dontSendNotification);
 
+    // Left-joystick filter mod button — default OFF.
+    // When OFF, no filter CC is sent and the LEFT X / LEFT Y dropdowns are greyed out.
+    filterModBtn_.setButtonText("FILTER MOD OFF");
+    filterModBtn_.setClickingTogglesState(true);
+    filterModBtn_.setToggleState(false, juce::dontSendNotification);
+    filterModBtn_.setColour(juce::TextButton::buttonOnColourId,  Clr::gateOn);
+    filterModBtn_.setColour(juce::TextButton::buttonColourId,    Clr::gateOff);
+    filterModBtn_.onClick = [this]
+    {
+        const bool active = filterModBtn_.getToggleState();
+        proc_.setFilterModActive(active);
+        filterModBtn_.setButtonText(active ? "FILTER MOD ON" : "FILTER MOD OFF");
+    };
+    addAndMakeVisible(filterModBtn_);
+
     // Gamepad left-stick axis mode toggles — pill style: left=default, right=alt
     filterYModeBox_.addItem("Resonance (CC71)", 1);
     filterYModeBox_.addItem("LFO Rate  (CC76)", 2);
@@ -1058,6 +1074,23 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     styleCombo(filterXModeBox_);
     addAndMakeVisible(filterXModeBox_);
     filterXModeAtt_ = std::make_unique<ComboAtt>(p.apvts, "filterXMode", filterXModeBox_);
+
+    // ── MIDI Panic button ─────────────────────────────────────────────────────
+    // One-shot: press sends allNotesOff on all voice channels, button stays pressable.
+    // Gamepad: R3 (separate toggle-mute path in processBlock, unchanged here).
+    panicBtn_.setButtonText("MIDI PANIC");
+    panicBtn_.setClickingTogglesState(false);   // PATCH-04: one-shot, not toggle
+    panicBtn_.setTriggeredOnMouseDown(true);
+    panicBtn_.setTooltip("Send allNotesOff on all voice channels and reset gates. Gamepad: R3.");
+    styleButton(panicBtn_);
+    panicBtn_.setColour(juce::TextButton::buttonColourId,  juce::Colour(0xFF5C1010));  // dark red
+    panicBtn_.setColour(juce::TextButton::textColourOffId, Clr::text);
+    panicBtn_.onClick = [this]
+    {
+        proc_.triggerPanic();   // PATCH-04: one-shot — fires allNotesOff this block, button stays pressable
+        // flashPanic_ is incremented from the audio thread; timerCallback handles the 167ms highlight
+    };
+    addAndMakeVisible(panicBtn_);
 
     startTimerHz(30);
 }
@@ -1091,7 +1124,7 @@ void PluginEditor::resized()
 
     right.removeFromTop(6);
 
-    // Attenuator knobs: one per pad column — X Range / Y Range / Cut / Res
+    // Attenuator knobs: X Range / Y Range / Cut Atten / Res Atten
     {
         auto row = right.removeFromTop(90);
         const int pw = (row.getWidth() - 9) / 4;
@@ -1134,15 +1167,18 @@ void PluginEditor::resized()
 
     right.removeFromTop(6);
 
-    // Gamepad status row: [GAMEPAD ON/OFF] button + status label side by side
+    // Gamepad status row: [GAMEPAD ON/OFF] [FILTER MOD ON/OFF] [status label]
     {
         auto row = right.removeFromTop(20);
         gamepadActiveBtn_.setBounds(row.removeFromLeft(90));
-        row.removeFromLeft(4);  // gap
+        row.removeFromLeft(4);
+        filterModBtn_.setBounds(row.removeFromLeft(90));
+        row.removeFromLeft(4);
         gamepadStatusLabel_.setBounds(row);
     }
 
-    // Gamepad left-stick axis mode combos (label drawn above via drawAbove in paint())
+    // Left-stick axis mode combos — grouped under the FILTER MOD button
+    // (greyed out when FILTER MOD is OFF)
     right.removeFromTop(12);
     filterYModeBox_.setBounds(right.removeFromTop(22));
     right.removeFromTop(12);
@@ -1250,6 +1286,13 @@ void PluginEditor::resized()
     }
 
     left.removeFromTop(6);
+
+    // Panic button — bottom-left corner, above footer (small, not full width)
+    {
+        left.removeFromBottom(2);
+        auto panicRow = left.removeFromBottom(22);
+        panicBtn_.setBounds(panicRow.removeFromLeft(100));
+    }
 
     // Looper
     {
@@ -1403,11 +1446,13 @@ void PluginEditor::timerCallback()
     loopRecBtn_  .setToggleState(proc_.looperIsRecordArmed(), juce::dontSendNotification);
     loopDeleteBtn_.setEnabled(!proc_.looperIsPlaying());
 
-    // ── Gamepad button flash: RST (Square) and DEL (Circle) ──────────────────
+    // ── Gamepad button flash: RST (Square), DEL (Circle), PANIC (R3) ─────────
     if (proc_.flashLoopReset_.exchange(0, std::memory_order_relaxed) > 0)
         resetFlashCounter_ = 5;   // ~167ms at 30Hz
     if (proc_.flashLoopDelete_.exchange(0, std::memory_order_relaxed) > 0)
         deleteFlashCounter_ = 5;
+    if (proc_.flashPanic_.exchange(0, std::memory_order_relaxed) > 0)
+        panicFlashCounter_ = 5;
 
     if (resetFlashCounter_ > 0)
     {
@@ -1433,11 +1478,43 @@ void PluginEditor::timerCallback()
         loopDeleteBtn_.setColour(juce::TextButton::textColourOffId, Clr::text);
     }
 
-    // Update REC JOY / REC GATES / SYNC / REC TOUCH toggle appearances
-    loopRecJoyBtn_  .setToggleState(proc_.looperIsRecJoy(),             juce::dontSendNotification);
-    loopRecGatesBtn_.setToggleState(proc_.looperIsRecGates(),           juce::dontSendNotification);
-    loopSyncBtn_    .setToggleState(proc_.looperIsSyncToDaw(),          juce::dontSendNotification);
-    loopRecWaitBtn_ .setToggleState(proc_.looperIsRecWaitForTrigger(),  juce::dontSendNotification);
+    // Sync panic button toggle state to processor's midiMuted_ flag.
+    // R3 on gamepad calls triggerPanic() but doesn't toggle the UI button,
+    // so we sync here so the UI always reflects the true muted state.
+    {
+        const bool muted = proc_.isMidiMuted();
+        panicBtn_.setToggleState(muted, juce::dontSendNotification);
+        panicBtn_.setButtonText(muted ? "MUTED" : "MIDI PANIC");
+    }
+    // Flash for R3 press (only when not muted — when muted the button is already lit)
+    if (!proc_.isMidiMuted())
+    {
+        if (panicFlashCounter_ > 0)
+        {
+            --panicFlashCounter_;
+            panicBtn_.setColour(juce::TextButton::buttonColourId,  Clr::highlight);
+            panicBtn_.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        }
+        else
+        {
+            panicBtn_.setColour(juce::TextButton::buttonColourId,  juce::Colour(0xFF5C1010));
+            panicBtn_.setColour(juce::TextButton::textColourOffId, Clr::text);
+        }
+    }
+
+    // Grey out LEFT Y / LEFT X dropdowns when Filter Mod is off — makes grouping clear
+    {
+        const bool filterOn = proc_.isFilterModActive();
+        filterYModeBox_.setEnabled(filterOn);
+        filterXModeBox_.setEnabled(filterOn);
+        filterXAttenKnob_.setEnabled(filterOn);
+        filterYAttenKnob_.setEnabled(filterOn);
+    }
+
+    // Update REC JOY / REC GATES / SYNC toggle appearances
+    loopRecJoyBtn_  .setToggleState(proc_.looperIsRecJoy(),    juce::dontSendNotification);
+    loopRecGatesBtn_.setToggleState(proc_.looperIsRecGates(),  juce::dontSendNotification);
+    loopSyncBtn_    .setToggleState(proc_.looperIsSyncToDaw(), juce::dontSendNotification);
 
     // Cap-reached visual indicator: flash the REC JOY / REC GATES button text when buffer is full
     static int capFlashCounter = 0;
