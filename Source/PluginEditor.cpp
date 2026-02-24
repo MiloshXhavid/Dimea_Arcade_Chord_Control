@@ -883,19 +883,30 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     // ── Joystick threshold slider ─────────────────────────────────────────────
     thresholdSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
     thresholdSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    thresholdSlider_.setTooltip("Joystick motion threshold");
+    thresholdSlider_.setTooltip("Joystick motion threshold — higher = needs bigger movement to trigger");
     thresholdSlider_.setColour(juce::Slider::trackColourId,      Clr::highlight);
     thresholdSlider_.setColour(juce::Slider::backgroundColourId, Clr::accent);
     thresholdSlider_.setColour(juce::Slider::thumbColourId,      Clr::text);
-    addChildComponent(thresholdSlider_);  // hidden — default 0.015f is the tuned value
+    addAndMakeVisible(thresholdSlider_);
     thresholdSliderAtt_ = std::make_unique<juce::SliderParameterAttachment>(
         *p.apvts.getParameter("joystickThreshold"), thresholdSlider_);
+
+    // ── Joystick gate time slider ─────────────────────────────────────────────
+    gateTimeSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    gateTimeSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    gateTimeSlider_.setTooltip("Joystick gate time — seconds of stillness before note-off (0.05 - 5s)");
+    gateTimeSlider_.setColour(juce::Slider::trackColourId,      Clr::highlight);
+    gateTimeSlider_.setColour(juce::Slider::backgroundColourId, Clr::accent);
+    gateTimeSlider_.setColour(juce::Slider::thumbColourId,      Clr::text);
+    addAndMakeVisible(gateTimeSlider_);
+    gateTimeSliderAtt_ = std::make_unique<juce::SliderParameterAttachment>(
+        *p.apvts.getParameter("joystickGateTime"), gateTimeSlider_);
 
     // ── Looper ────────────────────────────────────────────────────────────────
     loopPlayBtn_.setButtonText("PLAY");  loopPlayBtn_.setClickingTogglesState(true);
     loopRecBtn_.setButtonText("REC");    loopRecBtn_.setClickingTogglesState(true);
-    loopResetBtn_.setButtonText("RST");
-    loopDeleteBtn_.setButtonText("DEL");
+    loopResetBtn_.setButtonText("RST");   loopResetBtn_.setTooltip("Reset loop — gamepad: Square (□)");
+    loopDeleteBtn_.setButtonText("DEL");  loopDeleteBtn_.setTooltip("Delete loop — gamepad: Circle (○)");
 
     styleButton(loopPlayBtn_);  styleButton(loopRecBtn_);
     styleButton(loopResetBtn_); styleButton(loopDeleteBtn_);
@@ -1128,6 +1139,12 @@ void PluginEditor::resized()
     right.removeFromTop(12);
     filterXModeBox_.setBounds(right.removeFromTop(22));
 
+    // Joystick gate time + threshold sliders (labels drawn via drawAbove in paint())
+    right.removeFromTop(14);
+    gateTimeSlider_  .setBounds(right.removeFromTop(18));
+    right.removeFromTop(10);
+    thresholdSlider_ .setBounds(right.removeFromTop(18));
+
     // ── LEFT COLUMN ───────────────────────────────────────────────────────────
 
     // Scale section
@@ -1311,17 +1328,7 @@ void PluginEditor::paint(juce::Graphics& g)
     };
     (void)drawSectionTitle;
 
-    // THRESH label above threshold slider
-    if (thresholdSlider_.isVisible())
-    {
-        g.setColour(Clr::textDim.brighter(0.2f));
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
-        g.drawText("THRESH",
-                   thresholdSlider_.getX(), thresholdSlider_.getY() - 12,
-                   60, 12, juce::Justification::left);
-    }
-
-    // Labels above the 3 random knobs (SYNC button has its own text)
+    // Labels above controls — uses drawAbove helper (draws 12px above the component)
     g.setColour(Clr::textDim.brighter(0.2f));
     g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
     auto drawAbove = [&](juce::Component& c, const juce::String& t)
@@ -1336,6 +1343,8 @@ void PluginEditor::paint(juce::Graphics& g)
     drawAbove(randomFreeTempoKnob_, "FREE BPM");
     drawAbove(filterYModeBox_,      "LEFT Y");
     drawAbove(filterXModeBox_,      "LEFT X");
+    drawAbove(gateTimeSlider_,      "JOY GATE (s)");
+    drawAbove(thresholdSlider_,     "JOY THRESH");
 
     // ── Footer: how-to-use instructions (left column only) ───────────────────
     {
@@ -1384,6 +1393,36 @@ void PluginEditor::timerCallback()
     loopPlayBtn_ .setToggleState(proc_.looperIsPlaying(),   juce::dontSendNotification);
     loopRecBtn_  .setToggleState(proc_.looperIsRecordArmed(), juce::dontSendNotification);
     loopDeleteBtn_.setEnabled(!proc_.looperIsPlaying());
+
+    // ── Gamepad button flash: RST (Square) and DEL (Circle) ──────────────────
+    if (proc_.flashLoopReset_.exchange(0, std::memory_order_relaxed) > 0)
+        resetFlashCounter_ = 5;   // ~167ms at 30Hz
+    if (proc_.flashLoopDelete_.exchange(0, std::memory_order_relaxed) > 0)
+        deleteFlashCounter_ = 5;
+
+    if (resetFlashCounter_ > 0)
+    {
+        --resetFlashCounter_;
+        loopResetBtn_.setColour(juce::TextButton::buttonColourId,  Clr::highlight);
+        loopResetBtn_.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    }
+    else
+    {
+        loopResetBtn_.setColour(juce::TextButton::buttonColourId,  Clr::accent);
+        loopResetBtn_.setColour(juce::TextButton::textColourOffId, Clr::text);
+    }
+
+    if (deleteFlashCounter_ > 0)
+    {
+        --deleteFlashCounter_;
+        loopDeleteBtn_.setColour(juce::TextButton::buttonColourId,  Clr::highlight);
+        loopDeleteBtn_.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    }
+    else
+    {
+        loopDeleteBtn_.setColour(juce::TextButton::buttonColourId,  Clr::accent);
+        loopDeleteBtn_.setColour(juce::TextButton::textColourOffId, Clr::text);
+    }
 
     // Update REC JOY / REC GATES / SYNC / REC TOUCH toggle appearances
     loopRecJoyBtn_  .setToggleState(proc_.looperIsRecJoy(),             juce::dontSendNotification);

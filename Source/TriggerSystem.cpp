@@ -175,9 +175,9 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             }
             else
             {
-                // No movement — accumulate stillness; close gate after 60 ms.
+                // No movement — accumulate stillness; close gate after joystickGateTime seconds.
                 joystickStillSamples_[v] += p.blockSize;
-                const int kClose = static_cast<int>(0.060 * p.sampleRate);
+                const int kClose = static_cast<int>(p.joystickGateTime * p.sampleRate);
                 if (joystickStillSamples_[v] >= kClose
                     && joySettleSamples_[v] <= 0   // don't interrupt a pending settle
                     && gateOpen_[v].load())

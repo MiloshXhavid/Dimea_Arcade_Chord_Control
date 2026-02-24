@@ -116,6 +116,7 @@ PluginProcessor::createParameterLayout()
         ParamID::joystickYAtten, "Joy Y Attenuator",
         juce::NormalisableRange<float>(0.0f, 127.0f, 1.0f), 24.0f));
     addFloat(ParamID::joystickThreshold,  "Joystick Threshold", 0.001f, 0.1f, 0.015f);
+    addFloat("joystickGateTime", "Joystick Gate Time", 0.05f, 5.0f, 1.0f);
 
     // ── Scale ─────────────────────────────────────────────────────────────────
     {
@@ -358,8 +359,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
         if (gamepad_.consumeLooperStartStop()) looper_.startStop();
         if (gamepad_.consumeLooperRecord())    looper_.record();
-        if (gamepad_.consumeLooperReset())     looper_.reset();
-        if (gamepad_.consumeLooperDelete())    looper_.deleteLoop();
+        if (gamepad_.consumeLooperReset())   { looper_.reset();       flashLoopReset_.fetch_add(1,  std::memory_order_relaxed); }
+        if (gamepad_.consumeLooperDelete())  { looper_.deleteLoop();  flashLoopDelete_.fetch_add(1, std::memory_order_relaxed); }
 
         // D-pad: BPM and looper recording toggles
         if (gamepad_.consumeDpadUp())    pendingBpmDelta_.fetch_add(1,  std::memory_order_relaxed);
@@ -537,8 +538,9 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         tp.heldPitches[v]  = heldPitch_[v];
         tp.midiChannels[v] = voiceChs[v];
     }
-    tp.randomDensity  = apvts.getRawParameterValue(ParamID::randomDensity)->load();
-    tp.randomGateTime = apvts.getRawParameterValue(ParamID::randomGateTime)->load();
+    tp.randomDensity      = apvts.getRawParameterValue(ParamID::randomDensity)->load();
+    tp.randomGateTime     = apvts.getRawParameterValue(ParamID::randomGateTime)->load();
+    tp.joystickGateTime   = apvts.getRawParameterValue("joystickGateTime")->load();
     // Per-voice random subdivisions (RandomSubdiv is a file-scope enum class in TriggerSystem.h)
     for (int v = 0; v < 4; ++v)
     {
@@ -613,7 +615,11 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             const int ccYnum = (yMode == 1) ? 76 : (yMode == 2) ? 64 : 71;  // 2=Sustain CC64
 
             const float gfx = gamepad_.getFilterX();
-            const float gfy = gamepad_.getFilterY();
+            // CC64 (Sustain) uses raw Y — no sample-and-hold so releasing stick
+            // to dead zone sends CC64=0 (sustain off) immediately.
+            // Other Y modes use the S&H value for smooth expression.
+            const float gfyRaw = gamepad_.getFilterYRaw();
+            const float gfy    = (yMode == 2) ? gfyRaw : gamepad_.getFilterY();
 
             // Map (-1..+1) → (0..atten), clamp to 0..127
             const int ccCut = juce::jlimit(0, 127, (int)(((gfx + 1.0f) * 0.5f) * xAtten));

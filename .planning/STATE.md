@@ -52,8 +52,8 @@ See .planning/PROJECT.md Key Decisions table — full log with outcomes.
 
 ## Session Continuity
 
-Last session: 2026-02-23T14:18:23Z
-Stopped at: Post-v1.0 ad-hoc fixes (3 bugs patched, committed, VST3 installed)
+Last session: 2026-02-24
+Stopped at: Post-v1.0 patch session — 6 changes committed (cca86c6): joystick movement gate, Roland knobs, sustain CC64, defaults, slew removed
 Resume file: none
 
 ## Post-v1.0 Patches Applied This Session

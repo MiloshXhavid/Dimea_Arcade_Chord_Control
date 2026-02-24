@@ -180,9 +180,16 @@ private:
     std::unique_ptr<juce::ButtonParameterAttachment>                 randomSyncButtonAtt_;
     std::unique_ptr<juce::SliderParameterAttachment>                 randomFreeTempoKnobAtt_;
 
-    // ── Joystick threshold ────────────────────────────────────────────────────
+    // ── Joystick threshold + gate time ────────────────────────────────────────
     juce::Slider thresholdSlider_;
     std::unique_ptr<juce::SliderParameterAttachment> thresholdSliderAtt_;
+
+    juce::Slider gateTimeSlider_;
+    std::unique_ptr<juce::SliderParameterAttachment> gateTimeSliderAtt_;
+
+    // Flash counters for gamepad button feedback (decremented by timer)
+    int resetFlashCounter_  = 0;
+    int deleteFlashCounter_ = 0;
 
     // ── Filter (gamepad) ─────────────────────────────────────────────────────
     juce::Slider filterXAttenKnob_, filterYAttenKnob_;

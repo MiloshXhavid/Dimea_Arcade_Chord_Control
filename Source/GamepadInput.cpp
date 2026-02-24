@@ -123,6 +123,7 @@ void GamepadInput::timerCallback()
         if (rawY != 0.0f) lastFilterY_ = rawY;
         filterX_.store(lastFilterX_, std::memory_order_relaxed);
         filterY_.store(lastFilterY_, std::memory_order_relaxed);
+        filterYRaw_.store(rawY, std::memory_order_relaxed);  // 0 when in dead zone (no S&H)
     }
 
     // ── Voice triggers: L1/L2/R1/R2 (debounced) ──────────────────────────────

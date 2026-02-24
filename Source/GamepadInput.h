@@ -33,10 +33,13 @@ public:
     ~GamepadInput() override;
 
     // ── Normalised joystick values (-1..+1), updated at 60Hz ─────────────────
-    float getPitchX()    const { return pitchX_.load(); }
-    float getPitchY()    const { return pitchY_.load(); }
-    float getFilterX()   const { return filterX_.load(); }
-    float getFilterY()   const { return filterY_.load(); }
+    float getPitchX()      const { return pitchX_.load(); }
+    float getPitchY()      const { return pitchY_.load(); }
+    float getFilterX()     const { return filterX_.load(); }
+    float getFilterY()     const { return filterY_.load(); }
+    // Raw Y (no sample-and-hold): 0 when stick is in dead zone.
+    // Use for CC64 sustain so releasing the stick sends CC64=0.
+    float getFilterYRaw()  const { return filterYRaw_.load(); }
 
     // ── Voice trigger rising-edge flags (consume = clear after read) ──────────
     bool consumeVoiceTrigger(int voice);  // returns true once per press
@@ -85,10 +88,11 @@ private:
     // Dead zone — set from processBlock via setDeadZone(); replaces hard-coded kDeadzone
     std::atomic<float> deadZone_ { 0.08f };  // conservative default until first setDeadZone call
 
-    std::atomic<float> pitchX_  {0.0f};
-    std::atomic<float> pitchY_  {0.0f};
-    std::atomic<float> filterX_ {0.0f};
-    std::atomic<float> filterY_ {0.0f};
+    std::atomic<float> pitchX_     {0.0f};
+    std::atomic<float> pitchY_     {0.0f};
+    std::atomic<float> filterX_    {0.0f};
+    std::atomic<float> filterY_    {0.0f};
+    std::atomic<float> filterYRaw_ {0.0f};  // 0 when in dead zone (no S&H)
 
     // Sample-and-hold: hold last non-dead-zone value when stick returns to center
     float lastPitchX_  = 0.0f;

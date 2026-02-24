@@ -72,7 +72,8 @@ public:
         float          deltaX           = 0.0f;
         float          deltaY           = 0.0f;
 
-        float          joystickThreshold = 0.015f;  // configurable threshold (0.001..0.1)
+        float          joystickThreshold = 0.015f;  // movement sensitivity (0.001..0.1)
+        float          joystickGateTime  = 1.0f;   // seconds of stillness before gate closes
 
         // Random clock mode
         bool           randomClockSync  = true;    // true = DAW-gated, false = free tempo

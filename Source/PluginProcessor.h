@@ -86,6 +86,10 @@ public:
     // D-pad BPM delta: set from processBlock (audio thread), consumed on message thread
     std::atomic<int> pendingBpmDelta_ { 0 };
 
+    // Gamepad button flash signals: incremented on audio thread, consumed by UI timer
+    std::atomic<int> flashLoopReset_  { 0 };
+    std::atomic<int> flashLoopDelete_ { 0 };
+
     // Live filter CC values — written by audio thread, read by message thread (timerCallback)
     // to call setValueNotifyingHost on "filterCutLive" / "filterResLive" APVTS params.
     std::atomic<float> filterCutDisplay_ { 0.f };
