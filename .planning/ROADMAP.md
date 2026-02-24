@@ -47,7 +47,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 **Plans**: 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Fix PATCH-01 (CC64=127 before note-on) and PATCH-04 (one-shot panic button)
+- [x] 08-01-PLAN.md — Fix PATCH-01 (CC64=127 before note-on) and PATCH-04 (one-shot panic button) — done 2026-02-24
 - [ ] 08-02-PLAN.md — Build verification, manual 6-patch test protocol, produce VALIDATION.md sign-off
 
 ### Phase 09: MIDI Panic and Mute Feedback
@@ -95,7 +95,7 @@ Plans:
 | 05. LooperEngine Hardening | v1.0 | 3/3 | Complete | 2026-02-23 |
 | 06. SDL2 Gamepad Integration | v1.0 | 4/4 | Complete | 2026-02-23 |
 | 07. Distribution & Release | v1.0 | 2/2 | Complete | 2026-02-23 |
-| 08. Post-v1.0 Patch Verification | v1.1 | 0/2 | Not started | - |
+| 08. Post-v1.0 Patch Verification | v1.1 | 1/2 | In progress | - |
 | 09. MIDI Panic and Mute Feedback | v1.1 | 0/TBD | Not started | - |
 | 10. Trigger Quantization Infrastructure | v1.1 | 0/TBD | Not started | - |
 | 11. UI Polish and Installer | v1.1 | 0/TBD | Not started | - |

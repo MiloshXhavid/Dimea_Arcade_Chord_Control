@@ -7,10 +7,10 @@
 
 ### PATCH — Post-v1.0 Implementations (Formalized)
 
-- [ ] **PATCH-01**: Plugin sends CC64=127 (sustain on) before each note-on so sustain-pedal-aware synths don't cut notes
+- [x] **PATCH-01**: Plugin sends CC64=127 (sustain on) before each note-on so sustain-pedal-aware synths don't cut notes
 - [ ] **PATCH-02**: Per-voice hold mode — pad press sends note-off (mute), pad release sends note-on with current pitch (inverse gate)
 - [ ] **PATCH-03**: Filter Mod button gates all left-stick CC output; Left X/Y mode dropdowns and atten knobs visually disabled when Filter Mod is off
-- [ ] **PATCH-04**: MIDI Panic button is a one-shot action — press sends allNotesOff and button immediately returns to pressable state (no persistent mute or output-blocking toggle)
+- [x] **PATCH-04**: MIDI Panic button is a one-shot action — press sends allNotesOff and button immediately returns to pressable state (no persistent mute or output-blocking toggle)
 - [ ] **PATCH-05**: Filter looper recording always active (recFilter_=true) — left-stick gestures are recorded to loop when looper is in record mode
 - [ ] **PATCH-06**: Joystick threshold applied to filter CC dedup — changing atten knobs does not retrigger filter CC when gamepad axis has natural noise
 
@@ -54,10 +54,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PATCH-01 | Phase 08 | Pending |
+| PATCH-01 | Phase 08 | Complete |
 | PATCH-02 | Phase 08 | Pending |
 | PATCH-03 | Phase 08 | Pending |
-| PATCH-04 | Phase 08 | Pending |
+| PATCH-04 | Phase 08 | Complete |
 | PATCH-05 | Phase 08 | Pending |
 | PATCH-06 | Phase 08 | Pending |
 | PANIC-01 | Phase 09 | Pending |

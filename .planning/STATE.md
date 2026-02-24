@@ -10,14 +10,14 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 08 of 11 (Post-v1.0 Patch Verification)
-Plan: — of TBD
-Status: Ready to plan
-Last activity: 2026-02-24 — v1.1 roadmap created (4 phases, 16 requirements)
+Plan: 1 of TBD
+Status: In progress
+Last activity: 2026-02-24 — Plan 08-01 complete (PATCH-01 + PATCH-04 source fixes)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
-v1.1 Polish [░░░░░░░░░░] 0% (0/TBD plans)
-  Phase 08  [░░░░░░░░░░]   Patch Verification    Not started
+v1.1 Polish [█░░░░░░░░░] 5% (1/TBD plans)
+  Phase 08  [█░░░░░░░░░]   Patch Verification    In progress (1 plan done)
   Phase 09  [░░░░░░░░░░]   MIDI Panic + Mute     Not started
   Phase 10  [░░░░░░░░░░]   Quantize Infra        Not started
   Phase 11  [░░░░░░░░░░]   UI Polish + Installer Not started
@@ -48,6 +48,8 @@ Recent decisions affecting v1.1:
 - **Post-record quantize uses pendingQuantize_ flag** — playbackStore_[] has no mutex; audio thread reads it every block; flag set on message thread, serviced in LooperEngine::process() on audio thread
 - **std::fmod(quantized, loopLen) required** — rounding near loop end produces beatPosition == loopLen; fmod prevents silent miss or double-trigger at wrap
 - **Single 30 Hz timer only** — no second timer for animations; panic flash and progress bar driven from existing startTimerHz(30) in PluginEditor via phase counters
+- **CC64=127 on voice channel only (08-01)** — Each injection uses ch0+1 (voice's own MIDI channel), not filterMidiCh; sustain must be per-voice for downstream synths on channels 1-4
+- **timerCallback R3 sync untouched (08-01)** — Lines 1484-1502 sync panicBtn_ to proc_.isMidiMuted() for R3 gamepad; pre-existing functionality deferred to Phase 09; PATCH-04 only fixes UI button click wiring
 
 ### Pending Todos
 
@@ -62,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Roadmap created for v1.1 — ready to plan Phase 08
+Stopped at: Plan 08-01 complete — PATCH-01 + PATCH-04 source fixes committed (860f5f4, bb44e47)
 Resume file: None
