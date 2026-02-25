@@ -409,13 +409,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         if (gamepad_.consumeLooperReset())   { looper_.reset();       flashLoopReset_.fetch_add(1,  std::memory_order_relaxed); }
         if (gamepad_.consumeLooperDelete())  { looper_.deleteLoop();  flashLoopDelete_.fetch_add(1, std::memory_order_relaxed); }
         if (gamepad_.consumeRightStickTrigger())
-        {
-            // R3 toggles mute: if currently muted, unmute; if not muted, mute + panic
-            const bool wasMuted = midiMuted_.load(std::memory_order_relaxed);
-            midiMuted_.store(!wasMuted, std::memory_order_relaxed);
-            if (!wasMuted)
-                pendingPanic_.store(true, std::memory_order_relaxed);
-        }
+            triggerPanic();   // R3 -> MIDI panic (same as UI panicBtn_)
 
         // D-pad: BPM and looper recording toggles
         if (gamepad_.consumeDpadUp())    pendingBpmDelta_.fetch_add(1,  std::memory_order_relaxed);
@@ -503,10 +497,11 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         }
     }
 
-    // Detect looper stop — send note-offs for any hanging looper notes.
+    // Detect looper start/stop — send note-offs for any hanging looper notes on stop.
     // When startStop() is called, playing_ goes false before process() runs,
     // so no gateOff events are emitted for voices still active. Detect the
     // transition here and emit note-offs manually.
+    bool looperJustStarted = false;
     {
         const bool looperNowPlaying = looper_.isPlaying();
         if (prevLooperWasPlaying_ && !looperNowPlaying)
@@ -520,6 +515,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                 }
             }
         }
+        looperJustStarted = !prevLooperWasPlaying_ && looperNowPlaying;
         prevLooperWasPlaying_ = looperNowPlaying;
     }
 
@@ -542,23 +538,11 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     if (pendingPanic_.exchange(false, std::memory_order_acq_rel))
     {
         if (looper_.isPlaying()) looper_.startStop();
-        // Hard-kill sound on every active channel:
-        //   CC64=0  — release sustain so held notes don't linger
-        //   CC120=0 — all sound off (immediate cut, ignores sustain)
-        //   CC123   — all notes off (belt-and-suspenders for synths that ignore CC120)
+        for (int ch = 1; ch <= 16; ++ch)
         {
-            const int fCh = (int)apvts.getRawParameterValue(ParamID::filterMidiCh)->load();
-            bool sent[17] = {};
-            auto killCh = [&](int ch)
-            {
-                if (ch < 1 || ch > 16 || sent[ch]) return;
-                sent[ch] = true;
-                midi.addEvent(juce::MidiMessage::controllerEvent(ch, 64,  0), 0);
-                midi.addEvent(juce::MidiMessage::controllerEvent(ch, 120, 0), 0);
-                midi.addEvent(juce::MidiMessage::allNotesOff(ch),             0);
-            };
-            for (int v = 0; v < 4; ++v) killCh(voiceChs[v]);
-            killCh(fCh);
+            midi.addEvent(juce::MidiMessage::controllerEvent(ch, 64,  0), 0);  // sustain off
+            midi.addEvent(juce::MidiMessage::controllerEvent(ch, 120, 0), 0);  // all sound off
+            midi.addEvent(juce::MidiMessage::allNotesOff(ch),             0);  // CC123 all notes off
         }
         trigger_.resetAllGates();
         looperActivePitch_.fill(-1);
@@ -721,20 +705,31 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
     // ── Arpeggiator ───────────────────────────────────────────────────────────
     // Arm-and-wait logic:
-    //   - ARP ON pressed while DAW already playing  → arm only (arpWaitingForPlay_ = true)
-    //   - DAW play pressed while armed              → clear wait flag, arp fires
-    //   - ARP OFF                                   → clear wait flag, kill note
-    if (arpOn && !prevArpOn_ && isDawPlaying)
-        arpWaitingForPlay_ = true;   // just enabled while rolling — wait for next play press
-    if (!arpOn)
-        arpWaitingForPlay_ = false;  // disabled — reset arm state
-    if (dawJustStarted)
-        arpWaitingForPlay_ = false;  // DAW play pressed — launch
+    //   DAW sync ON:  ARP ON while DAW rolling → arm; DAW play pressed → launch
+    //   DAW sync OFF: ARP ON while looper playing → arm; looper PLAY pressed → launch
+    {
+        const bool arpSyncOn     = looper_.isSyncToDaw();
+        // DAW sync OFF: either the looper OR the DAW transport can drive the arp.
+        // This preserves the original behaviour (arp fires when DAW plays) while
+        // also supporting the new looper-sync flow.
+        const bool clockRunning  = arpSyncOn ? isDawPlaying : (looper_.isPlaying() || isDawPlaying);
+        const bool clockStarted  = arpSyncOn ? dawJustStarted : (looperJustStarted || dawJustStarted);
+        if (arpOn && !prevArpOn_ && clockRunning)
+            arpWaitingForPlay_ = true;   // just enabled while clock is rolling — arm
+        if (!arpOn)
+            arpWaitingForPlay_ = false;  // disabled — reset arm state
+        if (clockStarted)
+            arpWaitingForPlay_ = false;  // clock just started — launch
+    }
     prevArpOn_ = arpOn;
 
-    // Arp requires DAW transport AND must not be in the armed-waiting state.
-    // When sync is active the step phase locks to the PPQ grid; otherwise free-runs.
-    if (!arpOn || !isDawPlaying || arpWaitingForPlay_)
+    // Arp requires its clock source to be running AND must not be in the armed-waiting state.
+    // DAW sync ON  → DAW transport is the only clock.
+    // DAW sync OFF → looper OR DAW transport can run the arp (looper beat takes priority
+    //                for phase locking when both are active; falls back to free-run otherwise).
+    const bool arpSyncOn  = looper_.isSyncToDaw();
+    const bool arpClockOn = arpSyncOn ? isDawPlaying : (looper_.isPlaying() || isDawPlaying);
+    if (!arpOn || !arpClockOn || arpWaitingForPlay_)
     {
         // Kill any hanging arp note when ARP is off or DAW stops.
         if (arpActivePitch_ >= 0 && arpActiveVoice_ >= 0)
@@ -784,16 +779,27 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         }
 
         // Count how many subdivision steps fire in this block.
-        // Sync mode: derive from PPQ position so steps lock to the beat grid.
-        // Free mode: accumulate phase independently.
+        // DAW sync ON:  derive from PPQ position so steps lock to the beat grid.
+        // DAW sync OFF + looper playing: derive from looper's internal beat position.
+        // Otherwise: free-running phase accumulator.
         int stepsToFire = 0;
-        const bool syncToDaw = looper_.isSyncToDaw();
-        if (syncToDaw && ppqPos >= 0.0)
+        if (arpSyncOn && ppqPos >= 0.0)
         {
+            // Lock arp steps to DAW beat grid.
             const auto stepsAtStart = static_cast<long long>(ppqPos / subdivBeats);
             const auto stepsAtEnd   = static_cast<long long>((ppqPos + beatsThisBlock) / subdivBeats);
-            stepsToFire = static_cast<int>(stepsAtEnd - stepsAtStart);
+            stepsToFire = std::max(0, static_cast<int>(stepsAtEnd - stepsAtStart));
             arpPhase_ = std::fmod(ppqPos, subdivBeats);  // keep coherent
+        }
+        else if (!arpSyncOn && looper_.isPlaying())
+        {
+            // Lock arp steps to looper's internal beat position.
+            // Guard against loop-wrap causing a negative difference (fire 0 steps on wrap frame).
+            const double looperBeat = looper_.getPlaybackBeat();
+            const auto stepsAtStart = static_cast<long long>(looperBeat / subdivBeats);
+            const auto stepsAtEnd   = static_cast<long long>((looperBeat + beatsThisBlock) / subdivBeats);
+            stepsToFire = std::max(0, static_cast<int>(stepsAtEnd - stepsAtStart));
+            arpPhase_ = std::fmod(looperBeat, subdivBeats);  // keep coherent
         }
         else
         {
