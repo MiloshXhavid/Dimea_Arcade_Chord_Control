@@ -76,6 +76,7 @@ public:
         bool    gateOn[4]    = {};
         bool    gateOff[4]   = {};
         bool    dawStopped   = false;  // true on the block where DAW stops (send all-notes-off)
+        bool    looperReset  = false;  // true on the block where reset fires (seek to 0, cut looper notes)
     };
 
     LooperEngine() = default;
@@ -100,16 +101,26 @@ public:
     void setRecFilter(bool b) { recFilter_.store(b); }
     void setSyncToDaw(bool b) { syncToDaw_.store(b); }
 
-    bool isCapReached()  const { return capReached_.load();                                                    }
-    bool isRecordArmed() const { return recording_.load() || recordPending_.load() || recWaitArmed_.load(); }
-    bool isSyncToDaw()   const { return syncToDaw_.load();                                                  }
-    bool isRecJoy()      const { return recJoy_.load();                                                     }
-    bool isRecGates()    const { return recGates_.load();                                                   }
-    bool isRecFilter()   const { return recFilter_.load();                                                  }
+    bool isCapReached()      const { return capReached_.load();                                                    }
+    bool isRecordArmed()     const { return recording_.load() || recordPending_.load() || recWaitArmed_.load(); }
+    bool isSyncToDaw()       const { return syncToDaw_.load();                                                  }
+    bool isRecJoy()          const { return recJoy_.load();                                                     }
+    bool isRecGates()        const { return recGates_.load();                                                   }
+    bool isRecFilter()       const { return recFilter_.load();                                                  }
+    // True once filter/joystick events exist in playbackStore_ (cleared on delete).
+    // Used by processor to allow live stick when nothing has been recorded yet.
+    bool hasFilterContent()   const { return hasFilterContent_.load(std::memory_order_relaxed);   }
+    bool hasJoystickContent() const { return hasJoystickContent_.load(std::memory_order_relaxed); }
 
     void setRecWaitForTrigger(bool b) { recWaitForTrigger_.store(b); }
-    bool isRecWaitForTrigger()  const { return recWaitForTrigger_.load(); }
-    bool isRecWaitArmed()       const { return recWaitArmed_.load(); }
+    bool isRecWaitForTrigger()    const { return recWaitForTrigger_.load(); }
+    bool isRecWaitArmed()         const { return recWaitArmed_.load(); }
+    bool isRecordPending()        const { return recordPending_.load(); }
+    bool isRecPendingNextCycle()  const { return recPendingNextCycle_.load(); }
+
+    // Arm "start rec by touch" independently of the REC button.
+    // Toggles: first call arms the wait, second call cancels it.
+    void armWait();
 
     // Called from audio thread when a note-on fires and recWaitArmed_ is set.
     void activateRecordingNow();
@@ -148,11 +159,14 @@ private:
     std::atomic<bool> recordPending_ { false }; // REC pressed, waiting for next valid clock
     std::atomic<bool> recJoy_            { false };  // [REC JOY] armed
     std::atomic<bool> recGates_          { false };  // [REC GATES] armed
-    std::atomic<bool> recFilter_         { true };   // filter recording always on
+    std::atomic<bool> recFilter_         { false };  // filter recording off by default (live use)
     std::atomic<bool> syncToDaw_         { false };  // [DAW] sync to DAW playhead
-    std::atomic<bool> capReached_        { false };  // overflow indicator for UI
-    std::atomic<bool> recWaitForTrigger_ { false };  // mode: wait for trigger to start rec
-    std::atomic<bool> recWaitArmed_      { false };  // waiting for first note-on
+    std::atomic<bool> capReached_         { false };  // overflow indicator for UI
+    std::atomic<bool> hasFilterContent_  { false };  // set after finalise if FilterX/Y events exist
+    std::atomic<bool> hasJoystickContent_{ false };  // set after finalise if JoystickX/Y events exist
+    std::atomic<bool> recWaitForTrigger_    { false };  // mode: wait for trigger to start rec
+    std::atomic<bool> recWaitArmed_        { false };  // waiting for first note-on
+    std::atomic<bool> recPendingNextCycle_ { false };  // rec armed, starts at next loop boundary
 
     // ── Destructive op request flags (UI sets, audio thread executes) ─────────
     std::atomic<bool> deleteRequest_ { false };

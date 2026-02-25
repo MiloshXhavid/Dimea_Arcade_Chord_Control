@@ -73,7 +73,11 @@ public:
 
     void looperSetRecWaitForTrigger(bool b) { looper_.setRecWaitForTrigger(b); }
     bool looperIsRecWaitForTrigger()  const { return looper_.isRecWaitForTrigger(); }
-    bool looperIsRecWaitArmed()       const { return looper_.isRecWaitArmed(); }
+    bool looperIsRecWaitArmed()         const { return looper_.isRecWaitArmed(); }
+    bool looperIsRecPendingNextCycle()  const { return looper_.isRecPendingNextCycle(); }
+    // True when armed but not yet recording (blink state for the REC button).
+    bool looperIsRecPending()           const { return looper_.isRecordPending() || looper_.isRecPendingNextCycle(); }
+    void looperArmWait()                      { looper_.armWait(); }
 
     // Effective BPM (DAW BPM when synced, free tempo otherwise) — read by UI
     float getEffectiveBpm() const { return effectiveBpm_.load(std::memory_order_relaxed); }
@@ -136,23 +140,29 @@ private:
     // Written by PluginEditor toggle button (message thread).
     // Read in processBlock (audio thread). No mutex — atomic only.
     std::atomic<bool> gamepadActive_    { true  };
-    std::atomic<bool> filterModActive_  { false };  // left-joystick filter mod on/off
+    std::atomic<bool> filterModActive_  { true };   // left-joystick filter mod on/off (default ON)
     std::atomic<bool> midiMuted_        { false };  // true = block all MIDI output
 
     bool gamepadVoiceWasHeld_[4] = {};  // audio thread only — tracks previous gamepad held state
     bool allNotesWasHeld_ = false;       // audio thread only — tracks previous L3 held state
     bool prevIsDawPlaying_ = false;      // audio thread only — for DAW stop detection
+    bool prevLooperWasPlaying_ = false;  // audio thread only — for looper stop detection
     int   prevXMode_    = -1;            // audio thread only — dedup reset on X mode change
     int   prevYMode_    = -1;            // audio thread only — dedup reset on Y mode change
     float prevFilterX_  = -99.0f;       // audio thread only — raw joystick X, -99 = uninitialised
     float prevFilterY_  = -99.0f;       // audio thread only — raw joystick Y, -99 = uninitialised
+    float prevBaseX_    = -1.0f;        // last xOffset used in a CC send; -1 = first run
+    float prevBaseY_    = -1.0f;
 
     // ── CC dedup: last emitted integer values for CC74 and CC71 ──────────────
-    // -1 = never sent; forces emission on first connect.
+    // -2 = on-load sentinel: first filter activation initialises tracking silently
+    //      (base knob not yet touched — don't override the synth's own value).
+    // -1 = force-send: used after panic / mode-switch / gamepad reconnect.
+    // ≥0 = normal dedup (last sent value).
     // Declared atomic<int> to avoid data race: reset from message thread
     // (onConnectionChange lambda), read/written on audio thread (processBlock).
-    std::atomic<int> prevCcCut_ { -1 };
-    std::atomic<int> prevCcRes_ { -1 };
+    std::atomic<int> prevCcCut_ { -2 };
+    std::atomic<int> prevCcRes_ { -2 };
 
     // ── Disconnect pending flags ──────────────────────────────────────────────
     // Set from message thread (onConnectionChange lambda).

@@ -48,9 +48,10 @@ void LooperEngine::startStop()
     }
     else
     {
-        // Stop: freeze current FIFO content into playbackStore_.
+        // Stop: cancel any pending overdub arm, freeze FIFO into playbackStore_.
         // INVARIANT: recording_ must be false before finaliseRecording().
         playing_.store(false);
+        recPendingNextCycle_.store(false);
         recording_.store(false);
         finaliseRecording();
     }
@@ -67,36 +68,28 @@ void LooperEngine::record()
         return;
     }
 
-    if (recordPending_.load())
-    {
-        // Pending record was already armed — second REC press cancels it.
-        recordPending_.store(false);
-        return;
-    }
+    // Cancel whichever pending arm is active (second press = cancel).
+    if (recordPending_.load())       { recordPending_.store(false);       return; }
+    if (recPendingNextCycle_.load()) { recPendingNextCycle_.store(false);  return; }
+    if (recWaitArmed_.load())        { recWaitArmed_.store(false);         return; }
 
-    // Cancel wait-for-trigger arm if already waiting.
-    if (recWaitArmed_.load())
-    {
-        recWaitArmed_.store(false);
-        return;
-    }
+    // REC no longer implies PLAY — user starts the loop separately with PLAY.
+    // recordPending_ is serviced by process() once playing_ becomes true.
 
-    // Arm: start playing if not already (REC implies PLAY).
-    if (!playing_.load())
-        playing_.store(true);
-
-    // If wait-for-trigger mode is ON, arm the wait state instead of arming
-    // recordPending_. Recording will start when activateRecordingNow() is called
-    // from the audio thread on the first note-on.
     if (recWaitForTrigger_.load())
     {
         recWaitArmed_.store(true);
         return;
     }
 
-    // Defer the actual recording_.store(true) to process() so it begins on the
-    // next valid clock: immediately in free-running mode, or when DAW starts
-    // rolling in SYNC mode.
+    // If loop is already playing and has content: defer start to next cycle boundary.
+    if (playing_.load() && playbackCount_.load(std::memory_order_relaxed) > 0)
+    {
+        recPendingNextCycle_.store(true);
+        return;
+    }
+
+    // Otherwise arm immediately; process() will activate on next valid clock.
     recordPending_.store(true);
 }
 
@@ -112,6 +105,22 @@ void LooperEngine::deleteLoop()
     deleteRequest_.store(true, std::memory_order_release);
 }
 
+// ─── armWait (message-thread) ─────────────────────────────────────────────────
+
+void LooperEngine::armWait()
+{
+    // Cancel if already waiting.
+    if (recWaitArmed_.load())
+    {
+        recWaitArmed_.store(false);
+        return;
+    }
+
+    // Do NOT start playing yet — play+record both start when the trigger fires.
+    // The PLAY button blinks in the UI to signal "waiting for touch".
+    recWaitArmed_.store(true);
+}
+
 // ─── activateRecordingNow (audio-thread-only) ─────────────────────────────────
 
 void LooperEngine::activateRecordingNow()
@@ -122,6 +131,11 @@ void LooperEngine::activateRecordingNow()
     capReached_.store(false, std::memory_order_relaxed);
     fifo_.reset();
     recordedBeats_ = 0.0;
+    // Reset beat so recording always starts from the beginning of the loop.
+    internalBeat_ = 0.0;
+    loopStartPpq_ = -1.0;  // re-anchor to DAW on next play (DAW sync mode)
+    // Start play and record simultaneously on the trigger.
+    playing_.store(true, std::memory_order_relaxed);
     recording_.store(true, std::memory_order_relaxed);
 }
 
@@ -198,14 +212,23 @@ void LooperEngine::finaliseRecording()
     int mergedCount = 0;
 
     // First pass: keep old events that fall OUTSIDE all touched beat windows.
+    // IMPORTANT: only discard an old event if a new event of the SAME type (and same
+    // voice for Gate events) falls within the touch radius. This prevents joystick
+    // recordings from accidentally wiping gate events that share a nearby beat position.
     const int oldCount = playbackCount_.load(std::memory_order_relaxed);
     for (int i = 0; i < oldCount && mergedCount < LOOPER_FIFO_CAPACITY; ++i)
     {
-        const double oldPos = playbackStore_[i].beatPosition;
+        const auto& oldEv  = playbackStore_[i];
+        const double oldPos = oldEv.beatPosition;
         bool inTouchedWindow = false;
         for (int j = 0; j < newEventCount; ++j)
         {
-            const double dist = std::abs(oldPos - scratchNew_[j].beatPosition);
+            const auto& newEv = scratchNew_[j];
+            // Type mismatch → new event cannot replace old event.
+            if (newEv.type != oldEv.type) continue;
+            // For Gate events, voice must also match (don't let voice-0 gate erase voice-1).
+            if (newEv.type == LooperEvent::Type::Gate && newEv.voice != oldEv.voice) continue;
+            const double dist = std::abs(oldPos - newEv.beatPosition);
             // Handle wrap-around at loop boundary
             const double distWrapped = std::min(dist, loopLen - dist);
             if (distWrapped <= touchRadius)
@@ -215,7 +238,7 @@ void LooperEngine::finaliseRecording()
             }
         }
         if (!inTouchedWindow)
-            scratchMerged_[mergedCount++] = playbackStore_[i];
+            scratchMerged_[mergedCount++] = oldEv;
     }
 
     // Second pass: append all new events.
@@ -261,6 +284,34 @@ void LooperEngine::finaliseRecording()
         }
 
         playbackCount_.store(n, std::memory_order_release);
+    }
+
+    // Sort playbackStore_ by beatPosition so events always fire in chronological
+    // order. After punch-in merge, surviving old events and appended new events
+    // are interleaved by time but not by array index — sorting fixes out-of-order
+    // FilterX/FilterY (and any other) events that would otherwise play back wrong.
+    {
+        const int n = playbackCount_.load(std::memory_order_relaxed);
+        std::sort(playbackStore_.begin(), playbackStore_.begin() + n,
+                  [](const LooperEvent& a, const LooperEvent& b) {
+                      return a.beatPosition < b.beatPosition;
+                  });
+    }
+
+    // Update content flags so the processor knows which axes have recorded material.
+    // This lets it allow the live stick when nothing has been recorded yet (no jumps).
+    {
+        bool hasFilter = false, hasJoy = false;
+        const int n = playbackCount_.load(std::memory_order_relaxed);
+        for (int i = 0; i < n; ++i)
+        {
+            const auto t = playbackStore_[i].type;
+            if (t == LooperEvent::Type::FilterX   || t == LooperEvent::Type::FilterY)   hasFilter = true;
+            if (t == LooperEvent::Type::JoystickX || t == LooperEvent::Type::JoystickY) hasJoy    = true;
+            if (hasFilter && hasJoy) break;
+        }
+        hasFilterContent_.store  (hasFilter, std::memory_order_relaxed);
+        hasJoystickContent_.store(hasJoy,    std::memory_order_relaxed);
     }
 }
 
@@ -379,14 +430,17 @@ LooperEngine::BlockOutput LooperEngine::process(const ProcessParams& p)
     // Safe: audio thread is the sole FIFO user; no concurrent reader/writer at this point.
     if (resetRequest_.exchange(false, std::memory_order_acq_rel))
     {
-        fifo_.reset();
-        playbackStore_ = {};
-        playbackCount_.store(0, std::memory_order_relaxed);
+        // Seek to loop start: keep content and play state.
+        // If recording was in progress, discard the in-flight FIFO without finalising.
+        if (recording_.load(std::memory_order_relaxed))
+        {
+            recording_.store(false, std::memory_order_relaxed);
+            fifo_.reset();
+        }
         internalBeat_  = 0.0;
         loopStartPpq_  = -1.0;
-        playing_.store(false, std::memory_order_relaxed);
-        recording_.store(false, std::memory_order_relaxed);
         playbackBeat_.store(0.0f, std::memory_order_relaxed);
+        out.looperReset = true;  // caller sends note-offs for any active looper pitches
         return out;
     }
 
@@ -394,7 +448,9 @@ LooperEngine::BlockOutput LooperEngine::process(const ProcessParams& p)
     {
         fifo_.reset();
         playbackStore_ = {};
-        playbackCount_.store(0, std::memory_order_relaxed);
+        playbackCount_.store(0,     std::memory_order_relaxed);
+        hasFilterContent_.store  (false, std::memory_order_relaxed);
+        hasJoystickContent_.store(false, std::memory_order_relaxed);
         return out;
     }
 
@@ -480,6 +536,16 @@ LooperEngine::BlockOutput LooperEngine::process(const ProcessParams& p)
     const double rawEnd     = beatAtBlockStart + blockBeats;
     const double beatAtEnd  = std::fmod(rawEnd, loopLen);
     const bool   wraps      = rawEnd >= loopLen;
+
+    // Activate overdub that was deferred to the next cycle boundary.
+    if (recPendingNextCycle_.load(std::memory_order_relaxed) && wraps)
+    {
+        recPendingNextCycle_.store(false, std::memory_order_relaxed);
+        capReached_.store(false, std::memory_order_relaxed);
+        fifo_.reset();
+        recording_.store(true, std::memory_order_relaxed);
+        recordedBeats_ = 0.0;
+    }
 
     playbackBeat_.store((float)beatAtBlockStart, std::memory_order_relaxed);
 

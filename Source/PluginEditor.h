@@ -48,9 +48,10 @@ class JoystickPad : public juce::Component
 public:
     explicit JoystickPad(PluginProcessor& p);
     void paint(juce::Graphics& g) override;
-    void mouseDown (const juce::MouseEvent& e) override;
-    void mouseDrag (const juce::MouseEvent& e) override;
-    void mouseUp   (const juce::MouseEvent& e) override;
+    void mouseDown        (const juce::MouseEvent& e) override;
+    void mouseDrag        (const juce::MouseEvent& e) override;
+    void mouseUp          (const juce::MouseEvent& e) override;
+    void mouseDoubleClick (const juce::MouseEvent& e) override;
 
 private:
     PluginProcessor& proc_;
@@ -188,13 +189,33 @@ private:
     std::unique_ptr<juce::SliderParameterAttachment> gateTimeSliderAtt_;
 
     // Flash counters for gamepad button feedback (decremented by timer)
-    int resetFlashCounter_  = 0;
-    int deleteFlashCounter_ = 0;
+    int resetFlashCounter_    = 0;
+    int deleteFlashCounter_   = 0;
+    int recBlinkCounter_      = 0;  // blink REC button while armed-but-not-recording
+    int playWaitBlinkCounter_ = 0;  // blink PLAY button while wait-for-touch is armed
+
+    // Divider line X position — set in resized(), used in paint() so it's
+    // independent of the joystick pad's centered position.
+    int dividerX_ = 460;
+
+    // True while the physical stick is (or was recently) the last writer of
+    // joystickX/Y — lets us correctly return the cursor to 0 on stick release
+    // while still allowing mouse clicks to "stick" when the stick is at rest.
+    bool gamepadWasLastPitchWriter_ = false;
+
+    // Tooltip window — shows setTooltip() text on hover for all child controls
+    juce::TooltipWindow tooltipWindow_;
+
+    // Bounds of the filter knob group panels (set in resized, drawn in paint)
+    juce::Rectangle<int> filterCutGroupBounds_, filterResGroupBounds_;
 
     // ── Filter (gamepad) ─────────────────────────────────────────────────────
-    juce::Slider filterXAttenKnob_, filterYAttenKnob_;
-    juce::Label  filterXAttenLabel_, filterYAttenLabel_;
-    juce::TextButton filterModBtn_;  // [FILTER MOD ON] / [FILTER MOD OFF]
+    juce::Slider filterXAttenKnob_,  filterYAttenKnob_;
+    juce::Slider filterXOffsetKnob_, filterYOffsetKnob_;
+    juce::Label  filterXAttenLabel_,  filterYAttenLabel_;
+    juce::Label  filterXOffsetLabel_, filterYOffsetLabel_;
+    juce::TextButton filterModBtn_;   // [FILTER MOD ON] / [FILTER MOD OFF]
+    juce::TextButton filterRecBtn_;   // [REC FILTER] — record filter movements into the looper
 
     // ── Looper ────────────────────────────────────────────────────────────────
     juce::TextButton  loopPlayBtn_, loopRecBtn_, loopResetBtn_, loopDeleteBtn_;
@@ -222,7 +243,8 @@ private:
     std::unique_ptr<SliderAtt> transposeAtt_, thirdIntAtt_, fifthIntAtt_, tensionIntAtt_;
     std::unique_ptr<SliderAtt> rootOctAtt_, thirdOctAtt_, fifthOctAtt_, tensionOctAtt_;
     std::unique_ptr<SliderAtt> randomDensityAtt_, loopLengthAtt_;
-    std::unique_ptr<SliderAtt> filterXAttenAtt_, filterYAttenAtt_;
+    std::unique_ptr<SliderAtt> filterXAttenAtt_,  filterYAttenAtt_;
+    std::unique_ptr<SliderAtt> filterXOffsetAtt_, filterYOffsetAtt_;
     std::unique_ptr<ComboAtt>  scalePresetAtt_;
     std::unique_ptr<ButtonAtt> customScaleAtt_;
     std::unique_ptr<ComboAtt>  filterYModeAtt_, filterXModeAtt_;

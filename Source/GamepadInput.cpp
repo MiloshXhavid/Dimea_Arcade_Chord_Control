@@ -105,14 +105,14 @@ void GamepadInput::timerCallback()
 
     if (!controller_) return;
 
-    // ── Right stick → pitch joystick (with sample-and-hold) ──────────────────
+    // ── Right stick → pitch joystick (returns to center when released) ──────────
+    // No sample-and-hold: when the stick enters the dead zone, pitchX/Y return to 0
+    // so the UI and pitch computation reflect the stick's actual resting position.
     {
         const float rawX =  normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTX));
         const float rawY = -normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTY));
-        if (rawX != 0.0f) lastPitchX_ = rawX;
-        if (rawY != 0.0f) lastPitchY_ = rawY;
-        pitchX_.store(lastPitchX_, std::memory_order_relaxed);
-        pitchY_.store(lastPitchY_, std::memory_order_relaxed);
+        pitchX_.store(rawX, std::memory_order_relaxed);
+        pitchY_.store(rawY, std::memory_order_relaxed);
     }
 
     // ── Left stick → filter (with sample-and-hold) ───────────────────────────

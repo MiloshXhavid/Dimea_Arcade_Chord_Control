@@ -40,6 +40,8 @@ namespace ParamID
     // Filter
     static const juce::String filterXAtten     = "filterXAtten";
     static const juce::String filterYAtten     = "filterYAtten";
+    static const juce::String filterXOffset    = "filterXOffset";
+    static const juce::String filterYOffset    = "filterYOffset";
     static const juce::String filterMidiCh     = "filterMidiCh";
 
     // MIDI channels
@@ -168,10 +170,16 @@ PluginProcessor::createParameterLayout()
     // ── Filter ────────────────────────────────────────────────────────────────
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         ParamID::filterXAtten, "Filter Cutoff Attenuator",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 100.0f));
+        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 99.0f));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         ParamID::filterYAtten, "Filter Resonance Attenuator",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 100.0f));
+        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 99.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        ParamID::filterXOffset, "Filter Cutoff Base",
+        juce::NormalisableRange<float>(0.0f, 127.0f, 1.0f), 64.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        ParamID::filterYOffset, "Filter Resonance Base",
+        juce::NormalisableRange<float>(0.0f, 127.0f, 1.0f), 64.0f));
     addInt  (ParamID::filterMidiCh, "Filter MIDI Channel",  1, 16, 1);
     {
         juce::StringArray yModes { "Resonance", "LFO Rate" };
@@ -282,10 +290,18 @@ ChordEngine::Params PluginProcessor::buildChordParams() const
     const float jx  = joystickX.load();
     const float jy  = joystickY.load();
 
-    // Prefer gamepad if any axis is active (|value| > 0.05)
-    const bool gpActive = (std::abs(gpX) + std::abs(gpY)) > 0.05f;
-    p.joystickX = gpActive ? gpX : jx;
-    p.joystickY = gpActive ? gpY : jy;
+    // Per-axis center snap: values within ±5% snap to exactly 0 (matches UI snap in updateFromMouse).
+    // This prevents hardware noise near stick-center from jittering the pitch.
+    constexpr float kCenterSnap = 0.05f;
+    const float gpXs = std::abs(gpX) < kCenterSnap ? 0.0f : gpX;
+    const float gpYs = std::abs(gpY) < kCenterSnap ? 0.0f : gpY;
+
+    // Prefer gamepad if any axis is active after snap.
+    // Allow during playback when: actively recording, or no joystick content recorded yet.
+    const bool gpActive = (!looper_.isPlaying() || looper_.isRecording() || !looper_.hasJoystickContent())
+                          && (std::abs(gpXs) + std::abs(gpYs)) > 0.0f;
+    p.joystickX = gpActive ? gpXs : jx;
+    p.joystickY = gpActive ? gpYs : jy;
 
     p.xAtten = apvts.getRawParameterValue(ParamID::joystickXAtten)->load();
     p.yAtten = apvts.getRawParameterValue(ParamID::joystickYAtten)->load();
@@ -469,6 +485,39 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         }
     }
 
+    // Detect looper stop — send note-offs for any hanging looper notes.
+    // When startStop() is called, playing_ goes false before process() runs,
+    // so no gateOff events are emitted for voices still active. Detect the
+    // transition here and emit note-offs manually.
+    {
+        const bool looperNowPlaying = looper_.isPlaying();
+        if (prevLooperWasPlaying_ && !looperNowPlaying)
+        {
+            for (int v = 0; v < 4; ++v)
+            {
+                if (looperActivePitch_[v] >= 0)
+                {
+                    midi.addEvent(juce::MidiMessage::noteOff(voiceChs[v], looperActivePitch_[v], (uint8_t)0), 0);
+                    looperActivePitch_[v] = -1;
+                }
+            }
+        }
+        prevLooperWasPlaying_ = looperNowPlaying;
+    }
+
+    // Looper reset (seek to bar 0): cut any active looper notes, keep live gates intact.
+    if (loopOut.looperReset)
+    {
+        for (int v = 0; v < 4; ++v)
+        {
+            if (looperActivePitch_[v] >= 0)
+            {
+                midi.addEvent(juce::MidiMessage::noteOff(voiceChs[v], looperActivePitch_[v], (uint8_t)0), 0);
+                looperActivePitch_[v] = -1;
+            }
+        }
+    }
+
     // ── MIDI Panic / Mute ─────────────────────────────────────────────────────
     // pendingPanic_ fires unconditionally: stops looper, sends allNotesOff, resets gates.
     // This happens BEFORE the mute gate so allNotesOff always reaches the synth.
@@ -542,7 +591,13 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     TriggerSystem::ProcessParams tp;
     tp.onNote = [&](int voice, int pitch, bool isOn, int sampleOff)
     {
-        if (isOn) anyNoteOnThisBlock = true;
+        if (isOn)
+        {
+            anyNoteOnThisBlock = true;
+            // Activate "start rec by touch" before recordGate so the triggering
+            // note-on is captured. activateRecordingNow() is a no-op unless armed.
+            looper_.activateRecordingNow();
+        }
 
         const int ch0 = voiceChs[voice] - 1;  // 0-based
         if (isOn)
@@ -627,8 +682,9 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
     trigger_.processBlock(tp);
 
-    // If looper is waiting for first trigger, activate recording on note-on.
-    if (anyNoteOnThisBlock)
+    // Joystick-move trigger for "start rec by touch".
+    // Note-on path already calls activateRecordingNow() inside tp.onNote.
+    if (std::abs(tp.deltaX) > tp.joystickThreshold || std::abs(tp.deltaY) > tp.joystickThreshold)
         looper_.activateRecordingNow();  // no-op if not wait-armed
 
     // ── Looper joystick + filter recording ───────────────────────────────────
@@ -671,10 +727,16 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
         // Determine filter source — all gated by the filterMod on/off toggle.
         const bool filterModOn   = filterModActive_.load(std::memory_order_relaxed);
-        const bool looperDriving = filterModOn && (loopOut.hasFilterX || loopOut.hasFilterY);
+        const bool filterRecOn      = looper_.isRecFilter();     // REC FILTER button state
+        const bool filterHasContent = looper_.hasFilterContent(); // any FilterX/Y events recorded
+        const bool looperDriving = filterModOn && filterRecOn && filterHasContent
+                                   && (loopOut.hasFilterX || loopOut.hasFilterY);
         const bool liveGamepad   = filterModOn && gamepad_.isConnected() && gamepadActive_.load(std::memory_order_relaxed);
 
-        if (looperDriving || liveGamepad)
+        // Base knobs are the primary modulator and send CC independently of the joystick.
+        // Joystick/looper updates are still gated by liveGamepad||looperDriving, but
+        // the outer block is gated only by filterModOn so base-knob turns always reach here.
+        if (filterModOn)
         {
             const float xAtten = apvts.getRawParameterValue(ParamID::filterXAtten)->load();
             const float yAtten = apvts.getRawParameterValue(ParamID::filterYAtten)->load();
@@ -687,38 +749,67 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             if (xMode != prevXMode_) { prevCcCut_.store(-1, std::memory_order_relaxed); prevXMode_ = xMode; }
             if (yMode != prevYMode_) { prevCcRes_.store(-1, std::memory_order_relaxed); prevYMode_ = yMode; }
 
-            // Looper output overrides live stick; live stick used when looper has no filter event.
-            const float gfx = loopOut.hasFilterX ? loopOut.filterX
-                                                  : (liveGamepad ? gamepad_.getFilterX() : prevFilterX_);
-            const float gfy = loopOut.hasFilterY ? loopOut.filterY
-                                                  : (liveGamepad ? gamepad_.getFilterY() : prevFilterY_);
-
-            // Emit only when the joystick physically moved beyond the threshold, or when the looper
-            // drives a filter event. This prevents gamepad axis noise and atten-knob changes from
-            // firing CC — the synth filter value stays put until the stick actually moves.
-            const bool looperUpdate = loopOut.hasFilterX || loopOut.hasFilterY;
-            const float fThresh = apvts.getRawParameterValue("joystickThreshold")->load();
-            const bool filterMoved = looperUpdate
-                || (std::abs(gfx - prevFilterX_) > fThresh)
-                || (std::abs(gfy - prevFilterY_) > fThresh);
-
-            if (filterMoved)
+            // ── Stick / looper position update (gated as before) ─────────────
+            // Priority rules:
+            //   1. Looper event this block  → use it
+            //   2. Live stick               → use it
+            //   3. Hold prevFilterX_        → between looper events
+            bool stickUpdated = false;
+            if (looperDriving || liveGamepad)
             {
-                prevFilterX_ = gfx;
-                prevFilterY_ = gfy;
+                const bool looperPlaying = looper_.isPlaying();
+                const bool recActive     = looper_.isRecording();
+                const float newGfx = (filterRecOn && !recActive && filterHasContent && loopOut.hasFilterX) ? loopOut.filterX
+                                   : ((liveGamepad && (!looperPlaying || !filterRecOn || recActive || !filterHasContent)) ? gamepad_.getFilterX() : prevFilterX_);
+                const float newGfy = (filterRecOn && !recActive && filterHasContent && loopOut.hasFilterY) ? loopOut.filterY
+                                   : ((liveGamepad && (!looperPlaying || !filterRecOn || recActive || !filterHasContent)) ? gamepad_.getFilterY() : prevFilterY_);
 
-                const int ccCut = juce::jlimit(0, 127, (int)(((gfx + 1.0f) * 0.5f) * 127.0f * (xAtten / 100.0f)));
-                const int ccRes = juce::jlimit(0, 127, (int)(((gfy + 1.0f) * 0.5f) * 127.0f * (yAtten / 100.0f)));
+                const bool looperUpdate = filterRecOn && !recActive && filterHasContent
+                                          && (loopOut.hasFilterX || loopOut.hasFilterY);
+                const float fThresh = apvts.getRawParameterValue("joystickThreshold")->load();
+                stickUpdated = looperUpdate
+                    || (std::abs(newGfx - prevFilterX_) > fThresh)
+                    || (std::abs(newGfy - prevFilterY_) > fThresh);
 
-                if (ccCut != prevCcCut_.load(std::memory_order_relaxed))
+                if (stickUpdated)
                 {
-                    midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccXnum, ccCut), 0);
-                    prevCcCut_.store(ccCut, std::memory_order_relaxed);
+                    prevFilterX_ = newGfx;
+                    prevFilterY_ = newGfy;
                 }
-                if (ccRes != prevCcRes_.load(std::memory_order_relaxed))
+            }
+
+            // ── Base knob change detection (primary modulator) ───────────────
+            const float xOffset = apvts.getRawParameterValue(ParamID::filterXOffset)->load();
+            const float yOffset = apvts.getRawParameterValue(ParamID::filterYOffset)->load();
+            const bool baseChanged = (xOffset != prevBaseX_) || (yOffset != prevBaseY_);
+
+            if (stickUpdated || baseChanged)
+            {
+                prevBaseX_ = xOffset;
+                prevBaseY_ = yOffset;
+
+                const int ccCut = juce::jlimit(0, 127, (int)std::roundf(xOffset + prevFilterX_ * 63.5f * (xAtten / 100.0f)));
+                const int ccRes = juce::jlimit(0, 127, (int)std::roundf(yOffset + prevFilterY_ * 63.5f * (yAtten / 100.0f)));
+
                 {
-                    midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccYnum, ccRes), 0);
-                    prevCcRes_.store(ccRes, std::memory_order_relaxed);
+                    const int prev = prevCcCut_.load(std::memory_order_relaxed);
+                    if (prev == -2)
+                        prevCcCut_.store(ccCut, std::memory_order_relaxed);  // on-load: silent init
+                    else if (prev == -1 || ccCut != prev)
+                    {
+                        midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccXnum, ccCut), 0);
+                        prevCcCut_.store(ccCut, std::memory_order_relaxed);
+                    }
+                }
+                {
+                    const int prev = prevCcRes_.load(std::memory_order_relaxed);
+                    if (prev == -2)
+                        prevCcRes_.store(ccRes, std::memory_order_relaxed);  // on-load: silent init
+                    else if (prev == -1 || ccRes != prev)
+                    {
+                        midi.addEvent(juce::MidiMessage::controllerEvent(fCh, ccYnum, ccRes), 0);
+                        prevCcRes_.store(ccRes, std::memory_order_relaxed);
+                    }
                 }
                 filterCutDisplay_.store(static_cast<float>(ccCut), std::memory_order_relaxed);
                 filterResDisplay_.store(static_cast<float>(ccRes), std::memory_order_relaxed);

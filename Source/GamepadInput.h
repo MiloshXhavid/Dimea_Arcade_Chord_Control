@@ -96,9 +96,8 @@ private:
     std::atomic<float> filterY_    {0.0f};
     std::atomic<float> filterYRaw_ {0.0f};  // 0 when in dead zone (no S&H)
 
-    // Sample-and-hold: hold last non-dead-zone value when stick returns to center
-    float lastPitchX_  = 0.0f;
-    float lastPitchY_  = 0.0f;
+    // Sample-and-hold for filter: holds last non-dead-zone value when stick returns to center.
+    // Pitch joystick does NOT use S&H — it returns to 0 when stick is released.
     float lastFilterX_ = 0.0f;
     float lastFilterY_ = 0.0f;
 
