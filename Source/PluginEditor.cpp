@@ -803,7 +803,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     pixelLaf_.setPixelFont(pixelFont_);
     setLookAndFeel(&pixelLaf_);
 
-    setSize(920, 790);
+    setSize(920, 810);
 
     // ── Tooltip window ────────────────────────────────────────────────────────
     addAndMakeVisible(tooltipWindow_);
@@ -1499,11 +1499,7 @@ void PluginEditor::resized()
         gamepadStatusLabel_.setBounds(row);             // remainder to status label
     }
 
-    // GAMEPAD panel — just the gamepadActiveBtn_ / panicBtn_ / status label row
-    gamepadPanelBounds_ = gamepadActiveBtn_.getBounds()
-        .getUnion(panicBtn_.getBounds())
-        .getUnion(gamepadStatusLabel_.getBounds())
-        .expanded(4, 6);
+    // GAMEPAD panel bounds not used — right column panels removed (label conflicts)
 
     // Left-stick axis mode combos — grouped under the FILTER MOD button
     // (greyed out when FILTER MOD is OFF)
@@ -1518,15 +1514,7 @@ void PluginEditor::resized()
     right.removeFromTop(10);
     thresholdSlider_ .setBounds(right.removeFromTop(18));
 
-    // FILTER MOD panel — encompasses filterYModeBox_, filterXModeBox_, gateTimeSlider_, thresholdSlider_
-    // and the filterModBtn_ / filterRecBtn_ buttons in the row above.
-    filterModPanelBounds_ = filterModBtn_.getBounds()
-        .getUnion(filterRecBtn_.getBounds())
-        .getUnion(filterYModeBox_.getBounds())
-        .getUnion(filterXModeBox_.getBounds())
-        .getUnion(gateTimeSlider_.getBounds())
-        .getUnion(thresholdSlider_.getBounds())
-        .expanded(4, 6);
+    // FILTER MOD panel bounds not used — right column panels removed (label conflicts)
 
     // Filter Mod hint is now drawn directly in paint() aligned with the left footer rows.
     filterModHintLabel_.setBounds(0, 0, 0, 0);
@@ -1636,11 +1624,6 @@ void PluginEditor::resized()
 
     // Looper
     {
-        // Looper panel bounds — capture before controls consume the area
-        // (arpBlockBounds_ has already been removed from the bottom, so `left` here
-        //  is exactly the looper section content area)
-        looperPanelBounds_ = left;  // full remaining left area = looper section
-
         auto section = left;
 
         // Buttons row 1: PLAY / REC / RST / DEL
@@ -1697,6 +1680,13 @@ void PluginEditor::resized()
             quantizePostBtn_.setBounds(qRow.removeFromLeft(qBtnW)); qRow.removeFromLeft(qGap + 4);
             quantizeSubdivBox_.setBounds(qRow.removeFromLeft(qDropW));
         }
+
+        // Looper panel bounds — computed from actual control bounds after layout
+        looperPanelBounds_ = loopPlayBtn_.getBounds()
+            .getUnion(quantizeSubdivBox_.getBounds())
+            .withX(left.getX())
+            .withWidth(left.getWidth())
+            .expanded(0, 4);
     }
 
     // Arpeggiator block — bottom-left panel
@@ -1802,33 +1792,29 @@ void PluginEditor::paint(juce::Graphics& g)
         if (bounds.isEmpty()) return;
         const auto fb = bounds.toFloat().reduced(1.0f, 0.0f);
 
-        // 1. Fill panel background
-        g.setColour(Clr::panel.brighter(0.12f));
-        g.fillRoundedRectangle(fb, 7.0f);
-
-        // 2. Draw border
+        // Border only — no fill so child components and custom labels remain fully visible
         g.setColour(Clr::accent.brighter(0.5f));
         g.drawRoundedRectangle(fb.reduced(0.5f), 7.0f, 1.5f);
 
-        // 3. Measure title text width
+        // Measure title text width
         g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::bold));
         const int textW = g.getCurrentFont().getStringWidth(title) + 10;
         const int textH = 12;
         const int textX = (int)(fb.getCentreX()) - textW / 2;
         const int textY = (int)fb.getY() - textH / 2;  // centered on top border line
 
-        // 4. Knockout: fill behind label to erase the border line
-        g.setColour(Clr::panel.brighter(0.12f));
+        // Knockout: erase border line behind label using background color
+        g.setColour(Clr::bg);
         g.fillRect(textX, textY, textW, textH);
 
-        // 5. Draw label text
+        // Draw label text
         g.setColour(Clr::textDim);
         g.drawText(title, textX, textY, textW, textH, juce::Justification::centred);
     };
 
     drawSectionPanel(looperPanelBounds_,    "LOOPER");
-    drawSectionPanel(filterModPanelBounds_, "FILTER MOD");
-    drawSectionPanel(gamepadPanelBounds_,   "GAMEPAD");
+    // Right-column panels omitted: the floating title fights with drawAbove labels
+    // and the button/label text already identifies those sections clearly.
 
     // ── Looper position bar ───────────────────────────────────────────────────
     if (!looperPositionBarBounds_.isEmpty())
