@@ -93,7 +93,13 @@ Plans:
   2. Gamepad status label shows the specific controller type ("PS4 Connected", "Xbox One Connected", or "Controller Connected") rather than a plain ON/OFF indicator — verifiable by connecting a PS4 or Xbox controller
   3. A looper position bar sweeps forward continuously during playback and does not jump backward at loop wrap — verifiable by visual inspection during a 1-bar loop at 180 BPM
   4. The installer version string and feature list reflect v1.1 — verifiable by running the installer and checking the information page
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — Section panels: rounded-rect panels + floating labels for LOOPER/FILTER MOD/GAMEPAD + "QUANTIZE TRIGGER" label + widen quantizeSubdivBox_ to 58px
+- [ ] 11-02-PLAN.md — Gamepad controller name: change onConnectionChangeUI to pass name string, update label with PS4/PS5/Xbox/generic detection
+- [ ] 11-03-PLAN.md — Looper position bar: 10px strip inside LOOPER panel driven by existing 30 Hz timerCallback
+- [ ] 11-04-PLAN.md — Installer AppVersion bump to 1.3 + human verification of all Phase 11 features
 
 ## Progress
 
@@ -108,8 +114,8 @@ Plans:
 | 07. Distribution & Release | v1.0 | 2/2 | Complete | 2026-02-23 |
 | 08. Post-v1.0 Patch Verification | v1.1 | 1/2 | In progress | - |
 | 09. MIDI Panic and Mute Feedback | v1.1 | 2/2 | Complete | 2026-02-25 |
-| 10. Trigger Quantization Infrastructure | 5/5 | Complete   | 2026-02-25 | - |
-| 11. UI Polish and Installer | v1.1 | 0/TBD | Not started | - |
+| 10. Trigger Quantization Infrastructure | 5/5 | Complete    | 2026-02-25 | - |
+| 11. UI Polish and Installer | v1.1 | 0/4 | Not started | - |
 
 ---
 *v1.0 shipped 2026-02-23 — 7 phases, 17 plans, ~3,966 C++ LOC*
