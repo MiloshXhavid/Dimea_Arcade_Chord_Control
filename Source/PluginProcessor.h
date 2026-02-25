@@ -81,16 +81,17 @@ public:
 
     // Quantize mode (0=Off 1=Live 2=Post) + subdivision (0=1/4 1=1/8 2=1/16 3=1/32)
     // Called from PluginEditor onClick handlers and timerCallback.
-    // LooperEngine setters are declared in Plan 10-03 — forward-declare with stub until then.
     void setQuantizeMode(int mode)
     {
         if (auto* p = apvts.getParameter("quantizeMode"))
             p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(mode)));
+        looper_.setQuantizeMode(mode);
     }
     void setQuantizeSubdiv(int subdiv)
     {
         if (auto* p = apvts.getParameter("quantizeSubdiv"))
             p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(subdiv)));
+        looper_.setQuantizeSubdiv(subdiv);
     }
     int getQuantizeMode() const
     {
@@ -102,10 +103,10 @@ public:
         auto* v = apvts.getRawParameterValue("quantizeSubdiv");
         return v ? static_cast<int>(*v) : 1;
     }
-    // Called from editor Post button click. Wired to LooperEngine in Plan 10-03.
-    void looperApplyQuantize()  { /* looper_.applyQuantize();  — wired in Plan 10-03 */ }
-    void looperRevertQuantize() { /* looper_.revertQuantize(); — wired in Plan 10-03 */ }
-    bool looperQuantizeIsActive() const { return false; /* wired in Plan 10-03 */ }
+    // Post-record quantize trigger / revert — wired to LooperEngine
+    void looperApplyQuantize()  { looper_.applyQuantize();  }
+    void looperRevertQuantize() { looper_.revertQuantize(); }
+    bool looperQuantizeIsActive() const { return looper_.isQuantizeActive(); }
 
     // Arp armed-but-waiting state — read by UI for blink
     bool isArpWaitingForPlay() const { return arpWaitingForPlay_; }

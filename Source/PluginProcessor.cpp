@@ -1016,6 +1016,14 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         (int)apvts.getRawParameterValue(ParamID::looperSubdiv)->load()));
     looper_.setLoopLengthBars(
         (int)apvts.getRawParameterValue(ParamID::looperLength)->load());
+
+    // Push quantize config to LooperEngine each block (cheap atomic stores)
+    {
+        const int qMode   = static_cast<int>(*apvts.getRawParameterValue(ParamID::quantizeMode));
+        const int qSubdiv = static_cast<int>(*apvts.getRawParameterValue(ParamID::quantizeSubdiv));
+        looper_.setQuantizeMode(qMode);
+        looper_.setQuantizeSubdiv(qSubdiv);
+    }
 }
 
 // ─── State persistence ────────────────────────────────────────────────────────

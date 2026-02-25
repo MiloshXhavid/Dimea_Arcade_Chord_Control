@@ -482,7 +482,31 @@ void LooperEngine::recordGate(double beatPos, int voice, bool on)
         return;
     }
 
-    const double pos = std::fmod(beatPos, loopLen);
+    double pos = std::fmod(beatPos, loopLen);
+
+    // Live quantize: snap gate-on; shift gate-off as rigid unit (duration preserved)
+    if (quantizeMode_.load(std::memory_order_relaxed) == 1 /*kQuantizeLive*/)
+    {
+        const double grid = quantizeSubdivToGridSize(
+            quantizeSubdiv_.load(std::memory_order_relaxed));
+        if (on)
+        {
+            lastRawOnBeat_[voice] = pos;           // save raw position BEFORE snap
+            pos = snapToGrid(pos, grid, loopLen);
+            lastSnappedOnBeat_[voice] = pos;
+        }
+        else
+        {
+            // Recover original duration from raw positions (handles loop wrap)
+            const double rawPos = std::fmod(beatPos, loopLen);
+            double duration = rawPos - lastRawOnBeat_[voice];
+            if (duration < 0.0) duration += loopLen;
+            const double minGate = 1.0 / 64.0;
+            duration = std::max(duration, minGate);
+            pos = std::fmod(lastSnappedOnBeat_[voice] + duration, loopLen);
+        }
+    }
+
     LooperEvent e { pos, LooperEvent::Type::Gate, voice, on ? 1.0f : 0.0f };
 
     auto scope = fifo_.write(1);
