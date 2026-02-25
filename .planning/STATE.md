@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 11 of 11 (UI Polish + Installer)
-Plan: 2 of TBD — Plan 11-02 complete
-Status: Phase 11 in progress — gamepad status label now shows PS4/PS5/Xbox/generic controller names; onConnectionChangeUI signature updated to juce::String
-Last activity: 2026-02-25 — Plan 11-02 complete (GamepadInput name-detection, PluginEditor label logic, build clean)
+Plan: 3 of TBD — Plan 11-03 complete
+Status: Phase 11 in progress — looper position bar added: 10px strip in LOOPER panel sweeps left-to-right at 30 Hz showing playback position
+Last activity: 2026-02-25 — Plan 11-03 complete (looper position bar: accessors in PluginProcessor, paint/resized/timerCallback in PluginEditor, build clean)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -20,7 +20,7 @@ v1.1 Polish [█████░░░░░] 36% (7/TBD plans)
   Phase 08  [██████████]   Patch Verification    Complete (1 plan done)
   Phase 09  [██████████]   MIDI Panic + Mute     Complete (2 plans done)
   Phase 10  [██████████]   Quantize Infra        Complete (5/5 plans done)
-  Phase 11  [██░░░░░░░░]   UI Polish + Installer In progress (2 plans done)
+  Phase 11  [███░░░░░░░]   UI Polish + Installer In progress (3 plans done)
 ```
 
 ## Performance Metrics
@@ -67,6 +67,7 @@ Recent decisions affecting v1.1:
 - **qDropW widened 48→58px (11-01)** — "1/32" text was truncated at 48px; 58px confirmed sufficient
 - **onConnectionChangeUI passes juce::String not bool (11-02)** — enables controller-type detection (PS4/PS5/Xbox/generic) in PluginEditor without extra API call; getControllerName() in .cpp only (SDL headers not in .h)
 - **getControllerName() implemented in GamepadInput.cpp not inline (11-02)** — SDL_GameControllerName requires SDL headers; forward declarations kept in .h to avoid header pollution
+- **Looper position bar uses partial repaint(looperPositionBarBounds_) at 30 Hz (11-03)** — avoids full editor repaint; bar drawn in paint() with Clr::gateOff background + Clr::gateOn foreground proportional to beat/length; guarded by len > 0.0 to prevent division-by-zero
 
 ### Pending Todos
 
@@ -80,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-25 (11-02 complete)
-Stopped at: Completed 11-02-PLAN.md — gamepad controller name display
+Last session: 2026-02-25 (11-03 complete)
+Stopped at: Completed 11-03-PLAN.md — looper position bar
 Resume file: None
