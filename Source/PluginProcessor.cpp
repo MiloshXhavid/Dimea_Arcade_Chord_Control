@@ -487,9 +487,12 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         (int)apvts.getRawParameterValue(ParamID::voiceCh3)->load(),
     };
 
-    // Detect DAW stop — covers both SYNC-on (loopOut.dawStopped) and SYNC-off cases.
+    // Detect DAW stop/start — covers both SYNC-on (loopOut.dawStopped) and SYNC-off cases.
     // Sends all-notes-off and resets TriggerSystem gate state so notes don't hang.
+    // dawJustStarted is used later by the arp arm logic.
+    bool dawJustStarted = false;
     {
+        dawJustStarted = !prevIsDawPlaying_ && isDawPlaying;
         const bool justStopped = (prevIsDawPlaying_ && !isDawPlaying) || loopOut.dawStopped;
         prevIsDawPlaying_ = isDawPlaying;
         if (justStopped)
@@ -708,12 +711,30 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     tp.randomClockSync = (*apvts.getRawParameterValue("randomClockSync") > 0.5f);
     tp.randomFreeTempo = *apvts.getRawParameterValue("randomFreeTempo");
 
+    // When arp is on, suppress joystick/random auto-triggers so arp has full
+    // sequencing control. Pads (TouchPlate) still fire live notes and choke arp.
+    if (arpOn)
+        for (int v = 0; v < 4; ++v)
+            tp.sources[v] = TriggerSource::TouchPlate;
+
     trigger_.processBlock(tp);
 
     // ── Arpeggiator ───────────────────────────────────────────────────────────
-    // Requires DAW transport running. When DAW sync is active the step phase
-    // locks to the PPQ grid; otherwise it free-runs on the effective BPM.
-    if (!arpOn || !isDawPlaying)
+    // Arm-and-wait logic:
+    //   - ARP ON pressed while DAW already playing  → arm only (arpWaitingForPlay_ = true)
+    //   - DAW play pressed while armed              → clear wait flag, arp fires
+    //   - ARP OFF                                   → clear wait flag, kill note
+    if (arpOn && !prevArpOn_ && isDawPlaying)
+        arpWaitingForPlay_ = true;   // just enabled while rolling — wait for next play press
+    if (!arpOn)
+        arpWaitingForPlay_ = false;  // disabled — reset arm state
+    if (dawJustStarted)
+        arpWaitingForPlay_ = false;  // DAW play pressed — launch
+    prevArpOn_ = arpOn;
+
+    // Arp requires DAW transport AND must not be in the armed-waiting state.
+    // When sync is active the step phase locks to the PPQ grid; otherwise free-runs.
+    if (!arpOn || !isDawPlaying || arpWaitingForPlay_)
     {
         // Kill any hanging arp note when ARP is off or DAW stops.
         if (arpActivePitch_ >= 0 && arpActiveVoice_ >= 0)

@@ -157,8 +157,8 @@ private:
     std::atomic<bool> playing_       { false };
     std::atomic<bool> recording_     { false };
     std::atomic<bool> recordPending_ { false }; // REC pressed, waiting for next valid clock
-    std::atomic<bool> recJoy_            { false };  // [REC JOY] armed
-    std::atomic<bool> recGates_          { false };  // [REC GATES] armed
+    std::atomic<bool> recJoy_            { true  };  // [REC JOY] armed (on by default)
+    std::atomic<bool> recGates_          { true  };  // [REC GATES] armed (on by default)
     std::atomic<bool> recFilter_         { false };  // filter recording off by default (live use)
     std::atomic<bool> syncToDaw_         { false };  // [DAW] sync to DAW playhead
     std::atomic<bool> capReached_         { false };  // overflow indicator for UI

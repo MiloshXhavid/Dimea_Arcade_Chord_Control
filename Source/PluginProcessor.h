@@ -79,6 +79,9 @@ public:
     bool looperIsRecPending()           const { return looper_.isRecordPending() || looper_.isRecPendingNextCycle(); }
     void looperArmWait()                      { looper_.armWait(); }
 
+    // Arp armed-but-waiting state — read by UI for blink
+    bool isArpWaitingForPlay() const { return arpWaitingForPlay_; }
+
     // Effective BPM (DAW BPM when synced, free tempo otherwise) — read by UI
     float getEffectiveBpm() const { return effectiveBpm_.load(std::memory_order_relaxed); }
 
@@ -197,6 +200,8 @@ private:
     int      arpActiveVoice_      = -1;       // voice of currently sounding arp note
     uint32_t arpRandSeed_         = 1;        // LCG seed for random order
     int      arpRandomOrder_[4]   = {0,1,2,3};// cached random sequence, shuffled each cycle
+    bool     arpWaitingForPlay_   = false;    // armed but waiting for DAW play press to launch
+    bool     prevArpOn_           = false;    // previous block's arp-enabled state
 
     // Build ChordEngine::Params from current APVTS + joystick state
     ChordEngine::Params buildChordParams() const;

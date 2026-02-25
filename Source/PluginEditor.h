@@ -193,6 +193,7 @@ private:
     int deleteFlashCounter_   = 0;
     int recBlinkCounter_      = 0;  // blink REC button while armed-but-not-recording
     int playWaitBlinkCounter_ = 0;  // blink PLAY button while wait-for-touch is armed
+    int arpBlinkCounter_      = 0;  // blink ARP button while armed, waiting for DAW play
 
     // Divider line X position — set in resized(), used in paint() so it's
     // independent of the joystick pad's centered position.

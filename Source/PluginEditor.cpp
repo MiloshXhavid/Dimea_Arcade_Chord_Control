@@ -1064,6 +1064,8 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     styleButton(loopRecJoyBtn_);
     styleButton(loopRecGatesBtn_);
     styleButton(loopSyncBtn_);
+    loopRecJoyBtn_  .setToggleState(true, juce::dontSendNotification);
+    loopRecGatesBtn_.setToggleState(true, juce::dontSendNotification);
 
     loopRecJoyBtn_.onClick = [this] {
         const bool newVal = !proc_.looperIsRecJoy();
@@ -1326,7 +1328,7 @@ void PluginEditor::resized()
         joystickPad_.setBounds(padX, padRow.getY(), padSize, padSize);
     }
 
-    right.removeFromTop(6);
+    right.removeFromTop(36);
 
     // Knob row: X Range | Y Range | CUTOFF group | RESONANCE group
     // Each filter group splits 40% (Atten, small) + 60% (Base, main).
@@ -1810,8 +1812,19 @@ void PluginEditor::timerCallback()
         filterRecBtn_     .setEnabled(filterOn);
     }
 
-    // Sync ARP button text with toggle state (handles state restore from DAW project)
-    arpEnabledBtn_.setButtonText(arpEnabledBtn_.getToggleState() ? "ARP ON" : "ARP OFF");
+    // ARP button: blinks while armed (ARP ON but waiting for DAW play press to launch),
+    // solid when actually running, off when disabled.
+    if (arpEnabledBtn_.getToggleState() && proc_.isArpWaitingForPlay())
+    {
+        const bool on = ((++arpBlinkCounter_) / 5) % 2 == 0;  // ~3 blinks/sec at 30 Hz
+        arpEnabledBtn_.setToggleState(on, juce::dontSendNotification);
+        arpEnabledBtn_.setButtonText("ARP ARMED");
+    }
+    else
+    {
+        arpBlinkCounter_ = 0;
+        arpEnabledBtn_.setButtonText(arpEnabledBtn_.getToggleState() ? "ARP ON" : "ARP OFF");
+    }
 
     // Update REC JOY / REC GATES / SYNC toggle appearances
     loopRecJoyBtn_  .setToggleState(proc_.looperIsRecJoy(),    juce::dontSendNotification);
