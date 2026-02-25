@@ -300,7 +300,7 @@ void JoystickPad::paint(juce::Graphics& g)
     g.fillRect(b);
 
     // Circle inscribed in the pad (square) — shows the physical joystick reach area
-    const float circleR = b.getHeight() * 0.5f - 4.0f;
+    const float circleR = juce::jmin(b.getWidth(), b.getHeight()) * 0.5f;
     const juce::Rectangle<float> circleRect(
         b.getCentreX() - circleR, b.getCentreY() - circleR,
         circleR * 2.0f, circleR * 2.0f);
