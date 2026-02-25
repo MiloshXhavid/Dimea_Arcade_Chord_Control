@@ -1213,6 +1213,18 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     };
     addAndMakeVisible(filterRecBtn_);
 
+    panicBtn_.setButtonText("PANIC!");
+    panicBtn_.setTooltip("Send All Notes Off + All Sound Off on all 16 MIDI channels");
+    // Do NOT call setClickingTogglesState — panic is a one-shot action, not a toggle
+    styleButton(panicBtn_, Clr::accent);
+    panicBtn_.onClick = [this]
+    {
+        proc_.triggerPanic();
+        // flashPanic_ is incremented by the processor's pendingPanic_ handler;
+        // timerCallback picks it up and starts the 5-frame flash counter.
+    };
+    addAndMakeVisible(panicBtn_);
+
     // Gamepad left-stick axis mode toggles — pill style: left=default, right=alt
     filterYModeBox_.addItem("Resonance (CC71)", 1);
     filterYModeBox_.addItem("LFO Rate  (CC76)", 2);
@@ -1402,7 +1414,9 @@ void PluginEditor::resized()
         row.removeFromLeft(4);
         filterRecBtn_.setBounds(row.removeFromLeft(58));
         row.removeFromLeft(4);
-        gamepadStatusLabel_.setBounds(row);
+        panicBtn_.setBounds(row.removeFromRight(60));  // right-aligned, 60px wide
+        row.removeFromRight(4);                         // 4px gap between label and button
+        gamepadStatusLabel_.setBounds(row);             // remainder to status label
     }
 
     // Left-stick axis mode combos — grouped under the FILTER MOD button
@@ -1418,8 +1432,8 @@ void PluginEditor::resized()
     right.removeFromTop(10);
     thresholdSlider_ .setBounds(right.removeFromTop(18));
 
-    // Filter Mod hint — pinned to the same bottom zone as the left footer (getHeight() - 60)
-    filterModHintLabel_.setBounds(right.getX(), getHeight() - 60, right.getWidth(), 58);
+    // Filter Mod hint is now drawn directly in paint() aligned with the left footer rows.
+    filterModHintLabel_.setBounds(0, 0, 0, 0);
 
     // ── LEFT COLUMN ───────────────────────────────────────────────────────────
 
@@ -1605,7 +1619,7 @@ void PluginEditor::paint(juce::Graphics& g)
     // Title: pixel font for branding, but bright/readable
     g.setFont(pixelFont_.withHeight(11.0f));
     g.setColour(Clr::text);
-    g.drawText("CHORD JOYSTICK MK2", header, juce::Justification::centred);
+    g.drawText("DIMA CHORD JOY MK2", header, juce::Justification::centred);
 
     // Outer border
     g.setColour(Clr::accent.brighter(0.5f));
@@ -1727,6 +1741,30 @@ void PluginEditor::paint(juce::Graphics& g)
         drawRow("5. Set Synth Env. Sustain high",                       "6. Have fun!");
     }
 
+    // ── Footer: filter mod hint (right column, aligned with left footer rows) ───
+    // Drawn here so the first line shares the same Y as "1. Plugin in MIDI Track",
+    // and subsequent lines share the same 14px-row + 3px-gap spacing.
+    if (joystickPad_.isVisible())
+    {
+        const int rx = dividerX_ + 8;
+        const int rw = getWidth() - rx - 8;
+        int ry = getHeight() - 55;  // identical to first left-footer row Y
+
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
+        g.setColour(Clr::textDim.brighter(0.3f));
+
+        const juce::String hintRows[] = {
+            "Left stick sends filter CC to your synth.",
+            "Filter Mod enables it. REC FILTER records into looper.",
+            "Turn OFF for live filter control during playback."
+        };
+        for (const auto& line : hintRows)
+        {
+            g.drawFittedText(line, rx, ry, rw, 14, juce::Justification::centredLeft, 1, 0.75f);
+            ry += 17;  // 14px row + 3px gap — matches left footer spacing exactly
+        }
+    }
+
 }
 
 // ─── Timer (UI refresh) ───────────────────────────────────────────────────────
@@ -1738,9 +1776,11 @@ void PluginEditor::timerCallback()
     padAll_.repaint();
     joystickPad_.repaint();
 
-    // PLAY button: blinks while "start rec by touch" is armed (waiting for trigger),
-    // solid when actually playing, off when stopped.
-    if (proc_.looperIsRecWaitArmed())
+    // PLAY button: blinks while "start rec by touch" is armed, or while ARP is armed
+    // waiting for looper PLAY press (only when DAW sync is OFF).
+    // Solid when playing, off when stopped.
+    const bool arpArmedForLooper = proc_.isArpWaitingForPlay() && !proc_.looperIsSyncToDaw();
+    if (proc_.looperIsRecWaitArmed() || arpArmedForLooper)
     {
         const bool on = ((++playWaitBlinkCounter_) / 5) % 2 == 0;  // ~3 blinks/sec at 30 Hz
         loopPlayBtn_.setToggleState(on, juce::dontSendNotification);
@@ -1798,6 +1838,22 @@ void PluginEditor::timerCallback()
     {
         loopDeleteBtn_.setColour(juce::TextButton::buttonColourId,  Clr::accent);
         loopDeleteBtn_.setColour(juce::TextButton::textColourOffId, Clr::text);
+    }
+
+    // PANIC! button flash feedback
+    if (proc_.flashPanic_.exchange(0, std::memory_order_relaxed) > 0)
+        panicFlashCounter_ = 5;   // ~167ms at 30 Hz
+
+    if (panicFlashCounter_ > 0)
+    {
+        --panicFlashCounter_;
+        panicBtn_.setColour(juce::TextButton::buttonColourId,  Clr::highlight);
+        panicBtn_.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    }
+    else
+    {
+        panicBtn_.setColour(juce::TextButton::buttonColourId,  Clr::accent);
+        panicBtn_.setColour(juce::TextButton::textColourOffId, Clr::text);
     }
 
     // Grey out all filter controls when Filter Mod is off

@@ -191,6 +191,7 @@ private:
     // Flash counters for gamepad button feedback (decremented by timer)
     int resetFlashCounter_    = 0;
     int deleteFlashCounter_   = 0;
+    int panicFlashCounter_    = 0;
     int recBlinkCounter_      = 0;  // blink REC button while armed-but-not-recording
     int playWaitBlinkCounter_ = 0;  // blink PLAY button while wait-for-touch is armed
     int arpBlinkCounter_      = 0;  // blink ARP button while armed, waiting for DAW play
@@ -231,6 +232,7 @@ private:
     juce::Label       loopLengthLabel_;
     juce::Label       gamepadStatusLabel_;
     juce::TextButton  gamepadActiveBtn_;  // [GAMEPAD ON] / [GAMEPAD OFF] per-instance toggle
+    juce::TextButton panicBtn_;   // [PANIC!] — one-shot MIDI all-notes-off on all 16 channels
     juce::Label       filterModHintLabel_;  // bottom-right hint text for Filter Mod behaviour
     juce::ComboBox    filterYModeBox_;    // Y axis: Resonance / LFO Rate / Mod Wheel
     juce::ComboBox    filterXModeBox_;    // X axis: Cutoff / VCF LFO / Mod Wheel
