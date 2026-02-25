@@ -27,7 +27,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 **Milestone Goal:** Formalize post-v1.0 patches with test coverage, improve MIDI panic to a full 16-channel reset sweep, add live and post-record trigger quantization, and polish the UI with visual grouping and a looper position bar.
 
 - [ ] **Phase 08: Post-v1.0 Patch Verification** - Verify, test, and formally sign off the 6 patches already implemented in code
-- [ ] **Phase 09: MIDI Panic and Mute Feedback** - Full 16-channel CC sweep panic (no CC121) and animated MUTED state visual feedback
+- [x] **Phase 09: MIDI Panic and Mute Feedback** - Full 16-channel CC sweep panic (no CC121) and animated MUTED state visual feedback (completed 2026-02-25)
 - [ ] **Phase 10: Trigger Quantization Infrastructure** - LooperEngine quantize backend (pendingQuantize_ deferred pattern, snapToGrid, APVTS param)
 - [ ] **Phase 11: UI Polish and Installer** - Section visual grouping, looper position bar, gamepad controller name display, installer v1.1 rebuild
 
@@ -100,7 +100,7 @@ Plans:
 | 06. SDL2 Gamepad Integration | v1.0 | 4/4 | Complete | 2026-02-23 |
 | 07. Distribution & Release | v1.0 | 2/2 | Complete | 2026-02-23 |
 | 08. Post-v1.0 Patch Verification | v1.1 | 1/2 | In progress | - |
-| 09. MIDI Panic and Mute Feedback | v1.1 | 1/2 | In progress | - |
+| 09. MIDI Panic and Mute Feedback | 2/2 | Complete   | 2026-02-25 | - |
 | 10. Trigger Quantization Infrastructure | v1.1 | 0/TBD | Not started | - |
 | 11. UI Polish and Installer | v1.1 | 0/TBD | Not started | - |
 
