@@ -340,6 +340,93 @@ void LooperEngine::finaliseRecording()
         hasFilterContent_.store  (hasFilter, std::memory_order_relaxed);
         hasJoystickContent_.store(hasJoy,    std::memory_order_relaxed);
     }
+
+    // Reset shadow copy: old originals are stale after new recording.
+    hasOriginals_.store(false, std::memory_order_relaxed);
+    quantizeActive_.store(false, std::memory_order_relaxed);
+    // If Post mode is still active, re-apply quantize to the new content on next process() call.
+    if (quantizeMode_.load(std::memory_order_relaxed) == 2 /*kQuantizePost*/)
+        pendingQuantize_.store(true, std::memory_order_release);
+}
+
+// ─── Quantize helpers ─────────────────────────────────────────────────────────
+
+void LooperEngine::applyQuantizeToStore(double gridSize, double loopLen)
+{
+    const int n = playbackCount_.load(std::memory_order_relaxed);
+    if (n == 0) return;
+
+    // Step 1: snap all Gate events; leave Joystick/Filter events untouched.
+    // Track per-voice last original note-on position for duration-preserving note-off.
+    double lastOriginalOnBeat[4] = { -1.0, -1.0, -1.0, -1.0 };  // -1 = no pending note-on
+
+    for (int i = 0; i < n; ++i)
+    {
+        auto& ev = playbackStore_[i];
+        if (ev.type != LooperEvent::Type::Gate) continue;
+
+        const bool isOn = (ev.value > 0.5f);
+
+        if (isOn)
+        {
+            const double original = ev.beatPosition;
+            lastOriginalOnBeat[ev.voice] = original;
+            ev.beatPosition = snapToGrid(original, gridSize, loopLen);
+        }
+        else
+        {
+            // Duration-preserving shift for note-off
+            if (lastOriginalOnBeat[ev.voice] >= 0.0)
+            {
+                double duration = ev.beatPosition - lastOriginalOnBeat[ev.voice];
+                if (duration < 0.0) duration += loopLen;  // wrap case
+                const double minGate = 1.0 / 64.0;
+                duration = std::max(duration, minGate);
+                const double snappedOn = snapToGrid(lastOriginalOnBeat[ev.voice], gridSize, loopLen);
+                ev.beatPosition = std::fmod(snappedOn + duration, loopLen);
+                lastOriginalOnBeat[ev.voice] = -1.0;  // reset tracking
+            }
+            // If no matching note-on tracked, leave note-off beat unchanged
+        }
+    }
+
+    // Step 2: sort by beatPosition (matches finaliseRecording sort behavior)
+    std::sort(playbackStore_.begin(), playbackStore_.begin() + n,
+              [](const LooperEvent& a, const LooperEvent& b) {
+                  return a.beatPosition < b.beatPosition;
+              });
+
+    // Step 3: deduplicate — same voice + same snapped beat Gate-on -> keep first, discard later
+    // Use scratchDedup_ class member (avoids ~49KB stack allocation).
+    int writeIdx = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        const auto& ev = playbackStore_[i];
+        if (ev.type == LooperEvent::Type::Gate && ev.value > 0.5f)
+        {
+            // Check if we already have a gate-on for this voice at this beat position
+            bool isDuplicate = false;
+            for (int j = 0; j < writeIdx; ++j)
+            {
+                const auto& prev = scratchDedup_[j];
+                if (prev.type == LooperEvent::Type::Gate && prev.value > 0.5f
+                    && prev.voice == ev.voice
+                    && std::abs(prev.beatPosition - ev.beatPosition) < 1e-9)
+                {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if (isDuplicate) continue;
+        }
+        if (writeIdx < LOOPER_FIFO_CAPACITY)
+            scratchDedup_[writeIdx++] = ev;
+    }
+
+    // Copy deduped back to playbackStore_
+    for (int i = 0; i < writeIdx; ++i)
+        playbackStore_[i] = scratchDedup_[i];
+    playbackCount_.store(writeIdx, std::memory_order_release);
 }
 
 // ─── Recording helpers (audio-thread-only) ────────────────────────────────────
@@ -478,7 +565,43 @@ LooperEngine::BlockOutput LooperEngine::process(const ProcessParams& p)
         playbackCount_.store(0,     std::memory_order_relaxed);
         hasFilterContent_.store  (false, std::memory_order_relaxed);
         hasJoystickContent_.store(false, std::memory_order_relaxed);
+        quantizeActive_.store(false, std::memory_order_relaxed);
+        hasOriginals_.store(false,   std::memory_order_relaxed);
         return out;
+    }
+
+    // ── Post-record quantize service ──────────────────────────────────────────
+    if (pendingQuantize_.exchange(false, std::memory_order_acq_rel))
+    {
+        // Guard: never apply while recording (UI disables button but guard defensively)
+        if (!recording_.load(std::memory_order_relaxed))
+        {
+            const int n = playbackCount_.load(std::memory_order_relaxed);
+            const double loopLen = getLoopLengthBeats();
+            const double grid = quantizeSubdivToGridSize(
+                quantizeSubdiv_.load(std::memory_order_relaxed));
+
+            // Save originals to shadow copy for revert
+            for (int i = 0; i < n; ++i)
+                originalStore_[i] = playbackStore_[i];
+            originalCount_.store(n, std::memory_order_relaxed);
+            hasOriginals_.store(true, std::memory_order_relaxed);
+
+            applyQuantizeToStore(grid, loopLen);
+            quantizeActive_.store(true, std::memory_order_relaxed);
+        }
+    }
+
+    if (pendingQuantizeRevert_.exchange(false, std::memory_order_acq_rel))
+    {
+        if (hasOriginals_.load(std::memory_order_relaxed))
+        {
+            const int n = originalCount_.load(std::memory_order_relaxed);
+            for (int i = 0; i < n; ++i)
+                playbackStore_[i] = originalStore_[i];
+            playbackCount_.store(n, std::memory_order_release);
+            quantizeActive_.store(false, std::memory_order_relaxed);
+        }
     }
 
     // ── DAW transport sync: auto-stop / auto-start with DAW when SYNC is enabled ─

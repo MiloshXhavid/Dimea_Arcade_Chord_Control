@@ -101,6 +101,15 @@ public:
     void setRecFilter(bool b) { recFilter_.store(b); }
     void setSyncToDaw(bool b) { syncToDaw_.store(b); }
 
+    // Quantize config setters (called from PluginProcessor, thread-safe via atomics)
+    void setQuantizeMode(int mode)     { quantizeMode_.store(mode,   std::memory_order_relaxed); }
+    void setQuantizeSubdiv(int subdiv) { quantizeSubdiv_.store(subdiv, std::memory_order_relaxed); }
+    bool isQuantizeActive() const      { return quantizeActive_.load(std::memory_order_relaxed); }
+
+    // Post-record quantize trigger / revert (called from message thread — sets flags only)
+    void applyQuantize()  { pendingQuantize_.store(true,       std::memory_order_release); }
+    void revertQuantize() { pendingQuantizeRevert_.store(true, std::memory_order_release); }
+
     bool isCapReached()      const { return capReached_.load();                                                    }
     bool isRecordArmed()     const { return recording_.load() || recordPending_.load() || recWaitArmed_.load(); }
     bool isSyncToDaw()       const { return syncToDaw_.load();                                                  }
@@ -172,6 +181,28 @@ private:
     std::atomic<bool> deleteRequest_ { false };
     std::atomic<bool> resetRequest_  { false };
 
+    // ── Quantize state ──────────────────────────────────────────────────────────
+    // Shadow copy for non-destructive post-record revert
+    std::array<LooperEvent, LOOPER_FIFO_CAPACITY> originalStore_ {};
+    std::atomic<int>  originalCount_  { 0 };
+    std::atomic<bool> hasOriginals_   { false };
+    std::atomic<bool> quantizeActive_ { false }; // true = post-quantize currently applied
+
+    // Pending flags: message thread sets, audio thread services at top of process()
+    std::atomic<bool> pendingQuantize_       { false };
+    std::atomic<bool> pendingQuantizeRevert_ { false };
+
+    // Config: read on audio thread, written from PluginProcessor (APVTS-driven)
+    std::atomic<int> quantizeMode_   { 0 };  // 0=Off, 1=Live, 2=Post
+    std::atomic<int> quantizeSubdiv_ { 1 };  // 0=1/4, 1=1/8, 2=1/16, 3=1/32
+
+    // Per-voice last note-on beats (audio-thread-only — no atomic needed)
+    double lastSnappedOnBeat_[4] = { 0.0, 0.0, 0.0, 0.0 };
+    double lastRawOnBeat_[4]     = { 0.0, 0.0, 0.0, 0.0 };  // raw (pre-snap) note-on beat for duration
+
+    // Scratch buffer for applyQuantizeToStore() dedup pass — avoids ~49KB stack alloc
+    std::array<LooperEvent, LOOPER_FIFO_CAPACITY> scratchDedup_ {};
+
     // ── Audio-thread-only (no atomic needed) ─────────────────────────────────
     double internalBeat_    = 0.0;
     double loopStartPpq_    = -1.0;  // DAW sync anchor; -1 = not anchored
@@ -198,6 +229,12 @@ private:
     // THREADING INVARIANT: MUST be called only when playing_=false AND recording_=false.
     // Both callers (startStop() and record()) set these flags before calling this method.
     void finaliseRecording();
+
+    // Applies snapToGrid to all Gate-type events in playbackStore_[].
+    // Deduplicates collisions (same voice, same snapped beat -> keep first).
+    // Re-sorts playbackStore_ by beatPosition after snap.
+    // MUST be called only from audio thread (inside process()).
+    void applyQuantizeToStore(double gridSize, double loopLen);
 };
 
 // Compile-time note: std::atomic<float> is_always_lock_free is true on all
