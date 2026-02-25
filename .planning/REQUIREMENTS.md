@@ -31,7 +31,7 @@
 - [x] **UI-01**: Section visual grouping — Filter Mod section, looper section, and gamepad section each have clear visual separators or headers in the plugin UI
 - [x] **UI-02**: Gamepad status shows connected controller name or type (PS4 / Xbox / Generic), not just ON/OFF
 - [x] **UI-03**: Looper playback position bar — visual progress indicator showing current beat position within the loop length
-- [ ] **UI-04**: Installer rebuilt for v1.1 with updated version string and new feature list in installer description page
+- [x] **UI-04**: Installer rebuilt for v1.1 with updated version string and new feature list in installer description page
 
 ## v1.2 Requirements
 
@@ -69,7 +69,7 @@
 | UI-01 | Phase 11 | Complete |
 | UI-02 | Phase 11 | Complete |
 | UI-03 | Phase 11 | Complete |
-| UI-04 | Phase 11 | Pending |
+| UI-04 | Phase 11 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 16 total

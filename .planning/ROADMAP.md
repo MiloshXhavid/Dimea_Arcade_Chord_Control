@@ -29,7 +29,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 - [ ] **Phase 08: Post-v1.0 Patch Verification** - Verify, test, and formally sign off the 6 patches already implemented in code
 - [x] **Phase 09: MIDI Panic and Mute Feedback** - Full 16-channel CC sweep panic (no CC121) and animated MUTED state visual feedback (completed 2026-02-25)
 - [x] **Phase 10: Trigger Quantization Infrastructure** - LooperEngine quantize backend + UI controls (4/5 plans done) (completed 2026-02-25)
-- [ ] **Phase 11: UI Polish and Installer** - Section visual grouping, looper position bar, gamepad controller name display, installer v1.1 rebuild
+- [x] **Phase 11: UI Polish and Installer** - Section visual grouping, looper position bar, gamepad controller name display, installer v1.1 rebuild (completed 2026-02-25)
 
 ## Phase Details
 
@@ -115,7 +115,7 @@ Plans:
 | 08. Post-v1.0 Patch Verification | v1.1 | 1/2 | In progress | - |
 | 09. MIDI Panic and Mute Feedback | v1.1 | 2/2 | Complete | 2026-02-25 |
 | 10. Trigger Quantization Infrastructure | 5/5 | Complete    | 2026-02-25 | - |
-| 11. UI Polish and Installer | 3/4 | In Progress|  | - |
+| 11. UI Polish and Installer | 4/4 | Complete   | 2026-02-25 | - |
 
 ---
 *v1.0 shipped 2026-02-23 — 7 phases, 17 plans, ~3,966 C++ LOC*
