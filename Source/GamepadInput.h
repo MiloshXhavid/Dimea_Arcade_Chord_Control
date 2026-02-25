@@ -63,6 +63,10 @@ public:
     // Whether a gamepad is connected
     bool isConnected() const { return controller_ != nullptr; }
 
+    // Returns the SDL controller name string if connected, empty string if not.
+    // Used by PluginEditor constructor for synchronous initial label update.
+    juce::String getControllerName() const;
+
     // ── Dead zone setter ──────────────────────────────────────────────────────
     // Called from processBlock via PluginProcessor — sets dead zone threshold
     // from the joystickThreshold APVTS parameter (single source of truth).
@@ -74,9 +78,11 @@ public:
     std::function<void(bool)> onConnectionChange;
 
     // Called on message thread when a controller connects or disconnects.
-    // PluginEditor sets this slot to update the status label and gamepadActiveBtn_.
+    // Passes the controller name string on connect (e.g., "DualShock 4 Wireless Controller"),
+    // or an empty juce::String on disconnect.
+    // PluginEditor sets this slot to update gamepadStatusLabel_ with PS4/PS5/Xbox/generic text.
     // Kept separate from onConnectionChange so both fire independently.
-    std::function<void(bool)> onConnectionChangeUI;
+    std::function<void(juce::String)> onConnectionChangeUI;
 
 private:
     void timerCallback() override;

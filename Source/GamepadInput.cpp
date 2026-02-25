@@ -33,6 +33,13 @@ GamepadInput::~GamepadInput()
         SdlContext::release();
 }
 
+juce::String GamepadInput::getControllerName() const
+{
+    if (!controller_) return {};
+    const char* name = SDL_GameControllerName(controller_);
+    return name ? juce::String(name) : juce::String("Unknown Controller");
+}
+
 void GamepadInput::tryOpenController()
 {
     const int n = SDL_NumJoysticks();
@@ -45,7 +52,12 @@ void GamepadInput::tryOpenController()
             {
                 // Fire both callback slots — processor handles pending flags, editor handles UI
                 if (onConnectionChange)   onConnectionChange(true);
-                if (onConnectionChangeUI) onConnectionChangeUI(true);
+                if (onConnectionChangeUI)
+                {
+                    const char* rawName = SDL_GameControllerName(controller_);
+                    onConnectionChangeUI(rawName ? juce::String(rawName)
+                                                 : juce::String("Unknown Controller"));
+                }
             }
             return;
         }
@@ -60,7 +72,7 @@ void GamepadInput::closeController()
         controller_ = nullptr;
         // Fire both callback slots
         if (onConnectionChange)   onConnectionChange(false);
-        if (onConnectionChangeUI) onConnectionChangeUI(false);
+        if (onConnectionChangeUI) onConnectionChangeUI(juce::String{});  // empty = disconnected
     }
 }
 
