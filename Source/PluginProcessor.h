@@ -181,10 +181,11 @@ private:
     std::array<int, 4> looperActivePitch_ {-1, -1, -1, -1};
 
     // ── Arpeggiator state (audio-thread-only) ─────────────────────────────────
-    double arpPhase_       = 0.0;  // accumulated beats within current subdivision
-    int    arpStep_        = 0;    // current position in active-voice list
-    int    arpActivePitch_ = -1;   // pitch of currently sounding arp note
-    int    arpActiveVoice_ = -1;   // voice channel of currently sounding arp note
+    double   arpPhase_       = 0.0;  // accumulated beats within current subdivision
+    int      arpStep_        = 0;    // current position in step sequence
+    int      arpActivePitch_ = -1;   // pitch of currently sounding arp note
+    int      arpActiveVoice_ = -1;   // voice of currently sounding arp note
+    uint32_t arpRandSeed_    = 1;    // LCG seed for random order (audio-thread PRNG)
 
     // Build ChordEngine::Params from current APVTS + joystick state
     ChordEngine::Params buildChordParams() const;

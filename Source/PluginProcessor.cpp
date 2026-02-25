@@ -57,6 +57,7 @@ namespace ParamID
     // Arpeggiator
     static const juce::String arpEnabled       = "arpEnabled";
     static const juce::String arpSubdiv        = "arpSubdiv";
+    static const juce::String arpOrder         = "arpOrder";
 
 }
 
@@ -207,6 +208,8 @@ PluginProcessor::createParameterLayout()
     addBool(ParamID::arpEnabled, "Arp Enabled", false);
     addChoice(ParamID::arpSubdiv, "Arp Subdivision",
               { "1/4", "1/8T", "1/8", "1/16T", "1/16", "1/32" }, 2);  // default: 1/8
+    addChoice(ParamID::arpOrder, "Arp Order",
+              { "Up", "Down", "Up+Down", "Down+Up", "Outer-In", "Inner-Out", "Random" }, 0);
 
     // ── Filter CC live display (read-only from DAW perspective) ──────────────
     // Updated every timer tick from audio-thread atomics so DAW can see stick movement.
@@ -699,13 +702,12 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
     // ── Arpeggiator ───────────────────────────────────────────────────────────
     // Runs after the trigger system so gate states are up-to-date.
-    // When ARP is ON: cycles through active (gate-open) voices at the selected
-    // subdivision rate, emitting note-on at the start of each step and note-off
-    // at the start of the next step. Direct note output from tp.onNote is
-    // suppressed above so the arp is the sole source of MIDI notes.
+    // Cycles through active (gate-open) voices according to the selected pattern
+    // at the selected subdivision rate. Direct note output from tp.onNote is
+    // suppressed above when ARP is ON so the arp is the sole MIDI note source.
     if (!arpOn)
     {
-        // ARP just turned off (or was already off) — kill any hanging arp note.
+        // Kill any hanging arp note when ARP is off or just toggled off.
         if (arpActivePitch_ >= 0 && arpActiveVoice_ >= 0)
         {
             const int ch0 = voiceChs[arpActiveVoice_] - 1;
@@ -725,6 +727,9 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             static_cast<int>(*apvts.getRawParameterValue(ParamID::arpSubdiv)));
         const double subdivBeats = kSubdivBeats[subdivIdx];
 
+        const int orderIdx = juce::jlimit(0, 6,
+            static_cast<int>(*apvts.getRawParameterValue(ParamID::arpOrder)));
+
         const double beatsThisBlock = lp.bpm * static_cast<double>(blockSize)
                                       / (sampleRate_ * 60.0);
         arpPhase_ += beatsThisBlock;
@@ -733,14 +738,13 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         {
             arpPhase_ -= subdivBeats;
 
-            // Collect voices whose gates are open.
-            int activeVoices[4];
-            int numActive = 0;
+            // Collect voices with open gates (always in ascending voice order).
+            int av[4]; int n = 0;
             for (int v = 0; v < 4; ++v)
                 if (trigger_.isGateOpen(v))
-                    activeVoices[numActive++] = v;
+                    av[n++] = v;
 
-            // Send note-off for the previous step regardless.
+            // Send note-off for the previous step.
             if (arpActivePitch_ >= 0 && arpActiveVoice_ >= 0)
             {
                 const int ch0 = voiceChs[arpActiveVoice_] - 1;
@@ -749,22 +753,88 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                 arpActiveVoice_ = -1;
             }
 
-            if (numActive > 0)
+            if (n == 0) { arpStep_ = 0; continue; }
+
+            // Build step sequence (stack-allocated, max 8 elements).
+            // Each element is an index into av[].
+            int seq[8]; int seqLen = 0;
+
+            // 0=Up, 1=Down, 2=Up+Down, 3=Down+Up, 4=Outer-In, 5=Inner-Out, 6=Random
+            switch (orderIdx)
             {
-                // Keep step in bounds in case active count shrank.
-                if (arpStep_ >= numActive) arpStep_ = 0;
-                const int voice = activeVoices[arpStep_];
-                const int pitch = heldPitch_[voice];
-                const int ch0   = voiceChs[voice] - 1;
-                midi.addEvent(juce::MidiMessage::noteOn(ch0 + 1, pitch, (uint8_t)100), 0);
-                arpActivePitch_ = pitch;
-                arpActiveVoice_ = voice;
-                arpStep_ = (arpStep_ + 1) % numActive;
+                case 0: // Up — ascending through active voices
+                    for (int i = 0; i < n; ++i) seq[seqLen++] = i;
+                    break;
+
+                case 1: // Down — descending
+                    for (int i = n-1; i >= 0; --i) seq[seqLen++] = i;
+                    break;
+
+                case 2: // Up+Down — ascending then back (no endpoint repeat)
+                    for (int i = 0; i < n; ++i) seq[seqLen++] = i;
+                    for (int i = n-2; i >= 1; --i) seq[seqLen++] = i;
+                    break;
+
+                case 3: // Down+Up — descending then back (no endpoint repeat)
+                    for (int i = n-1; i >= 0; --i) seq[seqLen++] = i;
+                    for (int i = 1; i < n-1; ++i) seq[seqLen++] = i;
+                    break;
+
+                case 4: // Outer-In — take from lowest and highest alternating inward
+                {
+                    int lo = 0, hi = n-1;
+                    while (lo <= hi)
+                    {
+                        seq[seqLen++] = lo++;
+                        if (lo <= hi) seq[seqLen++] = hi--;
+                    }
+                    break;
+                }
+
+                case 5: // Inner-Out — start from middle, step outward
+                {
+                    int mid = n / 2;
+                    seq[seqLen++] = mid;
+                    for (int offset = 1; offset < n; ++offset)
+                    {
+                        const int lo2 = mid - offset;
+                        const int hi2 = mid + offset;
+                        if (lo2 >= 0 && seqLen < 8) seq[seqLen++] = lo2;
+                        if (hi2 < n  && seqLen < 8) seq[seqLen++] = hi2;
+                    }
+                    break;
+                }
+
+                case 6: // Random — Fisher-Yates shuffle using a simple LCG
+                default:
+                {
+                    for (int i = 0; i < n; ++i) seq[i] = i;
+                    seqLen = n;
+                    // Shuffle only at the start of a new cycle (arpStep_ == 0).
+                    if (arpStep_ == 0)
+                    {
+                        for (int i = n-1; i > 0; --i)
+                        {
+                            arpRandSeed_ = arpRandSeed_ * 1664525u + 1013904223u;  // LCG
+                            const int j  = static_cast<int>((arpRandSeed_ >> 16) % (uint32_t)(i + 1));
+                            std::swap(seq[i], seq[j]);
+                        }
+                    }
+                    break;
+                }
             }
-            else
-            {
-                arpStep_ = 0;
-            }
+
+            if (seqLen == 0) { arpStep_ = 0; continue; }
+            if (arpStep_ >= seqLen) arpStep_ = 0;
+
+            const int avIdx = seq[arpStep_];
+            const int voice = av[avIdx];
+            const int pitch = heldPitch_[voice];
+            const int ch0   = voiceChs[voice] - 1;
+            midi.addEvent(juce::MidiMessage::noteOn(ch0 + 1, pitch, (uint8_t)100), 0);
+            arpActivePitch_ = pitch;
+            arpActiveVoice_ = voice;
+            arpStep_ = (arpStep_ + 1) % seqLen;
         }
     }
 

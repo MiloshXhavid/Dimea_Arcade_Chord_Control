@@ -238,6 +238,8 @@ private:
     juce::TextButton arpEnabledBtn_;
     juce::ComboBox   arpSubdivBox_;
     juce::Label      arpSubdivLabel_;
+    juce::ComboBox   arpOrderBox_;
+    juce::Label      arpOrderLabel_;
     juce::Rectangle<int> arpBlockBounds_;  // for drawing the panel in paint()
 
     // ── APVTS attachments ─────────────────────────────────────────────────────
@@ -259,6 +261,7 @@ private:
 
     std::unique_ptr<ButtonAtt> arpEnabledAtt_;
     std::unique_ptr<ComboAtt>  arpSubdivAtt_;
+    std::unique_ptr<ComboAtt>  arpOrderAtt_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginEditor)
 };

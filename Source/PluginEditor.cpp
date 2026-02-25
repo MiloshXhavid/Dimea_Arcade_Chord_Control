@@ -786,7 +786,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     pixelLaf_.setPixelFont(pixelFont_);
     setLookAndFeel(&pixelLaf_);
 
-    setSize(920, 760);
+    setSize(920, 790);
 
     // ── Tooltip window ────────────────────────────────────────────────────────
     addAndMakeVisible(tooltipWindow_);
@@ -1235,6 +1235,20 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(arpSubdivLabel_);
     arpSubdivAtt_ = std::make_unique<ComboAtt>(p.apvts, "arpSubdiv", arpSubdivBox_);
 
+    arpOrderBox_.addItem("Up",       1);
+    arpOrderBox_.addItem("Down",     2);
+    arpOrderBox_.addItem("Up+Down",  3);
+    arpOrderBox_.addItem("Down+Up",  4);
+    arpOrderBox_.addItem("Outer-In", 5);
+    arpOrderBox_.addItem("Inner-Out",6);
+    arpOrderBox_.addItem("Random",   7);
+    arpOrderBox_.setTooltip("Arp voice order pattern");
+    styleCombo(arpOrderBox_);
+    addAndMakeVisible(arpOrderBox_);
+    styleLabel(arpOrderLabel_, "ORDER");
+    addAndMakeVisible(arpOrderLabel_);
+    arpOrderAtt_ = std::make_unique<ComboAtt>(p.apvts, "arpOrder", arpOrderBox_);
+
     startTimerHz(30);
 }
 
@@ -1508,13 +1522,19 @@ void PluginEditor::resized()
     }
 
     // Arpeggiator block — bottom-left panel
+    // Layout: [ARP ON/OFF button full-width] | [RATE label | ORDER label] | [RATE combo | ORDER combo]
     {
         auto r = arpBlockBounds_;
         r.removeFromTop(6);  // gap from looper
         arpEnabledBtn_.setBounds(r.removeFromTop(22));
         r.removeFromTop(4);
-        arpSubdivLabel_.setBounds(r.removeFromTop(14));
-        arpSubdivBox_  .setBounds(r.removeFromTop(22));
+        const int half = r.getWidth() / 2;
+        auto labelRow = r.removeFromTop(14);
+        arpSubdivLabel_.setBounds(labelRow.removeFromLeft(half));
+        arpOrderLabel_ .setBounds(labelRow);
+        auto comboRow = r.removeFromTop(22);
+        arpSubdivBox_.setBounds(comboRow.removeFromLeft(half).reduced(1, 0));
+        arpOrderBox_ .setBounds(comboRow.reduced(1, 0));
     }
 }
 
