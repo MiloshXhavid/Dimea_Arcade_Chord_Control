@@ -237,6 +237,12 @@ private:
     juce::ComboBox    filterYModeBox_;    // Y axis: Resonance / LFO Rate / Mod Wheel
     juce::ComboBox    filterXModeBox_;    // X axis: Cutoff / VCF LFO / Mod Wheel
 
+    // ── Quantize (inside Looper section) ─────────────────────────────────────
+    juce::TextButton quantizeOffBtn_;   // "Off"
+    juce::TextButton quantizeLiveBtn_;  // "Live"
+    juce::TextButton quantizePostBtn_;  // "Post"
+    juce::ComboBox   quantizeSubdivBox_;
+
     // ── Arpeggiator ───────────────────────────────────────────────────────────
     juce::TextButton arpEnabledBtn_;
     juce::ComboBox   arpSubdivBox_;
@@ -263,6 +269,7 @@ private:
     std::unique_ptr<ComboAtt>  filterYModeAtt_, filterXModeAtt_;
     std::unique_ptr<ComboAtt>  trigSrcAtt_[4];
     std::unique_ptr<ComboAtt>  loopSubdivAtt_;
+    std::unique_ptr<ComboAtt>  quantizeSubdivAtt_;
 
     std::unique_ptr<ButtonAtt>  arpEnabledAtt_;
     std::unique_ptr<ComboAtt>   arpSubdivAtt_;

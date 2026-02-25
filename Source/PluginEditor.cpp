@@ -1134,6 +1134,48 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(loopLengthKnob_); addAndMakeVisible(loopLengthLabel_);
     loopLengthAtt_ = std::make_unique<SliderAtt>(p.apvts, "looperLength", loopLengthKnob_);
 
+    // ── Quantize mode buttons (Off / Live / Post) ─────────────────────────────
+    constexpr int kQuantizeRadioGroup = 1;  // No other radio groups in this editor
+
+    quantizeOffBtn_ .setButtonText("Off");
+    quantizeLiveBtn_.setButtonText("Live");
+    quantizePostBtn_.setButtonText("Post");
+
+    for (auto* btn : { &quantizeOffBtn_, &quantizeLiveBtn_, &quantizePostBtn_ })
+    {
+        btn->setRadioGroupId(kQuantizeRadioGroup, juce::dontSendNotification);
+        btn->setClickingTogglesState(true);
+        styleButton(*btn);
+        addAndMakeVisible(*btn);
+    }
+
+    quantizeOffBtn_.onClick  = [this] {
+        proc_.setQuantizeMode(0);
+        proc_.looperRevertQuantize();
+    };
+    quantizeLiveBtn_.onClick = [this] { proc_.setQuantizeMode(1); };
+    quantizePostBtn_.onClick = [this] {
+        proc_.setQuantizeMode(2);
+        proc_.looperApplyQuantize();
+    };
+
+    // Restore button toggle state from APVTS on load
+    {
+        const int savedMode = proc_.getQuantizeMode();
+        quantizeOffBtn_ .setToggleState(savedMode == 0, juce::dontSendNotification);
+        quantizeLiveBtn_.setToggleState(savedMode == 1, juce::dontSendNotification);
+        quantizePostBtn_.setToggleState(savedMode == 2, juce::dontSendNotification);
+    }
+
+    // ── Quantize subdivision dropdown ─────────────────────────────────────────
+    quantizeSubdivBox_.addItem("1/4",  1);
+    quantizeSubdivBox_.addItem("1/8",  2);
+    quantizeSubdivBox_.addItem("1/16", 3);
+    quantizeSubdivBox_.addItem("1/32", 4);
+    styleCombo(quantizeSubdivBox_);
+    addAndMakeVisible(quantizeSubdivBox_);
+    quantizeSubdivAtt_ = std::make_unique<ComboAtt>(p.apvts, "quantizeSubdiv", quantizeSubdivBox_);
+
     // Gamepad status
     gamepadStatusLabel_.setText("GAMEPAD: none", juce::dontSendNotification);
     gamepadStatusLabel_.setFont(juce::Font(10.0f));
@@ -1577,6 +1619,21 @@ void PluginEditor::resized()
             loopLengthLabel_.setBounds(ctrlRow.removeFromTop(14));
             loopLengthKnob_.setBounds(ctrlRow.removeFromTop(22));
         }
+
+        section.removeFromTop(4);
+
+        // Quantize row: [Off][Live][Post] [subdiv dropdown]
+        {
+            auto qRow = section.removeFromTop(20);
+            constexpr int qBtnW = 32;
+            constexpr int qDropW = 48;
+            constexpr int qGap = 2;
+
+            quantizeOffBtn_ .setBounds(qRow.removeFromLeft(qBtnW)); qRow.removeFromLeft(qGap);
+            quantizeLiveBtn_.setBounds(qRow.removeFromLeft(qBtnW)); qRow.removeFromLeft(qGap);
+            quantizePostBtn_.setBounds(qRow.removeFromLeft(qBtnW)); qRow.removeFromLeft(qGap + 4);
+            quantizeSubdivBox_.setBounds(qRow.removeFromLeft(qDropW));
+        }
     }
 
     // Arpeggiator block — bottom-left panel
@@ -1970,6 +2027,22 @@ void PluginEditor::timerCallback()
     {
         // Gamepad disconnected or disabled — clear flag so mouse takes over cleanly
         gamepadWasLastPitchWriter_ = false;
+    }
+
+    // ── Quantize controls: disable while recording ────────────────────────────
+    const bool isLooperRecording = proc_.looperIsRecording();
+    quantizeOffBtn_ .setEnabled(!isLooperRecording);
+    quantizeLiveBtn_.setEnabled(!isLooperRecording);
+    quantizePostBtn_.setEnabled(!isLooperRecording);
+    quantizeSubdivBox_.setEnabled(!isLooperRecording);
+
+    // Sync mode button toggle state with APVTS (handles external state changes,
+    // e.g., DAW automation or setStateInformation restoring a saved state)
+    {
+        const int curMode = proc_.getQuantizeMode();
+        quantizeOffBtn_ .setToggleState(curMode == 0, juce::dontSendNotification);
+        quantizeLiveBtn_.setToggleState(curMode == 1, juce::dontSendNotification);
+        quantizePostBtn_.setToggleState(curMode == 2, juce::dontSendNotification);
     }
 
 }
