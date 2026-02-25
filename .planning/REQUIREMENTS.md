@@ -22,9 +22,9 @@
 
 ### QUANT — Trigger Quantization
 
-- [ ] **QUANT-01**: Quantize toggle in looper section — when ON, recorded gate events are snapped to the selected subdivision grid in real-time during recording
-- [ ] **QUANT-02**: Post-record QUANTIZE action button — re-snaps all gate events in the current loop to the selected subdivision without re-recording
-- [ ] **QUANT-03**: Quantize subdivision selector (1/4, 1/8, 1/16, 1/32 notes) — independent control from the random gate subdivision per voice
+- [x] **QUANT-01**: Quantize toggle in looper section — when ON, recorded gate events are snapped to the selected subdivision grid in real-time during recording
+- [x] **QUANT-02**: Post-record QUANTIZE action button — re-snaps all gate events in the current loop to the selected subdivision without re-recording
+- [x] **QUANT-03**: Quantize subdivision selector (1/4, 1/8, 1/16, 1/32 notes) — independent control from the random gate subdivision per voice
 
 ### UI — Visual & Release
 
@@ -63,9 +63,9 @@
 | PANIC-01 | Phase 09 | Complete |
 | PANIC-02 | Phase 09 | Complete |
 | PANIC-03 | Phase 09 | Complete |
-| QUANT-01 | Phase 10 | Pending |
-| QUANT-02 | Phase 10 | Pending |
-| QUANT-03 | Phase 10 | Pending |
+| QUANT-01 | Phase 10 | Complete |
+| QUANT-02 | Phase 10 | Complete |
+| QUANT-03 | Phase 10 | Complete |
 | UI-01 | Phase 11 | Pending |
 | UI-02 | Phase 11 | Pending |
 | UI-03 | Phase 11 | Pending |
