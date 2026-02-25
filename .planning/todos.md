@@ -7,7 +7,7 @@ Captured feature requests and improvement ideas for upcoming phases.
 ## TODO: Quantize UI Grouping Polish
 
 **Requested:** 2026-02-25
-**Status:** pending
+**Status:** completed
 
 - Add a visible "Quantize Trigger" section label above the Off/Live/Post buttons in the Looper section
 - Widen the quantize subdivision ComboBox (quantizeSubdivBox_) so "1/32" text is fully visible — currently shows "..." because the box is too narrow
