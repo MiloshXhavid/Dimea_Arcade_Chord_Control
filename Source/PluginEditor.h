@@ -253,6 +253,12 @@ private:
     juce::Label      arpGateTimeLabel_;
     juce::Rectangle<int> arpBlockBounds_;  // for drawing the panel in paint()
 
+    // Panel bounds for section drawing — set in resized(), read in paint()
+    juce::Rectangle<int> looperPanelBounds_;       // LOOPER section panel
+    juce::Rectangle<int> filterModPanelBounds_;    // FILTER MOD section panel
+    juce::Rectangle<int> gamepadPanelBounds_;      // GAMEPAD section panel
+    juce::Rectangle<int> looperPositionBarBounds_; // progress bar strip (inside LOOPER panel)
+
     // ── APVTS attachments ─────────────────────────────────────────────────────
     using SliderAtt  = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboAtt   = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
