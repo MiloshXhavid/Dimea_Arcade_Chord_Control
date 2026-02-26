@@ -1,225 +1,243 @@
 # Project Research Summary
 
-**Project:** ChordJoystick v1.1
-**Domain:** JUCE VST3 MIDI Effect Plugin — incremental polish release on a shipping v1.0 product
-**Researched:** 2026-02-24
+**Project:** ChordJoystick MK2 — v1.4 LFO + Beat Clock
+**Domain:** JUCE VST3 MIDI effect plugin — dual LFO modulation engine + beat clock indicator
+**Researched:** 2026-02-26
 **Confidence:** HIGH
 
 ## Executive Summary
 
-ChordJoystick v1.1 is a four-feature incremental release on a fully-shipped, lock-free JUCE 8 VST3 MIDI generator. All four features — full MIDI panic sweep, trigger/gate quantization, looper playback position bar, and gamepad controller name display — are implementable entirely within the existing JUCE 8.0.4 and SDL2 2.30.9 stack. No new libraries, no new external dependencies, and no architectural changes to the established threading model are required. The existing patterns for atomic flags, APVTS parameter reads, and the single-timer UI repaint loop cover every new requirement.
+ChordJoystick v1.4 adds a dual LFO modulation system that offsets the plugin's virtual joystick X and Y axes, driving pitch variation on all four voices through the existing scale quantizer and chord engine. Research confirms this is a well-contained, low-risk addition: zero new external dependencies are required, all new code follows patterns already established in the v1.3 codebase (phase accumulators, LCG RNG, atomic display values, APVTS parameter registration), and the existing lock-free audio thread architecture accommodates the LFO cleanly without any structural changes to PluginProcessor, ChordEngine, or the other subsystems.
 
-The recommended approach is to ship each feature in isolation, ordered by blast radius: panic sweep first (isolated processBlock change, zero new state), then quantize infrastructure (new atomics + new APVTS parameter), then the two pure-UI additions (progress bar, gamepad name). This order ensures the highest-risk item — the lock-free quantize path touching LooperEngine's `playbackStore_` — is built after the simpler changes are validated and the new APVTS parameter is already in place.
+The recommended approach is a self-contained `LfoEngine` class with audio-thread-only state (phase accumulators, RNG, waveform output floats), called from `processBlock` at step 4 (after DAW playhead query, before looper), with its output applied as an additive offset inside `buildChordParams()` after the gamepad/looper joystick resolution — never written back to the `joystickX`/`joystickY` atomics. This preserves the looper's ability to record and play back raw gestures independently of LFO state. A beat clock indicator reuses the existing `flashPanic_`-style `std::atomic<int>` counter pattern and the existing 30 Hz `timerCallback`, adding approximately 15 lines of UI code. 14 new APVTS parameters (7 per axis) complete the feature set.
 
-The primary risks are in the trigger quantization feature and its interaction with LooperEngine's threading invariant. Post-record quantize MUST use the deferred `pendingQuantize_` flag pattern (set on message thread, serviced inside `process()` on audio thread) — writing directly to `playbackStore_[]` from the message thread while the looper is playing is undefined behavior. The secondary risk is CC121: it must not appear in the panic sweep because downstream VST3 instruments (Kontakt, Waves CLA-76) map CC121 to plugin parameters, causing knobs to jump. Both pitfalls have clear, confirmed prevention strategies documented below.
+The two design decisions requiring upfront commitment before coding are: (1) using a private LCG (`uint32_t` seed) instead of `std::rand()` for the S&H waveform's PRNG — `std::rand()` acquires a CRT mutex on MSVC and must never be called from the audio thread — and (2) applying the LFO output offset inside `buildChordParams()` to the local `chordP` struct, not to the shared atomics. Both decisions are pre-made by this research and have direct code templates ready.
+
+---
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is fully locked and validated for v1.1. JUCE 8.0.4, SDL2 2.30.9 static, CMake, C++17, MSVC, and Inno Setup are unchanged. Every v1.1 API needed has been verified directly from source headers in the repo's `build/_deps/` directory.
+No new libraries, modules, or CMake targets are needed for v1.4. All seven LFO waveforms are implemented with `<cmath>` (already `#include`-d in every relevant translation unit) and plain arithmetic. `juce_dsp` is explicitly ruled out: its `Oscillator<float>` requires `ProcessSpec` and `AudioBlock<float>` which are audio-buffer abstractions meaningless in an `isMidiEffect()=true` plugin. The beat clock indicator uses only `juce_gui_basics` (already linked) and the existing 30 Hz `juce::Timer`. The existing locked stack — JUCE 8.0.4, SDL2 2.30.9 static, CMake FetchContent, C++17, MSVC — is fully sufficient.
 
-**Core APIs in play for v1.1 (no new libraries):**
-- `juce::MidiMessage` static factories (`allSoundOff`, `allNotesOff`, `controllerEvent`, `pitchWheel`) — confirmed in `juce_MidiMessage.cpp`; used for expanded panic sweep on all 16 channels
-- `std::round` / `std::fmod` from `<cmath>` — already included in `LooperEngine.cpp`; the entire quantize algorithm is four lines of arithmetic
-- `juce::Component::paint()` + `juce::Graphics::fillRect()` — core JUCE, no extra module; used for the custom `LooperPositionBar` component; do NOT use `juce::ProgressBar` (runs its own internal timer)
-- `SDL_GameControllerGetType()` (SDL 2.0.12+) + `SDL_GameControllerName()` (SDL 2.0.0+) — both confirmed in `SDL_gamecontroller.h` from SDK 2.30.9; called on message thread only
+**Core technologies used (all existing, no additions):**
+- `<cmath>` (std::sin, std::fmod, std::floor): all 7 LFO waveform shapes — already included in every relevant TU
+- `juce_audio_processors` APVTS: 14 new parameters following the exact existing registration pattern
+- `juce::jlimit`: joystick clamp after LFO offset addition (in scope via `juce_core`)
+- `std::atomic<float/int>`: LFO display output and beat-fired counter (same pattern as `effectiveBpm_`, `filterCutDisplay_`)
+- `juce::ScopedNoDenormals`: already at line 359 of `processBlock` — all LFO computation runs inside this scope
 
-**One new APVTS parameter required:** `quantizeSubdiv` — a `juce::AudioParameterChoice` with choices {1/4, 1/8, 1/16, 1/32}, default index 1 (1/8 note). Shared by both live quantize and post-record quantize.
+**New files required:**
+- `Source/LfoEngine.h` — LfoEngine class, dual LfoState structs, Params struct, interface
+- `Source/LfoEngine.cpp` — all waveform math, sync logic, beat boundary detection, distortion
+
+**Modified files:** `PluginProcessor.h`, `PluginProcessor.cpp`, `PluginEditor.h`, `PluginEditor.cpp`, `CMakeLists.txt` (one `target_sources` line addition)
 
 ### Expected Features
 
-**Must have — P1 (table stakes for v1.1):**
-- Full MIDI panic sweep on all 16 channels — current v1.0 panic covers only the 4 voice channels; stuck notes from external gear on any other channel are not cleared. Required sweep: CC64=0, CC120 (`allSoundOff`), CC123 (`allNotesOff`) per channel. Do NOT include CC121.
-- Looper playback position bar — users cannot tell where in the loop they are; standard looper UI expectation (Boss RC, Ableton Looper, SooperLooper)
-- Post-record QUANTIZE button — most-requested looper feature after recording; Boss, TC Helicon, and MPC all ship this
-- Quantize subdivision selector (1/4, 1/8, 1/16, 1/32) — required by quantize feature; shared between live and post-record modes
+All features are fully specified and unambiguous. The waveform math is standard DSP with multiple verified implementations.
 
-**Should have — P2 (differentiators and polish):**
-- Live record quantization — tightens performances at recording time; shares subdivision parameter and algorithm with post-record; build in the same phase
-- Gamepad controller type in status label ("PS4 Connected" vs "Connected") — low effort, removes ambiguity when multiple controllers exist
-- Animated mute state visual feedback — prevents "is it broken?" confusion when plugin is muted
-- Section visual grouping in UI (panel borders/fills) — reduces cognitive load
+**Must have (table stakes):**
+- All 7 waveforms: Sine, Triangle, Saw Up, Saw Down, Square, Sample & Hold (stepped), Random (smooth) — any omission makes the LFO feel unfinished
+- Frequency slider (0.01–20 Hz free mode) — the most fundamental LFO parameter
+- Level/depth slider (0.0–1.0) — scales LFO output before adding to joystick
+- On/Off toggle per axis — bypass without losing parameter state
+- BPM sync toggle + subdivision selector — essential for live performance context; syncs to DAW via PPQ or `randomFreeTempo` when DAW is stopped
+- Phase offset (0.0–1.0) — sets start angle; enables Lissajous-style X/Y motion when set differently per axis
+- Beat clock indicator — one flash per quarter note; essential visual tempo feedback in live use
+
+**Should have (differentiators):**
+- Distortion/jitter slider — additive white noise mixed into LFO output (Option A: Ableton M4L "Jitter" model); prevents robotic repetition; low complexity
+- Hard phase reset on DAW play start — standard in Serum/Vital/DIVA; DAW users expect this
+- PPQ-derived phase in sync mode — eliminates drift on DAW loop/seek/reposition; prevents the most common LFO sync complaint
+- 8 sync subdivisions (1/16 to 8 bars) — covers standard musical use cases
 
 **Defer to v2+:**
-- Quantize strength knob (partial snap) — binary on/off sufficient; strength adds UI complexity without proportional value
-- Separate quantize grid per voice — over-complicating for v1.1; one global subdivision governs all voices
-- Chord name display — requires significant analysis engine work; non-traditional voicings do not map cleanly to named chords
+- Triplet and dotted subdivisions — adds UI complexity; 8 standard subdivisions covers 95% of use cases
+- Variable pulse width for Square — 50% duty cycle sufficient for v1.4
+- Smooth random cosine interpolation — linear interpolation is indistinguishable in practice
+- Custom LFO shape drawing — weeks of scope; Serum-tier feature
+- Per-voice LFO (4 separate LFOs) — 4 voices share 2 axes; global dual LFO is the correct design
+- LFO envelope (attack/decay on LFO output) — no per-trigger model applicable in this plugin's architecture
+
+**Explicit anti-features (do not build):**
+- LFO-to-MIDI CC output — LFOs are internal axis modulators, not CC generators
+- Modulation routing matrix — only 2 destinations exist; fixed routing is correct
+- LFO-to-LFO modulation — not needed for a 2-destination instrument
+- Second beat clock dot — one dot near BPM knob is standard; two would confuse
 
 ### Architecture Approach
 
-All four features fit cleanly into the existing two-thread model. The existing atomic-flag deferred-request pattern (used by `pendingPanic_`, `deleteRequest_`, `resetRequest_`) governs any write to `playbackStore_[]`. The existing single 30 Hz `juce::Timer` in `PluginEditor` drives all UI animation. No new threads, no new mutexes, no structural changes to any existing component boundary are needed.
+LfoEngine is an audio-thread-only class with the same structural role as `TriggerSystem` and `LooperEngine` — it receives a `Params` struct built from APVTS reads at the top of `processBlock`, computes new state, and exposes its output via plain float getters. It does not hold APVTS references, does not write to shared atomics (except the `beatFired_` counter used for UI flash), and has no mutex. The entire LFO pipeline sits between the DAW playhead read (step 3 in `processBlock`) and the `buildChordParams()` call (step 6), with its output applied inside `buildChordParams()` as a two-line additive offset clamped to [-1, 1].
 
-**Components modified by v1.1:**
+**Major components:**
 
-1. `PluginProcessor::processBlock()` — panic block extended to 16-channel CC sweep; `quantizeSubdiv` APVTS parameter added in `createParameterLayout()`
-2. `LooperEngine` — new `snapToGrid()` static helper + `subdivIndexToBeats()`; `liveQuantize_` and `quantizeSubdivIdx_` atomics; `quantizePlayback()` method (serviced via `pendingQuantize_` flag inside `process()`); modified `recordGate()` for live snap
-3. `PluginProcessor.h` — new forwarding methods: `looperGetPlaybackBeat()`, `looperGetLoopLengthBeats()`, `looperQuantize()`, `looperSetLiveQuantize()`, `looperSetQuantizeSubdiv()`
-4. `GamepadInput` — `getControllerName()` accessor; `controllerName_` plain `juce::String` (message thread only); name populated in `timerCallback()` after `SDL_GameControllerOpen()` succeeds
-5. `PluginEditor` — new `LooperPositionBar` custom component; `timerCallback()` extended for progress bar read and QUANTIZE button enable/disable gating; gamepad name label update
+1. `LfoEngine` (new) — dual X+Y phase accumulators, 7 waveforms, LCG RNG for S&H/Random, BPM sync, distortion, beat boundary detection; audio-thread-only except `beatFired_` atomic
+2. `PluginProcessor` (modified) — owns `LfoEngine lfoEngine_` member; registers 14 new APVTS params; calls `lfoEngine_.process()` at block step 4; applies `getOutputX/Y()` inside `buildChordParams()`; exposes `beatFired_` accessor
+3. `PluginEditor` (modified) — adds LFO X/Y panels; reads `beatFired_` in existing 30 Hz `timerCallback()` to flash the beat dot; no second timer
+4. `BeatClockDot` (new small component) — filled circle that calls `repaint()` only on lit/unlit state change; positioned near BPM knob
 
-**processBlock step order (unchanged — v1.1 changes are drop-in):**
-1–5: existing (deadzone sync, gamepad poll, DAW playhead, looper process, DAW stop detection)
-6. MIDI Panic sweep — extended from 4-channel to 16-channel CC sweep [v1.1]
-7–8: existing (midiMuted_ gate, looper gate playback)
-9. TriggerSystem::processBlock() → `recordGate()` — live quantize snap applied inside `recordGate()` via atomics [v1.1]
-10–13: existing (recording activation, joystick/filter recording, filter CC, looper config sync)
+**Unmodified components (explicitly confirmed by source inspection):** `ChordEngine`, `ScaleQuantizer`, `LooperEngine`, `TriggerSystem`, `GamepadInput`
+
+**processBlock call sequence (LFO position annotated):**
+```
+1. gamepad deadzone sync
+2. gamepad poll (buttons, sticks)
+3. DAW playhead -> ppqPos, dawBpm, isDawPlaying
+4. >>> lfoEngine_.process(lp) <<<   [NEW — advances phase, writes outputX_/Y_, detects beat]
+5. looper_.process(lp)              [may override joystickX/Y atomics from playback]
+6. buildChordParams()               [LFO offset applied HERE as local additive clamp]
+7. ChordEngine::computePitch() x4
+8. TriggerSystem::processBlock()
+9. arpeggiator, filter CC, looper config sync
+```
 
 ### Critical Pitfalls
 
-1. **CRITICAL: Do NOT send CC121 in panic sweep** — CC121 ("Reset All Controllers") is mapped to plugin parameters by downstream VST3 instruments (Kontakt, Waves CLA-76, others). JUCE's VST3 wrapper routes CC121 through `getMidiControllerAssignment()`, causing knobs to jump. Send only: `CC64=0` (sustain off), `CC120` (`allSoundOff`), `CC123` (`allNotesOff`) per channel. Verify with MIDI monitor that zero CC121 events appear in panic output.
+1. **`std::rand()` or `std::mt19937` for S&H on the audio thread** — `std::rand()` acquires a CRT mutex on MSVC; audio thread blocking causes intermittent xruns. Prevention: use the same LCG already in the codebase (`seed = seed * 1664525u + 1013904223u`) with a private `uint32_t lfoXRandSeed_` member. Initialize to a nonzero constant; never use 0.
 
-2. **CRITICAL: Post-record quantize MUST use `pendingQuantize_` deferred-request pattern** — `playbackStore_[]` is a plain `std::array` with no mutex; the audio thread reads it every block during playback. Setting an atomic flag from the message thread `onClick` handler and servicing it at the top of `LooperEngine::process()` (audio thread) is the only safe path. The QUANTIZE UI button must also be disabled while the looper is playing. Direct write from message thread while playing = undefined behavior data race.
+2. **LFO output written into `joystickX`/`joystickY` atomics** — the looper also writes to these atomics during playback; source conflict causes either LFO to silently do nothing during looper playback, or LFO to erase recorded joystick gestures. Prevention: apply LFO as additive offset to the local `chordP.joystickX/Y` floats inside `buildChordParams()` — never write back to the atomics.
 
-3. **CRITICAL: Apply `std::fmod(quantized, loopLen)` on all quantized beat positions** — rounding a position near the loop end produces a value equal to `loopLen`. Storing `beatPosition == loopLen` causes the event to be silently missed (no playback window covers `beatPosition >= loopLen`) or double-triggered after wrap. `fmod` is the single guard preventing both failure modes.
+3. **Beat-synced LFO phase drift on DAW stop/start cycles** — a free-running accumulator in sync mode drifts out of alignment with the DAW grid. Prevention: when `sync=true` and DAW is playing, derive phase directly from `ppqPos`: `lfoPhase = fmod(ppqPos / lfoBeatsPerCycle, 1.0)`. Use the free-running accumulator only when DAW is stopped or sync is off.
 
-4. **Gate-on and gate-off must be snapped by the same delta to preserve gate length** — when live quantizing, the snap delta applied to the gate-on event must also be applied to its paired gate-off event. Snapping gate-on only compresses or extends gate length unpredictably.
+4. **APVTS parameter ID collision** — JUCE silently allows duplicate IDs and produces unpredictable runtime behavior; no crash, no assertion. Prevention: prefix all new LFO params with `"lfo"` (e.g., `"lfoXShape"`, `"lfoXFreq"`); grep for duplicates after registration: `grep -o '"[a-zA-Z0-9_]*"' Source/PluginProcessor.cpp | sort | uniq -d`. Verify v1.3 presets load with LFO params at safe defaults (enabled=false, level=0).
 
-5. **Single 30 Hz timer — no second timer** — adding a `juce::Timer` for mute animation or any other purpose doubles timer overhead and creates beat-frequency interference with existing repaints. All animation is driven from the single `startTimerHz(30)` in `PluginEditor` via phase counters. Verify: `grep "startTimerHz\|startTimer" Source/PluginEditor.cpp` must return exactly 1 result.
+5. **Second UI timer added for LFO display** — confirmed 40% CPU spike from prior research. Prevention: read LFO phase from `std::atomic<float> lfoPhaseDisplay_` in the existing 30 Hz `timerCallback()`. Hide the phase cursor at rates above ~15 Hz where the display aliases anyway. Verify: `grep "startTimerHz\|startTimer" Source/PluginEditor.cpp` returns exactly 1 result after the LFO UI is added.
+
+---
 
 ## Implications for Roadmap
 
-Based on combined research, suggested phase structure for v1.1:
+Research divides v1.4 into five natural phases following the established build order. All phases are within the existing architecture's capabilities; none require a new subsystem or architectural change to the two-thread model.
 
-### Phase 1: MIDI Panic Full Sweep
+### Phase A: LfoEngine Core (DSP foundation)
 
-**Rationale:** Isolated processBlock change with zero new state and zero new threading concerns. Highest user-safety impact, lowest implementation risk. Ship and validate in DAW before touching LooperEngine.
+**Rationale:** The LFO DSP is the irreducible foundation — nothing else can be tested until waveform output is correct. Building this as an isolated new file with no processor or UI changes keeps the first phase low-risk and fully unit-testable using the existing Catch2 test pattern.
 
-**Delivers:** Panic that silences stuck notes on all 16 MIDI channels (CC64=0 + CC120 + CC123 per channel), including notes from external gear, other plugin instances, and sustain-pedal-held notes. Also stops the looper and resets filter CCs.
+**Delivers:** `Source/LfoEngine.h` + `Source/LfoEngine.cpp` with all 7 waveforms, dual-axis phase accumulators, LCG RNG for S&H/Random, beat boundary detection via `beatFired_` atomic, `prepare()` and `process()` interface, distortion (additive noise) post-processing.
 
-**Addresses features from FEATURES.md:** Full 16-channel panic sweep (P1 table stakes). Also confirm `pendingCcReset_` or explicit filter CC zeros (CC74, CC71) are emitted in the same panic block without duplication.
+**Addresses features:** All 7 waveforms, distortion slider behavior, S&H stepped behavior (instantaneous jump at cycle wrap), smooth Random interpolation (linear lerp toward new target), beat crossing detection.
 
-**Avoids pitfalls:**
-- PITFALL 2: No CC121 in sweep. Panic uses `CC64=0` + `allSoundOff(ch)` + `allNotesOff(ch)` only.
-- PITFALL 3: `trigger_.resetAllGates()` stays BEFORE the CC sweep loop. Do not reorder.
-- PITFALL 1 (buffer overflow): Sweep is 16 ch × 3 events = 48 events (~240 bytes). Add `midi.ensureSize(256)` in `prepareToPlay()`. Do not expand to CC0–127 sweep.
+**Avoids:** Pitfall 1 (use LCG not `std::rand()`), Pitfall 9 (initialize RNG seed to nonzero), Pitfall 10 (`fmod` not while-loop for phase wrap), Pitfall 11 (normalize all waveforms to [-1, 1] before level scaling to prevent DC offset).
 
-**Verification:** MIDI monitor shows exactly 48 events (16 × 3) per panic invocation; zero CC121. After panic with all pads released, two consecutive `processBlock` calls produce zero note-on events.
+**No research-phase needed:** Waveform math is standard; LCG pattern is verbatim from existing codebase.
 
----
+### Phase B: processBlock Integration + APVTS Parameters
 
-### Phase 2: Trigger Quantization Infrastructure
+**Rationale:** APVTS parameter registration must happen before any UI control can attach. Integrating `lfoEngine_.process()` into `processBlock` alongside parameter reads validates the audio-thread contract and makes the LFO audible via MIDI output change before the UI exists.
 
-**Rationale:** The quantize feature touches LooperEngine internals and requires a new APVTS parameter. Build and validate the audio-thread path (live quantize + post-record quantize) before adding any UI. The APVTS `quantizeSubdiv` parameter must exist before the UI ComboBox can attach to it.
+**Delivers:** 14 new APVTS parameters in `createParameterLayout()`; `LfoEngine lfoEngine_` member on `PluginProcessor`; `lfoEngine_.prepare()` in `prepareToPlay()`; `LfoEngine::Params` struct built and passed per block; `getOutputX/Y()` applied inside `buildChordParams()` as two additive clamped lines; `dawJustStarted -> lfoEngine_.resetPhase()` call; `beatFired_` forwarding accessor; `lfoPhaseDisplay_` and `lfoOutputX_/Y_` atomics for UI reads.
 
-**Delivers:** `snapToGrid()` static helper + `subdivIndexToBeats()` lookup table; `liveQuantize_` and `quantizeSubdivIdx_` atomics on LooperEngine; `quantizePlayback()` method serviced via `pendingQuantize_` flag inside `process()`; `quantizeSubdiv` APVTS parameter declared; forwarding methods on PluginProcessor; Catch2 test for loop-wrap edge case.
+**Addresses features:** BPM sync, PPQ-derived phase, phase reset on DAW start, joystick axis modulation, preset compatibility (defaults are no-op).
 
-**Addresses features from FEATURES.md:** Live record quantize (P2), post-record QUANTIZE button infrastructure (P1), quantize subdivision selector (P1).
+**Avoids:** Pitfall 2 (injection point — apply in `buildChordParams()` local scope, not atomics), Pitfall 4 (beat sync drift — PPQ derivation when DAW is playing), Pitfall 5 (APVTS smoother collision — additive local offset, no write-back to params), Pitfall 8 (param ID collision — `"lfo"` prefix, grep dedup after registration).
 
-**Avoids pitfalls:**
-- PITFALL 5 (data race): `pendingQuantize_` flag pattern. Message thread sets flag only; audio thread services it inside `process()`. Never write `playbackStore_[]` from the message thread while playing.
-- PITFALL 4 (double-trigger at wrap): `std::fmod(quantized, loopLen)` on every quantized position before storing. Add `jassert(ev.beatPosition >= 0.0 && ev.beatPosition < loopLen)` in debug builds.
-- PITFALL 6 (mid-record subdivision change): Capture `liveQuantizeSubdivBeats_` once at `recordPending_ -> recording_` transition; do not re-read APVTS during an active recording pass.
-- PITFALL 9 (wrong parameter read): All new `processBlock` reads use `getRawParameterValue("id")->load()` — never `getParameter()->getValue()`.
-- PITFALL 10 (sampleOffset off-by-one): Any new `midi.addEvent()` calls use `jlimit(0, blockSize-1, sampleOff)`.
+**No research-phase needed:** APVTS registration pattern is verbatim from the existing ~60-parameter layout.
 
-**Recommended build sub-order within this phase:**
-1. Add `quantizeSubdiv` APVTS parameter in `createParameterLayout()`
-2. Add `snapToGrid()` + `subdivIndexToBeats()` static helpers in `LooperEngine.cpp`
-3. Add `liveQuantize_` and `quantizeSubdivIdx_` atomics; modify `recordGate()` for live snap
-4. Add `pendingQuantize_` atomic; implement `quantizePlayback()`; service flag in `process()`
-5. Add PluginProcessor forwarding methods
-6. Write Catch2 tests: `snapToGrid` wrap edge case; live quantize; post-record quantize
+### Phase C: Beat Clock UI
 
-**Verification:** Catch2 test — event at `loopLen - 0.001`, quantize to 1-beat grid, stored as `beatPosition == 0.0`, fires exactly once per loop cycle. TSan clean under post-record quantize stress test.
+**Rationale:** The beat clock dot is the simplest UI change and can run concurrently with Phase D (different UI region). It reuses two confirmed patterns: the `flashPanic_`/`flashLoopReset_` edge-detection idiom and the existing 30 Hz `timerCallback`.
 
----
+**Delivers:** `BeatClockDot` component (filled circle, `setLit()` calls `repaint()` on state change only); `timerCallback()` reads `beatFired_`, detects increment, sets `beatDotLit_` for 2 timer ticks (~66ms flash); positioned near BPM knob.
 
-### Phase 3: UI — Looper Position Bar + Quantize Controls
+**Addresses features:** Beat clock indicator (one flash per quarter note), free-BPM fallback when DAW is stopped.
 
-**Rationale:** Pure UI additions with zero audio-thread changes. Depends on Phase 2 forwarding methods existing on PluginProcessor. The progress bar reads existing atomics; the QUANTIZE button and subdivision ComboBox wire to Phase 2 infrastructure.
+**Avoids:** Pitfall 7 (no second timer — uses existing `timerCallback` frame countdown pattern).
 
-**Delivers:** `LooperPositionBar` custom component in the looper section (6–8px tall horizontal bar, cyan fill during playback, amber fill during recording); QUANTIZE button (disabled while looper is playing or recording); quantize subdivision ComboBox (1/4, 1/8, 1/16, 1/32) with APVTS attachment; live quantize enable toggle.
+**No research-phase needed:** Pattern is identical to existing `flashLoopReset_` / `flashPanic_` implementation.
 
-**Addresses features from FEATURES.md:** Looper position bar (P1), QUANTIZE button UI (P1), subdivision selector UI (P1), live quantize toggle (P2).
+### Phase D: LFO UI Section
 
-**Avoids pitfalls:**
-- PITFALL 8 (second timer): All animation driven from existing `startTimerHz(30)`. No new timer objects. `LooperPositionBar` has no `juce::Timer` member; it is repainted from the editor's `timerCallback()`.
-- PITFALL 7 (backward jump at wrap): Store `prevBeat_` in PluginEditor; detect wrap when `newBeat < prevBeat - loopLen * 0.5f`; treat as expected forward wrap, not visual backward jump.
-- QUANTIZE button must call `setEnabled(!looperIsPlaying() && !looperIsRecording())` each timer tick — the `pendingQuantize_` invariant requires the looper to be stopped.
-- Do NOT use `juce::ProgressBar` — runs its own internal timer; has indeterminate-mode animation incompatible with audio-driven position; does not match the PixelLookAndFeel aesthetic.
+**Rationale:** UI is the highest-effort phase and has the most layout decisions. Must come after Phase B because `AudioParameterFloat/Bool/Choice` attachments require registered APVTS params. Phase C and Phase D can be developed concurrently since they are in different UI regions.
 
-**Verification:** `grep "startTimerHz\|startTimer" Source/PluginEditor.cpp` returns exactly 1 result. Progress bar sweeps forward continuously; no backward jump at loop end (visual inspection, 1-bar loop at 180 BPM). QUANTIZE button is greyed out while looper plays.
+**Delivers:** Two LFO panels (X-axis and Y-axis, each with shape dropdown, Rate/Level/Phase/Distortion sliders, Enabled toggle, Sync button, sync subdivision dropdown); beat clock dot component.
 
----
+**Addresses features:** Full per-axis parameter control with host automation support; preset save/load via APVTS.
 
-### Phase 4: UI Polish — Gamepad Name + Mute Animation
+**Avoids:** Pitfall 7 (UI display rate aliasing — hide phase cursor when rate exceeds ~15 Hz; no 60 Hz timer).
 
-**Rationale:** Lowest-risk, highest-polish additions. Zero audio-thread impact. Both are message-thread-only changes with no new state beyond a cached string and a phase counter.
+**Needs attention during planning:** The existing editor is space-constrained (joystick pad, 4 touchplates, scale keyboard, control rows). A layout decision (side panel, collapsible section, or tabbed area) should be made before writing `resized()` to avoid rework. This is a planning decision, not a research gap.
 
-**Delivers:** Gamepad status label showing controller type ("PS4 Connected", "Xbox One Connected", "Controller Connected" with SDL raw name fallback) using `SDL_GameControllerGetType()` + name string cached in `GamepadInput::timerCallback()`; animated mute button pulses when `midiMuted_` is true (driven from existing timer via `mutePulsePhase_` counter); optional section visual grouping in the editor.
+### Phase E: Testing + Validation
 
-**Addresses features from FEATURES.md:** Gamepad type display (P2), animated mute state (P2), section visual grouping (P2).
+**Rationale:** Cross-cutting validation before the milestone is complete. Covers the correctness conditions that are silent bugs (no crash, no assertion) if missed.
 
-**Avoids pitfalls:**
-- PITFALL 8 (second timer): Mute pulse animation uses `mutePulsePhase_` counter incremented in existing `timerCallback()`; no new timer.
-- `SDL_GameControllerName()` must only be called on the message thread. Cache to `controllerName_` (plain `juce::String`) in `GamepadInput::timerCallback()`; read from `PluginEditor::timerCallback()` on the same thread. No atomics needed — both timers run on the message thread.
-- Copy `SDL_GameControllerName()` return value to `juce::String` immediately; do not store the raw `const char*` pointer (points to an internal SDL buffer).
+**Delivers:** Unit tests for LFO waveform output ranges and S&H single-value-per-cycle behavior; backward-compatibility test (load v1.3 preset — all existing params preserved, LFO params at safe defaults); grep-based APVTS ID dedup confirmation; manual verification that LFO and looper joystick playback combine correctly (both modulations visible in MIDI output simultaneously); pluginval scan.
 
-**Verification:** `grep "startTimerHz\|startTimer" Source/PluginEditor.cpp` still returns exactly 1 result. Status label shows "PS4 Connected" with a PS4 controller attached. Mute button visibly pulses at ~1 Hz when muted; stops when unmuted.
+**Addresses:** "Looks Done But Isn't" checklist from PITFALLS.md (12 items covering injection point, PRNG safety, seed value, ScopedNoDenormals position, accumulator precision, sync derivation, timer count, phase reset flag, ID uniqueness, display handling, APVTS read pattern, write-back absence).
 
----
+**No research-phase needed:** Test patterns established by existing `ChordEngineTests.cpp` and `ScaleQuantizerTests.cpp`.
 
 ### Phase Ordering Rationale
 
-- **Phase 1 first:** Zero new state or threading concerns; fixes a real live-performance safety issue; validates the extended panic path in complete isolation before LooperEngine is touched.
-- **Phase 2 before Phase 3:** UI cannot wire to quantize controls that do not exist yet. `quantizeSubdiv` APVTS parameter must be declared before a `ComboBox::AttachmentType` can attach to it. PluginProcessor forwarding methods must exist before `PluginEditor` calls them.
-- **Phase 3 before Phase 4:** Progress bar and quantize UI complete the P1 feature set. Phase 4 is pure P2 polish — should not block Phase 3.
-- **Phases 3 and 4 are independent** and could be parallelized; they share no code paths.
+- Phase A before Phase B: `LfoEngine::Params` struct and interface must be stable before `processBlock` builds it.
+- Phase B before Phase C and D: `beatFired_` accessor (C) and APVTS parameter attachments (D) require Phase B's additions.
+- Phase C and D are mutually independent and can run concurrently.
+- Phase E last: integration tests require all prior phases complete.
+
+The five-phase build order matches the MVP build order recommendation in FEATURES.md exactly.
 
 ### Research Flags
 
-Phases with well-documented patterns — no `research-phase` needed:
+**Phases with standard patterns — no research-phase needed:**
+- **Phase A (LfoEngine core):** All waveform formulas verified against multiple independent sources. LCG is verbatim from codebase. Block-rate update is established precedent.
+- **Phase B (processBlock integration):** Every integration point verified by direct source inspection of all 1044 lines. APVTS registration is mechanical.
+- **Phase C (beat clock UI):** Pattern identical to 3 existing flash counters already implemented.
+- **Phase E (testing):** Catch2 patterns established by existing test files.
 
-- **Phase 1 (Panic sweep):** Algorithm fully specified; all CC numbers are MIDI spec constants; integration is 10-line replacement of an existing block.
-- **Phase 3 (Progress bar):** Custom component pattern fully specified in STACK.md; all APIs confirmed; 30 Hz timer already in place.
-- **Phase 4 (Gamepad name):** Single function call at connect time; threading analysis complete; label wiring already exists.
+**Phase warranting pre-coding design decision (not research):**
+- **Phase D (LFO UI layout):** No technical uncertainty. A layout sketch or explicit decision about panel placement should be made before writing `resized()` to avoid rework in a space-constrained editor.
 
-Phase warranting careful validation during implementation:
-
-- **Phase 2 (Quantize infrastructure):** The `pendingQuantize_` deferred-request protocol and the `fmod` wrap guard are non-obvious. Write Catch2 tests for `snapToGrid()` and the loop-wrap edge case BEFORE integrating into `LooperEngine`. Follow the sub-order in Phase 2 above: helpers first, atomics second, `recordGate()` modification third, `quantizePlayback()` fourth. Each step should be independently reviewable.
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All APIs verified directly from source headers in `build/_deps/`; no version ambiguity; confirmed no new libraries needed |
-| Features | HIGH for MIDI spec items; MEDIUM for UI patterns | CC numbers are MIDI 1.0 standard (immutable); UI patterns triangulated from Boss RC, Ableton Looper, SooperLooper changelog, and MPC docs |
-| Architecture | HIGH | Derived from direct source code analysis of `LooperEngine.h`, `PluginProcessor.cpp`, `PluginEditor.cpp`; threading invariants confirmed from inline comments and ASSERT macros |
-| Pitfalls | HIGH | All pitfalls derived from actual v1.0 source review + confirmed JUCE bug tracker entries and forum reports (CC121 VST3 issue; MidiBuffer allocation; 60Hz repaint CPU cost) |
+| Stack | HIGH | All claims verified from CMakeLists.txt lines 141–148 and JUCE 8.0.4 source in `build/_deps/juce-src`. Zero new dependencies confirmed by inspection, not assumption. |
+| Features | HIGH | Waveform math verified against musicdsp.org, JUCE forum, and KVR. S&H vs Random distinction verified across Sweetwater, KVR, and synth literature. Distortion as additive noise rated MEDIUM — Ableton M4L interpretation is conventional but not formally spec'd for this plugin. |
+| Architecture | HIGH | All integration points verified by full source read of `PluginProcessor.cpp` (1044 lines), `PluginProcessor.h`, `LooperEngine.h`, `TriggerSystem.h`, `ChordEngine.h`. No inference — findings based on actual source. |
+| Pitfalls | HIGH | Critical pitfalls (std::rand CRT mutex, LFO injection conflict, PPQ drift) verified from both source code and JUCE forum/KVR community. Minor pitfalls (zero seed, fmod vs while, DC offset) verified from well-sourced DSP community references. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **`fmod` guard on gate-off events:** ARCHITECTURE.md specifies that gate-off retains its original position (preserving gate length). Confirm during Phase 2 implementation whether gate-off events can also land outside `[0, loopLen)` via the live quantize path, and whether they need the `fmod` guard or a clamp. If gate-on is snapped by delta D, apply the same delta to gate-off to preserve gate length rather than snapping gate-off independently.
+- **LFO UI layout:** The only unresolved question is where the LFO panels fit in the existing editor. This is a design decision for Phase D planning, not a research gap.
 
-- **Filter CC reset in panic vs. `pendingCcReset_` path:** FEATURES.md specifies panic should zero filter CCs (CC74, CC71, CC12, CC1, CC76 on the filter channel). ARCHITECTURE.md's panic code snippet does not include this. Confirm during Phase 1 whether `pendingCcReset_` is already triggered by the panic path. If so, avoid emitting duplicate CCs in the same block; if not, add explicit filter CC zeros to the panic block.
+- **TriggerSystem delta behavior with LFO active:** ARCHITECTURE.md flags this as a deliberate design decision requiring confirmation. Post-LFO `chordP.joystickX/Y` values drive the `deltaX`/`deltaY` computation in TriggerSystem, meaning LFO motion will retrigger joystick-source voices ("LFO feels like moving the joystick"). This is the recommended default, but should be confirmed before Phase B is finalized. The alternative (pre-LFO delta, LFO modulates pitch only without retriggering) requires a 2-line change to the delta computation.
 
-- **`midi.ensureSize(256)` in `prepareToPlay()`:** Confirm whether `prepareToPlay()` currently calls `ensureSize` before adding it. One-line addition with no risk; must be in Phase 1.
+- **Distortion parameter interpretation:** FEATURES.md rates this MEDIUM confidence. "Additive white noise" (Option A) matches Ableton M4L "Jitter" documentation. Confirm whether the v1.4 spec intends noise injection or waveform shaping before Phase A's `computeWave()` distortion path is written.
+
+---
 
 ## Sources
 
-### Primary (HIGH confidence — verified from source in repo)
-- `build/_deps/juce-src/modules/juce_audio_basics/midi/juce_MidiMessage.cpp` — CC123 (`allNotesOff`), CC120 (`allSoundOff`), CC121 (`allControllersOff`) confirmed; `allControllersOff` excluded from recommended panic sweep
-- `build/_deps/juce-src/modules/juce_audio_basics/midi/juce_MidiMessage.h` — `pitchWheel`, `controllerEvent`, `allSoundOff`, `allNotesOff` signatures confirmed
-- `build/_deps/sdl2-src/include/SDL_gamecontroller.h` — `SDL_GameControllerType` enum (14 values) and function signatures confirmed from SDL2 2.30.9
-- `Source/LooperEngine.h` — `playbackBeat_` atomic<float>, `getPlaybackBeat()`, `getLoopLengthBeats()`, SPSC FIFO threading invariant, `ASSERT_AUDIO_THREAD()` macro
-- `Source/PluginProcessor.cpp` — existing `pendingPanic_` exchange pattern (lines 471–477), processBlock step order
-- `Source/PluginEditor.cpp` — `startTimerHz(30)` (line 1100), flash counter pattern (lines 1455–1484), gamepad status label
+### Primary (HIGH confidence — direct source inspection)
 
-### Secondary (MEDIUM confidence)
-- MIDI 1.0 Specification — CC120, CC121, CC123 semantics (standardized, immutable)
-- JUCE bug tracker — VST3 wrapper CC121 side-effects on downstream instruments (Waves CLA-76, Kontakt)
-- JUCE forum — MidiBuffer 2048-event pre-allocation; 60Hz repaint timer ~40% CPU cost; single-timer pattern recommendation
-- SDL2 Wiki — `SDL_GameControllerGetType` availability since SDL 2.0.12; `SDL_GameControllerName` since SDL 2.0.0
-- SooperLooper changelog v1.7.9 — loop position indicator as standard looper UI feature
-- Cubase, Logic Pro, iConnectivity MIDI Panic docs — 16-channel all-controllers sweep as industry-standard panic sequence
+- `CMakeLists.txt` lines 141–148 — confirmed juce_dsp NOT linked; full linked library list verified
+- `Source/PluginProcessor.cpp` — full processBlock (1044 lines), buildChordParams, createParameterLayout, arpRandSeed_ LCG at lines 850–851, ScopedNoDenormals at line 359, looper joystick override at lines 469–471
+- `Source/PluginProcessor.h` — member layout, atomic pattern for effectiveBpm_/filterCutDisplay_, flash counter pattern, joystickX/Y atomics at lines 44–45, arpRandSeed_ at line 234
+- `Source/TriggerSystem.h` — LCG RNG at line 124 (`seed * 1664525u + 1013904223u`), ProcessParams struct with deltaX/Y fields
+- `Source/LooperEngine.h` — ASSERT_AUDIO_THREAD macro, pendingQuantize_ flag pattern, lock-free comments
+- `Source/ChordEngine.h` — Params struct, joystickX/Y field semantics
+- `build/_deps/juce-src/` — JUCE 8.0.4 tag confirmed
 
-### Tertiary (LOW confidence — context only)
-- KVR Audio forums — looper plugin feature expectations
-- MPC forum — "Time Correct" quantization terminology and live quantize behavior descriptions
+### Secondary (MEDIUM confidence — community and documentation)
+
+- JUCE Forum: "State of the Art Denormal Prevention" — ScopedNoDenormals FTZ/DAZ confirmation; RAII MXCSR pattern
+- JUCE Forum: "Sync to host and LFO" — PPQ-derived phase as drift-free approach
+- JUCE Forum: "Blinking button in LookAndFeel / timerCallback?" — repaint-on-state-change as JUCE-recommended blink pattern
+- JUCE Forum: "AudioProcessorValueTreeState scalability" — 14 new params is negligible; thousands of params degrade flushParameterValues
+- KVR Audio: "random generator for musical domain — xorshift vs LCG" — LCG safe on audio thread; std::rand CRT mutex confirmed
+- musicdsp.org Algorithm #269 — smooth random LFO generator (Random waveform interpolation)
+- Sweetwater InSync: "A Simple Guide to Modulation: Sample & Hold" — S&H vs smooth distinction
+- Ableton Reference Manual v12: Max for Live LFO Devices — Jitter slider as additive noise (Option A rationale)
+- JUCE Step by Step Blog "7b. LFO Sync" — BPM derivation and PPQ phase calculation
+- KVR Audio DSP Forum: "How to code a random LFO?" — waveform implementations
 
 ---
-*Research completed: 2026-02-24*
+
+*Research completed: 2026-02-26*
 *Ready for roadmap: yes*
