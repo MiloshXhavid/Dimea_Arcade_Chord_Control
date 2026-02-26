@@ -811,7 +811,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     pixelLaf_.setPixelFont(pixelFont_);
     setLookAndFeel(&pixelLaf_);
 
-    setSize(920, 810);
+    setSize(1120, 810);
 
     // ── Tooltip window ────────────────────────────────────────────────────────
     addAndMakeVisible(tooltipWindow_);
@@ -1393,6 +1393,206 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(arpGateTimeLabel_);
     arpGateTimeAtt_ = std::make_unique<SliderAtt>(p.apvts, "arpGateTime", arpGateTimeKnob_);
 
+    // ── LFO X panel ───────────────────────────────────────────────────────────
+    // Shape ComboBox
+    lfoXShapeBox_.addItem("Sine",     1);
+    lfoXShapeBox_.addItem("Triangle", 2);
+    lfoXShapeBox_.addItem("Saw Up",   3);
+    lfoXShapeBox_.addItem("Saw Down", 4);
+    lfoXShapeBox_.addItem("Square",   5);
+    lfoXShapeBox_.addItem("S&H",      6);
+    lfoXShapeBox_.addItem("Random",   7);
+    styleCombo(lfoXShapeBox_);
+    lfoXShapeBox_.setTooltip("LFO X waveform shape");
+    addAndMakeVisible(lfoXShapeBox_);
+    lfoXShapeAtt_ = std::make_unique<ComboAtt>(p.apvts, "lfoXWaveform", lfoXShapeBox_);
+
+    // Rate slider (initial state: free mode attached to lfoXRate)
+    lfoXRateSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoXRateSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoXRateSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoXRateSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoXRateSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoXRateSlider_.setTooltip("LFO X rate (Hz in free mode, subdivision in sync mode)");
+    lfoXRateSlider_.textFromValueFunction = [](double v) -> juce::String {
+        return juce::String(v, 2) + " Hz";
+    };
+    addAndMakeVisible(lfoXRateSlider_);
+    if (auto* param = p.apvts.getParameter("lfoXRate"))
+        lfoXRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(*param, lfoXRateSlider_, nullptr);
+
+    // Phase slider
+    lfoXPhaseSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoXPhaseSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoXPhaseSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoXPhaseSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoXPhaseSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoXPhaseSlider_.setTooltip("LFO X phase offset (0-360 degrees)");
+    addAndMakeVisible(lfoXPhaseSlider_);
+    lfoXPhaseAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoXPhase", lfoXPhaseSlider_);
+
+    // Level slider
+    lfoXLevelSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoXLevelSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoXLevelSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoXLevelSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoXLevelSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoXLevelSlider_.setTooltip("LFO X level (0 = off, 1 = full range, 2 = double)");
+    addAndMakeVisible(lfoXLevelSlider_);
+    lfoXLevelAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoXLevel", lfoXLevelSlider_);
+
+    // Distortion slider
+    lfoXDistSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoXDistSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoXDistSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoXDistSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoXDistSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoXDistSlider_.setTooltip("LFO X distortion (jitter/noise amount 0-1)");
+    addAndMakeVisible(lfoXDistSlider_);
+    lfoXDistAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoXDistortion", lfoXDistSlider_);
+
+    // Sync button
+    lfoXSyncBtn_.setButtonText("SYNC");
+    lfoXSyncBtn_.setClickingTogglesState(true);
+    styleButton(lfoXSyncBtn_);
+    lfoXSyncBtn_.setTooltip("Sync LFO X to tempo (BPM or DAW)");
+    addAndMakeVisible(lfoXSyncBtn_);
+    lfoXSyncAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoXSync", lfoXSyncBtn_);
+
+    // Sync toggle: swap Rate attachment between free (lfoXRate) and sync (lfoXSubdiv)
+    lfoXSyncBtn_.onClick = [this]()
+    {
+        const bool syncOn = lfoXSyncBtn_.getToggleState();
+        lfoXRateAtt_.reset();
+        if (syncOn)
+        {
+            lfoXRateSlider_.setRange(0.0, 5.0, 1.0);
+            lfoXRateSlider_.setNumDecimalPlacesToDisplay(0);
+            lfoXRateSlider_.textFromValueFunction = [](double v) -> juce::String {
+                static const char* names[] = {"1/1","1/2","1/4","1/8","1/16","1/32"};
+                return names[juce::jlimit(0, 5, (int)std::round(v))];
+            };
+            if (auto* param = proc_.apvts.getParameter("lfoXSubdiv"))
+                lfoXRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(
+                    *param, lfoXRateSlider_, nullptr);
+        }
+        else
+        {
+            lfoXRateSlider_.textFromValueFunction = [](double v) -> juce::String {
+                return juce::String(v, 2) + " Hz";
+            };
+            if (auto* param = proc_.apvts.getParameter("lfoXRate"))
+                lfoXRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(
+                    *param, lfoXRateSlider_, nullptr);
+        }
+    };
+
+    // Enabled: hidden ToggleButton with ButtonAttachment — clickable LED area in paint()
+    lfoXEnabledHiddenBtn_.setClickingTogglesState(true);
+    lfoXEnabledHiddenBtn_.setAlpha(0.0f);
+    addAndMakeVisible(lfoXEnabledHiddenBtn_);
+    lfoXEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoXEnabled", lfoXEnabledHiddenBtn_);
+
+    // ── LFO Y panel ───────────────────────────────────────────────────────────
+    // Shape ComboBox
+    lfoYShapeBox_.addItem("Sine",     1);
+    lfoYShapeBox_.addItem("Triangle", 2);
+    lfoYShapeBox_.addItem("Saw Up",   3);
+    lfoYShapeBox_.addItem("Saw Down", 4);
+    lfoYShapeBox_.addItem("Square",   5);
+    lfoYShapeBox_.addItem("S&H",      6);
+    lfoYShapeBox_.addItem("Random",   7);
+    styleCombo(lfoYShapeBox_);
+    lfoYShapeBox_.setTooltip("LFO Y waveform shape");
+    addAndMakeVisible(lfoYShapeBox_);
+    lfoYShapeAtt_ = std::make_unique<ComboAtt>(p.apvts, "lfoYWaveform", lfoYShapeBox_);
+
+    // Rate slider (initial state: free mode attached to lfoYRate)
+    lfoYRateSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoYRateSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoYRateSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoYRateSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoYRateSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoYRateSlider_.setTooltip("LFO Y rate (Hz in free mode, subdivision in sync mode)");
+    lfoYRateSlider_.textFromValueFunction = [](double v) -> juce::String {
+        return juce::String(v, 2) + " Hz";
+    };
+    addAndMakeVisible(lfoYRateSlider_);
+    if (auto* param = p.apvts.getParameter("lfoYRate"))
+        lfoYRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(*param, lfoYRateSlider_, nullptr);
+
+    // Phase slider
+    lfoYPhaseSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoYPhaseSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoYPhaseSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoYPhaseSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoYPhaseSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoYPhaseSlider_.setTooltip("LFO Y phase offset (0-360 degrees)");
+    addAndMakeVisible(lfoYPhaseSlider_);
+    lfoYPhaseAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoYPhase", lfoYPhaseSlider_);
+
+    // Level slider
+    lfoYLevelSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoYLevelSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoYLevelSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoYLevelSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoYLevelSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoYLevelSlider_.setTooltip("LFO Y level (0 = off, 1 = full range, 2 = double)");
+    addAndMakeVisible(lfoYLevelSlider_);
+    lfoYLevelAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoYLevel", lfoYLevelSlider_);
+
+    // Distortion slider
+    lfoYDistSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoYDistSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoYDistSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoYDistSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoYDistSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoYDistSlider_.setTooltip("LFO Y distortion (jitter/noise amount 0-1)");
+    addAndMakeVisible(lfoYDistSlider_);
+    lfoYDistAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoYDistortion", lfoYDistSlider_);
+
+    // Sync button
+    lfoYSyncBtn_.setButtonText("SYNC");
+    lfoYSyncBtn_.setClickingTogglesState(true);
+    styleButton(lfoYSyncBtn_);
+    lfoYSyncBtn_.setTooltip("Sync LFO Y to tempo (BPM or DAW)");
+    addAndMakeVisible(lfoYSyncBtn_);
+    lfoYSyncAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoYSync", lfoYSyncBtn_);
+
+    // Sync toggle: swap Rate attachment between free (lfoYRate) and sync (lfoYSubdiv)
+    lfoYSyncBtn_.onClick = [this]()
+    {
+        const bool syncOn = lfoYSyncBtn_.getToggleState();
+        lfoYRateAtt_.reset();
+        if (syncOn)
+        {
+            lfoYRateSlider_.setRange(0.0, 5.0, 1.0);
+            lfoYRateSlider_.setNumDecimalPlacesToDisplay(0);
+            lfoYRateSlider_.textFromValueFunction = [](double v) -> juce::String {
+                static const char* names[] = {"1/1","1/2","1/4","1/8","1/16","1/32"};
+                return names[juce::jlimit(0, 5, (int)std::round(v))];
+            };
+            if (auto* param = proc_.apvts.getParameter("lfoYSubdiv"))
+                lfoYRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(
+                    *param, lfoYRateSlider_, nullptr);
+        }
+        else
+        {
+            lfoYRateSlider_.textFromValueFunction = [](double v) -> juce::String {
+                return juce::String(v, 2) + " Hz";
+            };
+            if (auto* param = proc_.apvts.getParameter("lfoYRate"))
+                lfoYRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(
+                    *param, lfoYRateSlider_, nullptr);
+        }
+    };
+
+    // Enabled: hidden ToggleButton with ButtonAttachment — clickable LED area in paint()
+    lfoYEnabledHiddenBtn_.setClickingTogglesState(true);
+    lfoYEnabledHiddenBtn_.setAlpha(0.0f);
+    addAndMakeVisible(lfoYEnabledHiddenBtn_);
+    lfoYEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoYEnabled", lfoYEnabledHiddenBtn_);
+
     startTimerHz(30);
 }
 
@@ -1400,6 +1600,17 @@ PluginEditor::~PluginEditor()
 {
     setLookAndFeel(nullptr);
     stopTimer();
+}
+
+void PluginEditor::mouseDown(const juce::MouseEvent& e)
+{
+    // Check if click landed in LFO enabled LED bounds — if so, toggle the hidden button
+    if (lfoXLedBounds_.contains(e.getPosition()))
+        lfoXEnabledHiddenBtn_.setToggleState(!lfoXEnabledHiddenBtn_.getToggleState(),
+                                              juce::sendNotificationSync);
+    else if (lfoYLedBounds_.contains(e.getPosition()))
+        lfoYEnabledHiddenBtn_.setToggleState(!lfoYEnabledHiddenBtn_.getToggleState(),
+                                              juce::sendNotificationSync);
 }
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
@@ -1410,13 +1621,24 @@ void PluginEditor::resized()
     area.removeFromTop(28);   // header bar
     area.removeFromBottom(60); // footer instructions
     const int rowH   = area.getHeight();
-    const int colW   = area.getWidth();
 
-    // Layout: Left column (controls) | Right column (joystick + pads)
-    auto left  = area.removeFromLeft(colW / 2 - 4);
-    area.removeFromLeft(8);
+    // Fixed left column width (448px = same as at 920px window width)
+    constexpr int kLeftColW = 448;
+    auto left = area.removeFromLeft(kLeftColW);
+    area.removeFromLeft(8);  // gap between left column and LFO panels
+
+    // LFO X panel column (130px)
+    auto lfoXCol = area.removeFromLeft(130);
+    area.removeFromLeft(4);
+
+    // LFO Y panel column (130px)
+    auto lfoYCol = area.removeFromLeft(130);
+    area.removeFromLeft(4);
+
+    // Remaining right area (joystick + knobs + pads)
     auto right = area;
-    dividerX_ = right.getX();   // fixed divider position, independent of joystick centering
+
+    dividerX_ = lfoXCol.getX();  // stays at ~464px from window left
 
     // ── RIGHT COLUMN ──────────────────────────────────────────────────────────
 
@@ -1716,6 +1938,129 @@ void PluginEditor::resized()
         arpOrderBox_     .setBounds(comboRow.removeFromLeft(third).reduced(1, 0));
         arpGateTimeKnob_ .setBounds(comboRow.reduced(1, 0));
     }
+
+    // ── LFO X panel layout ─────────────────────────────────────────────────────
+    {
+        // Start from top of lfoXCol (aligned with the joystick area)
+        auto col = lfoXCol;
+        col.removeFromTop(14);  // clear header area
+
+        // Row 1: Shape ComboBox (full width)
+        lfoXShapeBox_.setBounds(col.removeFromTop(22));
+        col.removeFromTop(4);
+
+        // Row 2: Rate slider (left 30px = label space in paint())
+        {
+            auto row = col.removeFromTop(18);
+            row.removeFromLeft(30);
+            lfoXRateSlider_.setBounds(row);
+        }
+        col.removeFromTop(4);
+
+        // Row 3: Phase slider
+        {
+            auto row = col.removeFromTop(18);
+            row.removeFromLeft(30);
+            lfoXPhaseSlider_.setBounds(row);
+        }
+        col.removeFromTop(4);
+
+        // Row 4: Level slider
+        {
+            auto row = col.removeFromTop(18);
+            row.removeFromLeft(30);
+            lfoXLevelSlider_.setBounds(row);
+        }
+        col.removeFromTop(4);
+
+        // Row 5: Distortion slider
+        {
+            auto row = col.removeFromTop(18);
+            row.removeFromLeft(30);
+            lfoXDistSlider_.setBounds(row);
+        }
+        col.removeFromTop(4);
+
+        // Row 6: SYNC button (full width)
+        lfoXSyncBtn_.setBounds(col.removeFromTop(22));
+
+        // Panel bounds: wraps from ShapeBox top to SyncBtn bottom, full column width + padding
+        lfoXPanelBounds_ = lfoXShapeBox_.getBounds()
+                              .getUnion(lfoXSyncBtn_.getBounds())
+                              .withX(lfoXCol.getX())
+                              .withWidth(lfoXCol.getWidth())
+                              .expanded(0, 10);
+
+        // LED bounds: top-right of panel header (8px circle + hit area 12x12)
+        lfoXLedBounds_ = juce::Rectangle<int>(
+            lfoXPanelBounds_.getRight() - 18,
+            lfoXPanelBounds_.getY() + 1,
+            12, 12);
+
+        // Hidden button: placed over LED for accessibility
+        lfoXEnabledHiddenBtn_.setBounds(lfoXLedBounds_);
+    }
+
+    // ── LFO Y panel layout ─────────────────────────────────────────────────────
+    {
+        auto col = lfoYCol;
+        col.removeFromTop(14);  // clear header area
+
+        // Row 1: Shape ComboBox (full width)
+        lfoYShapeBox_.setBounds(col.removeFromTop(22));
+        col.removeFromTop(4);
+
+        // Row 2: Rate slider
+        {
+            auto row = col.removeFromTop(18);
+            row.removeFromLeft(30);
+            lfoYRateSlider_.setBounds(row);
+        }
+        col.removeFromTop(4);
+
+        // Row 3: Phase slider
+        {
+            auto row = col.removeFromTop(18);
+            row.removeFromLeft(30);
+            lfoYPhaseSlider_.setBounds(row);
+        }
+        col.removeFromTop(4);
+
+        // Row 4: Level slider
+        {
+            auto row = col.removeFromTop(18);
+            row.removeFromLeft(30);
+            lfoYLevelSlider_.setBounds(row);
+        }
+        col.removeFromTop(4);
+
+        // Row 5: Distortion slider
+        {
+            auto row = col.removeFromTop(18);
+            row.removeFromLeft(30);
+            lfoYDistSlider_.setBounds(row);
+        }
+        col.removeFromTop(4);
+
+        // Row 6: SYNC button (full width)
+        lfoYSyncBtn_.setBounds(col.removeFromTop(22));
+
+        // Panel bounds
+        lfoYPanelBounds_ = lfoYShapeBox_.getBounds()
+                              .getUnion(lfoYSyncBtn_.getBounds())
+                              .withX(lfoYCol.getX())
+                              .withWidth(lfoYCol.getWidth())
+                              .expanded(0, 10);
+
+        // LED bounds
+        lfoYLedBounds_ = juce::Rectangle<int>(
+            lfoYPanelBounds_.getRight() - 18,
+            lfoYPanelBounds_.getY() + 1,
+            12, 12);
+
+        lfoYEnabledHiddenBtn_.setBounds(lfoYLedBounds_);
+    }
+    (void)rowH;
 }
 
 // ─── Paint ────────────────────────────────────────────────────────────────────
@@ -1823,6 +2168,80 @@ void PluginEditor::paint(juce::Graphics& g)
     drawSectionPanel(looperPanelBounds_,    "LOOPER");
     // Right-column panels omitted: the floating title fights with drawAbove labels
     // and the button/label text already identifies those sections clearly.
+
+    // ── LFO panel drawing ─────────────────────────────────────────────────────
+    auto drawLfoPanel = [&](juce::Rectangle<int> bounds, const juce::String& title,
+                            bool enabled)
+    {
+        if (bounds.isEmpty()) return;
+        const auto fb = bounds.toFloat();
+
+        // Panel fill
+        g.setColour(Clr::panel.brighter(0.12f));
+        g.fillRoundedRectangle(fb, 7.0f);
+
+        // Border
+        g.setColour(Clr::accent.brighter(0.5f));
+        g.drawRoundedRectangle(fb.reduced(0.5f), 7.0f, 1.5f);
+
+        // Knockout header label (left-aligned for narrow panels)
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::bold));
+        const int textW = g.getCurrentFont().getStringWidth(title) + 8;
+        const int textH = 12;
+        const int textX = (int)fb.getX() + 6;
+        const int textY = (int)fb.getY() - textH / 2;
+        g.setColour(Clr::panel.brighter(0.12f));
+        g.fillRect(textX, textY, textW, textH);
+        g.setColour(Clr::textDim);
+        g.drawText(title, textX, textY, textW, textH, juce::Justification::left);
+
+        // Enabled LED (8px circle to right of label)
+        const int ledX = (int)fb.getRight() - 14;
+        const int ledY = textY + (textH - 8) / 2;
+        g.setColour(enabled ? Clr::gateOn : Clr::gateOff);
+        g.fillEllipse((float)ledX, (float)ledY, 8.0f, 8.0f);
+    };
+
+    const bool lfoXEnabled = *proc_.apvts.getRawParameterValue("lfoXEnabled") > 0.5f;
+    const bool lfoYEnabled = *proc_.apvts.getRawParameterValue("lfoYEnabled") > 0.5f;
+    drawLfoPanel(lfoXPanelBounds_, "LFO X", lfoXEnabled);
+    drawLfoPanel(lfoYPanelBounds_, "LFO Y", lfoYEnabled);
+
+    // LFO slider row labels (Rate, Phase, Level, Dist)
+    auto drawSliderLabel = [&](juce::Rectangle<int> sliderBounds, const juce::String& text)
+    {
+        g.setFont(juce::Font(9.0f));
+        g.setColour(Clr::textDim);
+        g.drawText(text,
+                   sliderBounds.getX() - 30, sliderBounds.getY(),
+                   28, sliderBounds.getHeight(),
+                   juce::Justification::right);
+    };
+
+    if (!lfoXPanelBounds_.isEmpty())
+    {
+        drawSliderLabel(lfoXRateSlider_.getBounds(),  "Rate");
+        drawSliderLabel(lfoXPhaseSlider_.getBounds(), "Ph");
+        drawSliderLabel(lfoXLevelSlider_.getBounds(), "Lvl");
+        drawSliderLabel(lfoXDistSlider_.getBounds(),  "Dst");
+    }
+    if (!lfoYPanelBounds_.isEmpty())
+    {
+        drawSliderLabel(lfoYRateSlider_.getBounds(),  "Rate");
+        drawSliderLabel(lfoYPhaseSlider_.getBounds(), "Ph");
+        drawSliderLabel(lfoYLevelSlider_.getBounds(), "Lvl");
+        drawSliderLabel(lfoYDistSlider_.getBounds(),  "Dst");
+    }
+
+    // ── Beat pulse dot — drawn adjacent to BPM label ──────────────────────────
+    if (bpmDisplayLabel_.isVisible() && beatPulse_ > 0.0f)
+    {
+        const auto& lb = bpmDisplayLabel_.getBounds();
+        const float dotX = (float)(lb.getRight() + 3);
+        const float dotY = (float)(lb.getCentreY()) - 4.0f;
+        g.setColour(Clr::accent.withAlpha(beatPulse_));
+        g.fillEllipse(dotX, dotY, 8.0f, 8.0f);
+    }
 
     // ── Looper position bar ───────────────────────────────────────────────────
     if (!looperPositionBarBounds_.isEmpty())
@@ -2180,5 +2599,25 @@ void PluginEditor::timerCallback()
         quantizeLiveBtn_.setToggleState(curMode == 1, juce::dontSendNotification);
         quantizePostBtn_.setToggleState(curMode == 2, juce::dontSendNotification);
     }
+
+    // ── Beat pulse dot ────────────────────────────────────────────────────────
+    // Read and clear the sticky beat flag; set beatPulse_ to 1.0 when triggered.
+    // Decay by ~0.11 per tick (30 Hz × 9 frames ≈ 300ms to fade to 0).
+    if (proc_.beatOccurred_.exchange(false, std::memory_order_relaxed))
+        beatPulse_ = 1.0f;
+    else if (beatPulse_ > 0.0f)
+        beatPulse_ = juce::jmax(0.0f, beatPulse_ - 0.11f);
+
+    // Repaint BPM label area to update beat dot
+    if (!bpmDisplayLabel_.getBounds().isEmpty())
+    {
+        auto dotArea = bpmDisplayLabel_.getBounds().withLeft(
+            bpmDisplayLabel_.getRight()).withWidth(14).expanded(2, 2);
+        repaint(dotArea);
+    }
+
+    // Repaint LFO panel LED areas (enabled state may change)
+    if (!lfoXPanelBounds_.isEmpty()) repaint(lfoXPanelBounds_.removeFromTop(16));
+    if (!lfoYPanelBounds_.isEmpty()) repaint(lfoYPanelBounds_.removeFromTop(16));
 
 }
