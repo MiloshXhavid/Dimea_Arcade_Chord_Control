@@ -39,7 +39,7 @@ Full details: `.planning/milestones/v1.3-ROADMAP.md`
 **Milestone Goal:** Add dual per-axis LFO modulation to the joystick with a beat clock indicator, then ship a clean GitHub release.
 
 - [x] **Phase 12: LFO Engine Core** — Isolated LFO DSP class (LfoEngine.h/cpp): all 7 waveforms, dual-axis phase accumulators, LCG RNG, distortion, beat detection, audio-thread safety (completed 2026-02-26)
-- [ ] **Phase 13: processBlock Integration and APVTS** — Wire LfoEngine into the processor: 16 APVTS params, process() call in processBlock, LFO output applied as additive offset in buildChordParams(), phase reset on DAW start/stop
+- [x] **Phase 13: processBlock Integration and APVTS** — Wire LfoEngine into the processor: 16 APVTS params, process() call in processBlock, LFO output applied as additive offset in buildChordParams(), phase reset on DAW start/stop (completed 2026-02-26)
 - [ ] **Phase 14: LFO UI and Beat Clock** — Full LFO panel left of joystick + beat clock dot near Free BPM knob, all controls attached to APVTS
 - [ ] **Phase 15: Gamepad Preset Control** — Option button toggles preset-scroll mode; BPM±1 controls send MIDI Program Change; UI shows active mode + current program number
 - [ ] **Phase 16: Distribution** — GitHub v1.4 release with installer binary + release notes; desktop backup
@@ -73,7 +73,7 @@ Plans:
   5. All 16 new LFO parameters appear in the DAW automation lane and respond to automation playback
 **Plans**: 1 plan
 Plans:
-- [ ] 13-01-PLAN.md — PluginProcessor.h/cpp: 16 APVTS params, lfoX_/lfoY_ members, processBlock LFO injection with ramp, prepareToPlay + transport resets
+- [x] 13-01-PLAN.md — PluginProcessor.h/cpp: 16 APVTS params, lfoX_/lfoY_ members, processBlock LFO injection with ramp, prepareToPlay + transport resets (completed 2026-02-26)
 
 ### Phase 14: LFO UI and Beat Clock
 **Goal**: The player can control both LFOs and see beat timing through the plugin UI without opening the DAW
@@ -113,8 +113,8 @@ Plans:
 | 09. MIDI Panic | v1.3 | 2/2 | ✅ Shipped | 2026-02-25 |
 | 10. Trigger Quantization | v1.3 | 5/5 | ✅ Shipped | 2026-02-25 |
 | 11. UI Polish + Installer | v1.3 | 4/4 | ✅ Shipped | 2026-02-25 |
-| 12. LFO Engine Core | 2/2 | Complete    | 2026-02-26 | - |
-| 13. processBlock Integration + APVTS | v1.4 | 0/1 | Planned | - |
+| 12. LFO Engine Core | v1.4 | 2/2 | Complete | 2026-02-26 |
+| 13. processBlock Integration + APVTS | v1.4 | 1/1 | Complete | 2026-02-26 |
 | 14. LFO UI + Beat Clock | v1.4 | 0/? | Not started | - |
 | 15. Gamepad Preset Control | v1.4 | 0/? | Not started | - |
 | 16. Distribution | v1.4 | 0/? | Not started | - |
