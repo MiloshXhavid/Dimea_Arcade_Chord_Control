@@ -9,11 +9,11 @@
 
 - [ ] **LFO-01**: User can enable/disable X-axis LFO independently (On/Off toggle)
 - [ ] **LFO-02**: User can enable/disable Y-axis LFO independently (On/Off toggle)
-- [ ] **LFO-03**: User can select waveform shape per LFO via dropdown (Sine / Triangle / Saw Up / Saw Down / Square / S&H / Random)
-- [ ] **LFO-04**: When Sync OFF → frequency slider (free-running rate in Hz); when Sync ON → same control becomes subdivision selector (1/1, 1/2, 1/4, 1/8, 1/16, 1/32)
-- [ ] **LFO-05**: User can set LFO phase shift via slider (0–360°)
-- [ ] **LFO-06**: User can set LFO distortion (additive jitter/noise amount) via slider
-- [ ] **LFO-07**: User can set LFO level (modulation depth / amplitude) via slider
+- [x] **LFO-03**: User can select waveform shape per LFO via dropdown (Sine / Triangle / Saw Up / Saw Down / Square / S&H / Random)
+- [x] **LFO-04**: When Sync OFF → frequency slider (free-running rate in Hz); when Sync ON → same control becomes subdivision selector (1/1, 1/2, 1/4, 1/8, 1/16, 1/32)
+- [x] **LFO-05**: User can set LFO phase shift via slider (0–360°)
+- [x] **LFO-06**: User can set LFO distortion (additive jitter/noise amount) via slider
+- [x] **LFO-07**: User can set LFO level (modulation depth / amplitude) via slider
 - [ ] **LFO-08**: User can sync LFO to tempo via a single Sync button — syncs to Free BPM; when DAW sync is also active, follows DAW BPM
 - [ ] **LFO-09**: LFO X output modulates joystick X axis as additive offset (output clamped to -1..1)
 - [ ] **LFO-10**: LFO Y output modulates joystick Y axis as additive offset (output clamped to -1..1)
@@ -26,9 +26,9 @@
 
 ### Performance & Stability
 
-- [ ] **PERF-01**: LFO S&H / Random waveforms use the project's existing LCG pattern (not std::rand) — audio-thread safe under MSVC
-- [ ] **PERF-02**: LFO output is applied as an additive local float offset inside buildChordParams() — never writes to shared joystick atomics
-- [ ] **PERF-03**: Synced LFO phase derived from ppqPos (DAW mode) or sample counter (free mode) — no free-accumulation drift across transport stops
+- [x] **PERF-01**: LFO S&H / Random waveforms use the project's existing LCG pattern (not std::rand) — audio-thread safe under MSVC
+- [x] **PERF-02**: LFO output is applied as an additive local float offset inside buildChordParams() — never writes to shared joystick atomics
+- [x] **PERF-03**: Synced LFO phase derived from ppqPos (DAW mode) or sample counter (free mode) — no free-accumulation drift across transport stops
 
 ### Gamepad Preset Control
 
@@ -68,20 +68,20 @@
 |-------------|-------|--------|
 | LFO-01 | Phase 13 | Pending |
 | LFO-02 | Phase 13 | Pending |
-| LFO-03 | Phase 12 | Pending |
-| LFO-04 | Phase 12 | Pending |
-| LFO-05 | Phase 12 | Pending |
-| LFO-06 | Phase 12 | Pending |
-| LFO-07 | Phase 12 | Pending |
+| LFO-03 | Phase 12 | Complete |
+| LFO-04 | Phase 12 | Complete |
+| LFO-05 | Phase 12 | Complete |
+| LFO-06 | Phase 12 | Complete |
+| LFO-07 | Phase 12 | Complete |
 | LFO-08 | Phase 13 | Pending |
 | LFO-09 | Phase 13 | Pending |
 | LFO-10 | Phase 13 | Pending |
 | LFO-11 | Phase 14 | Pending |
 | CLK-01 | Phase 14 | Pending |
 | CLK-02 | Phase 14 | Pending |
-| PERF-01 | Phase 12 | Pending |
-| PERF-02 | Phase 12 | Pending |
-| PERF-03 | Phase 12 | Pending |
+| PERF-01 | Phase 12 | Complete |
+| PERF-02 | Phase 12 | Complete |
+| PERF-03 | Phase 12 | Complete |
 | CTRL-01 | Phase 16 | Pending |
 | CTRL-02 | Phase 16 | Pending |
 | CTRL-03 | Phase 16 | Pending |
