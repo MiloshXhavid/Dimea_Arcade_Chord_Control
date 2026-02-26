@@ -30,6 +30,12 @@
 - [ ] **PERF-02**: LFO output is applied as an additive local float offset inside buildChordParams() — never writes to shared joystick atomics
 - [ ] **PERF-03**: Synced LFO phase derived from ppqPos (DAW mode) or sample counter (free mode) — no free-accumulation drift across transport stops
 
+### Gamepad Preset Control
+
+- [ ] **CTRL-01**: Option button on gamepad toggles "preset scroll" mode; plugin UI shows a visible indicator when mode is active
+- [ ] **CTRL-02**: In preset scroll mode, the BPM up/down gamepad controls instead send MIDI Program Change +1 / −1 on a configurable MIDI channel
+- [ ] **CTRL-03**: Plugin UI displays the current MIDI program number while preset scroll mode is active
+
 ### Distribution
 
 - [ ] **DIST-01**: GitHub v1.4 release created with built installer binary and release notes
@@ -58,34 +64,35 @@
 
 ## Traceability
 
-*Populated by roadmapper.*
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LFO-01 | — | Pending |
-| LFO-02 | — | Pending |
-| LFO-03 | — | Pending |
-| LFO-04 | — | Pending |
-| LFO-05 | — | Pending |
-| LFO-06 | — | Pending |
-| LFO-07 | — | Pending |
-| LFO-08 | — | Pending |
-| LFO-09 | — | Pending |
-| LFO-10 | — | Pending |
-| LFO-11 | — | Pending |
-| CLK-01 | — | Pending |
-| CLK-02 | — | Pending |
-| PERF-01 | — | Pending |
-| PERF-02 | — | Pending |
-| PERF-03 | — | Pending |
-| DIST-01 | — | Pending |
-| DIST-02 | — | Pending |
+| LFO-01 | Phase 13 | Pending |
+| LFO-02 | Phase 13 | Pending |
+| LFO-03 | Phase 12 | Pending |
+| LFO-04 | Phase 12 | Pending |
+| LFO-05 | Phase 12 | Pending |
+| LFO-06 | Phase 12 | Pending |
+| LFO-07 | Phase 12 | Pending |
+| LFO-08 | Phase 13 | Pending |
+| LFO-09 | Phase 13 | Pending |
+| LFO-10 | Phase 13 | Pending |
+| LFO-11 | Phase 14 | Pending |
+| CLK-01 | Phase 14 | Pending |
+| CLK-02 | Phase 14 | Pending |
+| PERF-01 | Phase 12 | Pending |
+| PERF-02 | Phase 12 | Pending |
+| PERF-03 | Phase 12 | Pending |
+| CTRL-01 | Phase 16 | Pending |
+| CTRL-02 | Phase 16 | Pending |
+| CTRL-03 | Phase 16 | Pending |
+| DIST-01 | Phase 15 | Pending |
+| DIST-02 | Phase 15 | Pending |
 
 **Coverage:**
-- v1.4 requirements: 18 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 18 ⚠️
+- v1.4 requirements: 21 total
+- Mapped to phases: 21 (Phase 12: 8, Phase 13: 5, Phase 14: 3, Phase 15: 2, Phase 16: 3)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-26*
-*Last updated: 2026-02-26 — initial v1.4 definition*
+*Last updated: 2026-02-26 — traceability populated by roadmapper*
