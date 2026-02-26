@@ -85,8 +85,8 @@
 | CTRL-01 | Phase 15 | Complete |
 | CTRL-02 | Phase 15 | Complete |
 | CTRL-03 | Phase 15 | Complete |
-| DIST-01 | Phase 15 | Complete |
-| DIST-02 | Phase 15 | Complete |
+| DIST-01 | Phase 16 | Complete |
+| DIST-02 | Phase 16 | Complete |
 
 **Coverage:**
 - v1.4 requirements: 21 total
