@@ -315,6 +315,8 @@ PluginProcessor::~PluginProcessor() {}
 void PluginProcessor::prepareToPlay(double sr, int /*blockSize*/)
 {
     sampleRate_ = sr;
+    lfoX_.reset();
+    lfoY_.reset();
 }
 
 void PluginProcessor::releaseResources()
@@ -524,7 +526,77 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     if (loopOut.hasJoystickY) joystickY.store(loopOut.joystickY);
 
     // ── Build chord params ────────────────────────────────────────────────────
-    const ChordEngine::Params chordP = buildChordParams();
+    ChordEngine::Params chordP = buildChordParams();
+
+    // ── LFO modulation ────────────────────────────────────────────────────────
+    // Subdivision lookup: beats per cycle (quarter-note = 1.0 beat)
+    // Maps lfoXSubdiv / lfoYSubdiv choice index to subdivBeats for LfoEngine
+    // Indices:               1/1  1/2  1/4  1/8   1/16   1/32
+    static constexpr double kLfoSubdivBeats[6] = { 4.0, 2.0, 1.0, 0.5, 0.25, 0.125 };
+    {
+        const bool  xEnabled = *apvts.getRawParameterValue(ParamID::lfoXEnabled) > 0.5f;
+        const bool  yEnabled = *apvts.getRawParameterValue(ParamID::lfoYEnabled) > 0.5f;
+        const float xLevel   = *apvts.getRawParameterValue(ParamID::lfoXLevel);
+        const float yLevel   = *apvts.getRawParameterValue(ParamID::lfoYLevel);
+
+        // Compute ramp targets — process only if enabled and level > 0
+        // Per CONTEXT.md: at level=0, phase does NOT advance (bypass path).
+        float xTarget = 0.0f;
+        if (xEnabled && xLevel > 0.0f)
+        {
+            ProcessParams xp;
+            xp.sampleRate   = sampleRate_;
+            xp.blockSize    = blockSize;
+            xp.bpm          = lp.bpm;
+            xp.syncMode     = *apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f;
+            xp.ppqPosition  = ppqPos;
+            xp.isDawPlaying = isDawPlaying;
+            xp.rateHz       = *apvts.getRawParameterValue(ParamID::lfoXRate);
+            xp.subdivBeats  = kLfoSubdivBeats[
+                juce::jlimit(0, 5, (int)*apvts.getRawParameterValue(ParamID::lfoXSubdiv))];
+            xp.maxCycleBeats = 16.0;
+            xp.waveform     = static_cast<Waveform>(
+                (int)*apvts.getRawParameterValue(ParamID::lfoXWaveform));
+            xp.phaseShift   = *apvts.getRawParameterValue(ParamID::lfoXPhase) / 360.0f;
+            xp.distortion   = *apvts.getRawParameterValue(ParamID::lfoXDistortion);
+            xp.level        = xLevel;
+            xTarget = lfoX_.process(xp);
+        }
+
+        float yTarget = 0.0f;
+        if (yEnabled && yLevel > 0.0f)
+        {
+            ProcessParams yp;
+            yp.sampleRate   = sampleRate_;
+            yp.blockSize    = blockSize;
+            yp.bpm          = lp.bpm;
+            yp.syncMode     = *apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f;
+            yp.ppqPosition  = ppqPos;
+            yp.isDawPlaying = isDawPlaying;
+            yp.rateHz       = *apvts.getRawParameterValue(ParamID::lfoYRate);
+            yp.subdivBeats  = kLfoSubdivBeats[
+                juce::jlimit(0, 5, (int)*apvts.getRawParameterValue(ParamID::lfoYSubdiv))];
+            yp.maxCycleBeats = 16.0;
+            yp.waveform     = static_cast<Waveform>(
+                (int)*apvts.getRawParameterValue(ParamID::lfoYWaveform));
+            yp.phaseShift   = *apvts.getRawParameterValue(ParamID::lfoYPhase) / 360.0f;
+            yp.distortion   = *apvts.getRawParameterValue(ParamID::lfoYDistortion);
+            yp.level        = yLevel;
+            yTarget = lfoY_.process(yp);
+        }
+
+        // ~10 ms linear ramp toward target — prevents hard snap when LFO is disabled mid-phrase.
+        // At 512 samples / 44100 Hz one block ≈ 11.6 ms; coefficient moves output fully to
+        // target in approximately one block at typical sizes (within the 10 ms spec).
+        const float rampCoeff = static_cast<float>(blockSize) /
+                                std::max(1.0f, static_cast<float>(sampleRate_ * 0.01));
+        lfoXRampOut_ += (xTarget - lfoXRampOut_) * rampCoeff;
+        lfoYRampOut_ += (yTarget - lfoYRampOut_) * rampCoeff;
+
+        chordP.joystickX = std::clamp(chordP.joystickX + lfoXRampOut_, -1.0f, 1.0f);
+        chordP.joystickY = std::clamp(chordP.joystickY + lfoYRampOut_, -1.0f, 1.0f);
+    }
+    // ─────────────────────────────────── end LFO ──────────────────────────────
 
     // ── Compute & sample-hold pitches ─────────────────────────────────────────
     // We only recompute on trigger events.  The trigger callback does this.
@@ -555,7 +627,19 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             for (int v = 0; v < 4; ++v)
                 midi.addEvent(juce::MidiMessage::allNotesOff(voiceChs[v]), 0);
             trigger_.resetAllGates();
+            lfoX_.reset();
+            lfoY_.reset();
+            lfoXRampOut_ = 0.0f;
+            lfoYRampOut_ = 0.0f;
         }
+    }
+
+    if (dawJustStarted)
+    {
+        lfoX_.reset();  // align phase to beat 0 on transport restart
+        lfoY_.reset();
+        lfoXRampOut_ = 0.0f;
+        lfoYRampOut_ = 0.0f;
     }
 
     // Detect looper start/stop — send note-offs for any hanging looper notes on stop.
