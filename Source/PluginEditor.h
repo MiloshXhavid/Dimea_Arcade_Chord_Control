@@ -132,6 +132,7 @@ public:
 
     void paint(juce::Graphics&) override;
     void resized() override;
+    void mouseDown(const juce::MouseEvent& e) override;
 
 private:
     PluginProcessor& proc_;
@@ -195,6 +196,7 @@ private:
     int recBlinkCounter_      = 0;  // blink REC button while armed-but-not-recording
     int playWaitBlinkCounter_ = 0;  // blink PLAY button while wait-for-touch is armed
     int arpBlinkCounter_      = 0;  // blink ARP button while armed, waiting for DAW play
+    float beatPulse_          = 0.0f;  // 0.0-1.0 — decays in timerCallback for beat dot
 
     // Divider line X position — set in resized(), used in paint() so it's
     // independent of the joystick pad's centered position.
@@ -253,6 +255,22 @@ private:
     juce::Label      arpGateTimeLabel_;
     juce::Rectangle<int> arpBlockBounds_;  // for drawing the panel in paint()
 
+    // ── LFO panels ─────────────────────────────────────────────────────────────
+    juce::ComboBox   lfoXShapeBox_,    lfoYShapeBox_;
+    juce::Slider     lfoXRateSlider_,  lfoYRateSlider_;
+    juce::Slider     lfoXPhaseSlider_, lfoYPhaseSlider_;
+    juce::Slider     lfoXLevelSlider_, lfoYLevelSlider_;
+    juce::Slider     lfoXDistSlider_,  lfoYDistSlider_;
+    juce::TextButton lfoXSyncBtn_,     lfoYSyncBtn_;
+
+    // Panel bounds (set in resized(), drawn in paint())
+    juce::Rectangle<int> lfoXPanelBounds_, lfoYPanelBounds_;
+
+    // Hidden enabled toggle buttons — carry ButtonAttachment to lfoXEnabled/lfoYEnabled
+    juce::ToggleButton lfoXEnabledHiddenBtn_, lfoYEnabledHiddenBtn_;
+    // LED hit areas (set in resized, checked in mouseDown)
+    juce::Rectangle<int> lfoXLedBounds_, lfoYLedBounds_;
+
     // Panel bounds for section drawing — set in resized(), read in paint()
     juce::Rectangle<int> looperPanelBounds_;       // LOOPER section panel
     juce::Rectangle<int> filterModPanelBounds_;    // FILTER MOD section panel
@@ -281,6 +299,19 @@ private:
     std::unique_ptr<ComboAtt>   arpSubdivAtt_;
     std::unique_ptr<ComboAtt>   arpOrderAtt_;
     std::unique_ptr<SliderAtt>  arpGateTimeAtt_;
+
+    // LFO X
+    std::unique_ptr<ComboAtt>  lfoXShapeAtt_;
+    std::unique_ptr<SliderAtt> lfoXPhaseAtt_, lfoXLevelAtt_, lfoXDistAtt_;
+    std::unique_ptr<ButtonAtt> lfoXSyncAtt_, lfoXEnabledAtt_;
+    // Rate slider uses SliderParameterAttachment (swap on sync toggle)
+    std::unique_ptr<juce::SliderParameterAttachment> lfoXRateAtt_;
+
+    // LFO Y
+    std::unique_ptr<ComboAtt>  lfoYShapeAtt_;
+    std::unique_ptr<SliderAtt> lfoYPhaseAtt_, lfoYLevelAtt_, lfoYDistAtt_;
+    std::unique_ptr<ButtonAtt> lfoYSyncAtt_, lfoYEnabledAtt_;
+    std::unique_ptr<juce::SliderParameterAttachment> lfoYRateAtt_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginEditor)
 };
