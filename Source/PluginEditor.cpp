@@ -107,7 +107,7 @@ void PixelLookAndFeel::drawButtonBackground(juce::Graphics& g,
 
     if (button.getName() == "round")
     {
-        // Draw as circle (for RND SYNC button)
+        // Draw as circle (for RND SYNC button) — smaller than a knob, like the knob body
         const float size = juce::jmin(bounds.getWidth(), bounds.getHeight()) - 4.0f;
         const auto eb = bounds.withSizeKeepingCentre(size, size);
         g.setColour(fill);
@@ -350,11 +350,12 @@ void JoystickPad::paint(juce::Graphics& g)
     g.drawEllipse(circleRect, 1.5f);
 
     // Cursor dot + crosshair ticks
-    // Use LFO-modulated position when either LFO is active (enabled + level > 0)
-    const bool lfoXActive = *proc_.apvts.getRawParameterValue("lfoXEnabled") > 0.5f
-                         && *proc_.apvts.getRawParameterValue("lfoXLevel")   > 0.0f;
-    const bool lfoYActive = *proc_.apvts.getRawParameterValue("lfoYEnabled") > 0.5f
-                         && *proc_.apvts.getRawParameterValue("lfoYLevel")   > 0.0f;
+    // Use LFO-modulated position whenever either LFO is enabled — at level=0 the ramp
+    // holds lfoXRampOut_=0, so modulatedJoyX_ == joystickX anyway.  Checking only
+    // "enabled" (not level > 0) prevents a hard display-mode switch as the level slider
+    // first crosses zero, which was causing the cursor to jump.
+    const bool lfoXActive = *proc_.apvts.getRawParameterValue("lfoXEnabled") > 0.5f;
+    const bool lfoYActive = *proc_.apvts.getRawParameterValue("lfoYEnabled") > 0.5f;
     const float displayX = (lfoXActive || lfoYActive)
         ? proc_.modulatedJoyX_.load(std::memory_order_relaxed)
         : proc_.joystickX.load(std::memory_order_relaxed);
@@ -362,11 +363,15 @@ void JoystickPad::paint(juce::Graphics& g)
         ? proc_.modulatedJoyY_.load(std::memory_order_relaxed)
         : proc_.joystickY.load(std::memory_order_relaxed);
 
-    const float cx = (displayX + 1.0f) * 0.5f * b.getWidth()  + b.getX();
-    const float cy = (1.0f - (displayY + 1.0f) * 0.5f) * b.getHeight() + b.getY();
-
-    constexpr float dotR = 7.0f;
+    constexpr float dotR    = 7.0f;
     constexpr float tickLen = 5.0f;
+
+    // Clamp cursor centre so the full dot always stays inside the pad bounds —
+    // prevents it from "disappearing" into the edge when LFO level is high.
+    const float cx = juce::jlimit(b.getX() + dotR, b.getRight()  - dotR,
+                                  (displayX + 1.0f) * 0.5f * b.getWidth()  + b.getX());
+    const float cy = juce::jlimit(b.getY() + dotR, b.getBottom() - dotR,
+                                  (1.0f - (displayY + 1.0f) * 0.5f) * b.getHeight() + b.getY());
 
     // Static centre reference — same shape as cursor, always visible
     {
@@ -977,9 +982,8 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     randomGateTimeKnobAtt_ = std::make_unique<juce::SliderParameterAttachment>(
         *p.apvts.getParameter("randomGateTime"), randomGateTimeKnob_);
 
-    // Sync toggle (round button — drawn as circle, same size as a knob)
+    // Sync toggle — compact rectangular button like the looper mode buttons
     randomSyncButton_.setButtonText("RND SYNC");
-    randomSyncButton_.setName("round");
     randomSyncButton_.setClickingTogglesState(true);
     randomSyncButton_.setToggleState(true, juce::dontSendNotification);
     randomSyncButton_.setTooltip("ON: fires only while DAW plays. OFF: free tempo.");
@@ -1199,6 +1203,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     // Gamepad status
     gamepadStatusLabel_.setText("No controller", juce::dontSendNotification);
     gamepadStatusLabel_.setFont(juce::Font(10.0f));
+    gamepadStatusLabel_.setJustificationType(juce::Justification::centredRight);
     gamepadStatusLabel_.setColour(juce::Label::textColourId, Clr::textDim);
     addAndMakeVisible(gamepadStatusLabel_);
 
@@ -1609,7 +1614,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(lfoYEnabledBtn_);
     lfoYEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoYEnabled", lfoYEnabledBtn_);
 
-    startTimerHz(30);
+    startTimerHz(60);  // 60 Hz for smooth LFO joystick tracking
 }
 
 PluginEditor::~PluginEditor()
@@ -1664,22 +1669,22 @@ void PluginEditor::resized()
         auto row = right.removeFromTop(90);
         const int colW = (row.getWidth() - 3) / 2;  // 2 equal columns, 1 gap × 3px
 
-        // CUTOFF group: Atten (left 40%) | Base (right 60%)
+        // CUTOFF group: Atten (left 50%) | Base (right 50%)
         {
             auto col = row.removeFromLeft(colW); row.removeFromLeft(3);
             filterCutGroupBounds_ = col;
-            const int atW = col.getWidth() * 2 / 5;
+            const int atW = col.getWidth() / 2;
             auto aCol = col.removeFromLeft(atW); aCol.removeFromLeft(2);
             auto bCol = col; bCol.removeFromRight(1);
             filterXAttenLabel_.setBounds(aCol.removeFromTop(14)); filterXAttenKnob_.setBounds(aCol);
             filterXOffsetLabel_.setBounds(bCol.removeFromTop(14)); filterXOffsetKnob_.setBounds(bCol);
         }
 
-        // RESONANCE group: Atten (left 40%) | Base (right 60%)
+        // RESONANCE group: Atten (left 50%) | Base (right 50%)
         {
             auto col = row;
             filterResGroupBounds_ = col;
-            const int atW = col.getWidth() * 2 / 5;
+            const int atW = col.getWidth() / 2;
             auto aCol = col.removeFromLeft(atW); aCol.removeFromLeft(2);
             auto bCol = col; bCol.removeFromRight(1);
             filterYAttenLabel_.setBounds(aCol.removeFromTop(14)); filterYAttenKnob_.setBounds(aCol);
@@ -1713,18 +1718,15 @@ void PluginEditor::resized()
 
     right.removeFromTop(6);
 
-    // Gamepad status row: [GAMEPAD ON/OFF] [FILTER MOD ON/OFF] [status label]
+    // Gamepad status row: 4 equal-width buttons [GAMEPAD] [FILTER MOD] [REC FILTER] [PANIC]
     {
         auto row = right.removeFromTop(20);
-        gamepadActiveBtn_.setBounds(row.removeFromLeft(90));
-        row.removeFromLeft(4);
-        filterModBtn_.setBounds(row.removeFromLeft(90));
-        row.removeFromLeft(4);
-        filterRecBtn_.setBounds(row.removeFromLeft(58));
-        row.removeFromLeft(4);
-        panicBtn_.setBounds(row.removeFromRight(60));  // right-aligned, 60px wide
-        row.removeFromRight(4);                         // 4px gap between label and button
-        gamepadStatusLabel_.setBounds(row);             // remainder to status label
+        const int bW = (row.getWidth() - 3 * 4) / 4;  // equal width, 4px gaps
+        gamepadActiveBtn_.setBounds(row.removeFromLeft(bW)); row.removeFromLeft(4);
+        filterModBtn_.setBounds(row.removeFromLeft(bW));     row.removeFromLeft(4);
+        filterRecBtn_.setBounds(row.removeFromLeft(bW));     row.removeFromLeft(4);
+        panicBtn_.setBounds(row);  // takes remaining (same width as others)
+        gamepadStatusLabel_.setBounds(getWidth() - 8 - 200, getHeight() - 20, 200, 16);
     }
 
     // GAMEPAD panel bounds not used — right column panels removed (label conflicts)
@@ -1826,12 +1828,13 @@ void PluginEditor::resized()
 
         left.removeFromTop(14);
 
-        // Random controls row — [DENS] | [GATE] | [RND SYNC (round)] | [FREE BPM knob]
+        // Random controls row — [DENS] | [GATE] | [RND SYNC] | [FREE BPM knob]
         {
             auto rndRow = left.removeFromTop(60);
             randomDensityKnob_ .setBounds(rndRow.removeFromLeft(cw));
             randomGateTimeKnob_.setBounds(rndRow.removeFromLeft(cw));
-            randomSyncButton_  .setBounds(rndRow.removeFromLeft(cw));  // round button, 3rd col
+            // Compact rectangular button, centred in its column and same height as looper mode buttons
+            randomSyncButton_  .setBounds(rndRow.removeFromLeft(cw).withSizeKeepingCentre(cw - 6, 26));
             randomFreeTempoKnob_.setBounds(rndRow);                    // FREE BPM, 4th col
         }
 
@@ -1846,8 +1849,10 @@ void PluginEditor::resized()
     left.removeFromTop(6);
 
     // Reserve ARP block at the very bottom of the left column before the looper
-    // consumes the rest. Height: 6 gap + 22 button + 4 gap + 14 label + 22 combo = 68px.
-    constexpr int kArpH = 68;
+    // consumes the rest. Height: 22 gap + 22 button + 4 gap + 14 label + 22 combo = 84px.
+    // The 16px trim on the panel border puts the ARPEGGIATOR title safely below
+    // the looper panel's bottom border line.
+    constexpr int kArpH = 84;
     arpBlockBounds_ = left.removeFromBottom(kArpH);
 
     // Looper
@@ -1923,7 +1928,7 @@ void PluginEditor::resized()
     //         [RATE combo | ORDER combo | GATE slider]
     {
         auto r = arpBlockBounds_;
-        r.removeFromTop(6);  // gap from looper
+        r.removeFromTop(22);  // extra visual gap so ARPEGGIATOR label clears looper border
         arpEnabledBtn_.setBounds(r.removeFromTop(22));
         r.removeFromTop(4);
         const int third = r.getWidth() / 3;
@@ -1940,12 +1945,6 @@ void PluginEditor::resized()
     // ── LFO X panel layout ─────────────────────────────────────────────────────
     {
         auto col = lfoXCol;
-
-        // Reserve bottom 96px for X Range knob + label
-        auto rangeArea = col.removeFromBottom(96);
-        col.removeFromBottom(6);  // gap between panel bottom and range knob
-        joyXAttenLabel_.setBounds(rangeArea.removeFromTop(14));
-        joyXAttenKnob_.setBounds(rangeArea);
 
         col.removeFromTop(14);  // clear header area
 
@@ -1998,17 +1997,20 @@ void PluginEditor::resized()
                               .withX(lfoXCol.getX())
                               .withWidth(lfoXCol.getWidth())
                               .expanded(0, 10);
+
+        // X Range knob: aligned vertically with octave selectors in left column
+        {
+            const int octLabelY = rootOctLabel_.getBounds().getY();
+            const int octKnobY  = rootOctKnob_.getBounds().getY();
+            const int octKnobH  = rootOctKnob_.getBounds().getHeight();
+            joyXAttenLabel_.setBounds(lfoXCol.getX(), octLabelY, lfoXCol.getWidth(), 14);
+            joyXAttenKnob_.setBounds(lfoXCol.getX(), octKnobY, lfoXCol.getWidth(), octKnobH);
+        }
     }
 
     // ── LFO Y panel layout ─────────────────────────────────────────────────────
     {
         auto col = lfoYCol;
-
-        // Reserve bottom 96px for Y Range knob + label
-        auto rangeArea = col.removeFromBottom(96);
-        col.removeFromBottom(6);  // gap between panel bottom and range knob
-        joyYAttenLabel_.setBounds(rangeArea.removeFromTop(14));
-        joyYAttenKnob_.setBounds(rangeArea);
 
         col.removeFromTop(14);  // clear header area
 
@@ -2061,6 +2063,15 @@ void PluginEditor::resized()
                               .withX(lfoYCol.getX())
                               .withWidth(lfoYCol.getWidth())
                               .expanded(0, 10);
+
+        // Y Range knob: aligned vertically with octave selectors in left column
+        {
+            const int octLabelY = rootOctLabel_.getBounds().getY();
+            const int octKnobY  = rootOctKnob_.getBounds().getY();
+            const int octKnobH  = rootOctKnob_.getBounds().getHeight();
+            joyYAttenLabel_.setBounds(lfoYCol.getX(), octLabelY, lfoYCol.getWidth(), 14);
+            joyYAttenKnob_.setBounds(lfoYCol.getX(), octKnobY, lfoYCol.getWidth(), octKnobH);
+        }
     }
     (void)rowH;
 }
@@ -2084,7 +2095,7 @@ void PluginEditor::paint(juce::Graphics& g)
     // Title: pixel font for branding, but bright/readable
     g.setFont(pixelFont_.withHeight(11.0f));
     g.setColour(Clr::text);
-    g.drawText("DIMA CHORD JOY MK2", header, juce::Justification::centred);
+    g.drawText("DIMEA CHORD JOYSTICK MK2", header, juce::Justification::centred);
 
     // Outer border
     g.setColour(Clr::accent.brighter(0.5f));
@@ -2127,15 +2138,15 @@ void PluginEditor::paint(juce::Graphics& g)
     drawFilterGroup(filterCutGroupBounds_, "CUTOFF");
     drawFilterGroup(filterResGroupBounds_, "RESONANCE");
 
-    // Arpeggiator panel border
+    // Arpeggiator panel border — trim the top 8px so the border starts below the looper
     if (!arpBlockBounds_.isEmpty())
     {
-        const auto fb = arpBlockBounds_.toFloat().reduced(0.0f, 2.0f);
+        const auto fb = arpBlockBounds_.toFloat().withTrimmedTop(16.0f).reduced(0.0f, 2.0f);
         g.setColour(Clr::panel.brighter(0.08f));
         g.fillRoundedRectangle(fb, 5.0f);
         g.setColour(Clr::accent.brighter(0.25f));
         g.drawRoundedRectangle(fb, 5.0f, 1.0f);
-        g.setColour(Clr::textDim.brighter(0.3f));
+        g.setColour(Clr::text);  // white like scale preset
         g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 8.5f, juce::Font::bold));
         g.drawText("ARPEGGIATOR", (int)fb.getX(), (int)fb.getY() - 12,
                    (int)fb.getWidth(), 12, juce::Justification::centred);
@@ -2162,8 +2173,8 @@ void PluginEditor::paint(juce::Graphics& g)
         g.setColour(Clr::bg);
         g.fillRect(textX, textY, textW, textH);
 
-        // Draw label text
-        g.setColour(Clr::textDim);
+        // Draw label text — white like scale preset
+        g.setColour(Clr::text);
         g.drawText(title, textX, textY, textW, textH, juce::Justification::centred);
     };
 
@@ -2185,15 +2196,15 @@ void PluginEditor::paint(juce::Graphics& g)
         g.setColour(Clr::accent.brighter(0.5f));
         g.drawRoundedRectangle(fb.reduced(0.5f), 7.0f, 1.5f);
 
-        // Knockout header label (left-aligned for narrow panels)
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::bold));
-        const int textW = g.getCurrentFont().getStringWidth(title) + 8;
-        const int textH = 12;
+        // Knockout header label (left-aligned for narrow panels) — white, 12pt bold like scale preset
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 12.0f, juce::Font::bold));
+        const int textW = g.getCurrentFont().getStringWidth(title) + 10;
+        const int textH = 14;
         const int textX = (int)fb.getX() + 6;
         const int textY = (int)fb.getY() - textH / 2;
         g.setColour(Clr::panel.brighter(0.12f));
         g.fillRect(textX, textY, textW, textH);
-        g.setColour(Clr::textDim);
+        g.setColour(Clr::text);
         g.drawText(title, textX, textY, textW, textH, juce::Justification::left);
 
     };
@@ -2215,31 +2226,16 @@ void PluginEditor::paint(juce::Graphics& g)
     if (!lfoXPanelBounds_.isEmpty())
     {
         drawSliderLabel(lfoXRateSlider_.getBounds(),  "Rate");
-        drawSliderLabel(lfoXPhaseSlider_.getBounds(), "Ph");
-        drawSliderLabel(lfoXLevelSlider_.getBounds(), "Lvl");
-        drawSliderLabel(lfoXDistSlider_.getBounds(),  "Dst");
+        drawSliderLabel(lfoXPhaseSlider_.getBounds(), "Phase");
+        drawSliderLabel(lfoXLevelSlider_.getBounds(), "Level");
+        drawSliderLabel(lfoXDistSlider_.getBounds(),  "Dist");
     }
     if (!lfoYPanelBounds_.isEmpty())
     {
         drawSliderLabel(lfoYRateSlider_.getBounds(),  "Rate");
-        drawSliderLabel(lfoYPhaseSlider_.getBounds(), "Ph");
-        drawSliderLabel(lfoYLevelSlider_.getBounds(), "Lvl");
-        drawSliderLabel(lfoYDistSlider_.getBounds(),  "Dst");
-    }
-
-    // ── Beat pulse dot — drawn adjacent to BPM label ──────────────────────────
-    if (bpmDisplayLabel_.isVisible())
-    {
-        const auto& lb = bpmDisplayLabel_.getBounds();
-        const float dotX = (float)(lb.getRight() + 3);
-        const float dotY = (float)(lb.getCentreY()) - 4.0f;
-        // Dim grey at beat=0, bright cyan at beat=1.0
-        const juce::Colour offClr = Clr::gateOff;
-        const juce::Colour onClr  = juce::Colour(0xFF00E5FF);  // bright cyan
-        const juce::Colour dotClr = offClr.interpolatedWith(onClr, beatPulse_)
-                                          .withAlpha(0.3f + 0.7f * beatPulse_);
-        g.setColour(dotClr);
-        g.fillEllipse(dotX, dotY, 8.0f, 8.0f);
+        drawSliderLabel(lfoYPhaseSlider_.getBounds(), "Phase");
+        drawSliderLabel(lfoYLevelSlider_.getBounds(), "Level");
+        drawSliderLabel(lfoYDistSlider_.getBounds(),  "Dist");
     }
 
     // ── Looper position bar ───────────────────────────────────────────────────
@@ -2293,7 +2289,6 @@ void PluginEditor::paint(juce::Graphics& g)
     };
     drawAbove(randomDensityKnob_,   "RND DENS");
     drawAbove(randomGateTimeKnob_,  "RND GATE");
-    drawAbove(randomSyncButton_,    "RND SYNC");
     drawAbove(randomFreeTempoKnob_, "FREE BPM");
     drawAbove(filterYModeBox_,      "LEFT Y");
     drawAbove(filterXModeBox_,      "LEFT X");
@@ -2305,7 +2300,7 @@ void PluginEditor::paint(juce::Graphics& g)
     {
         const int labelX = quantizeOffBtn_.getX();
         const int labelW = quantizeSubdivBox_.getRight() - labelX;
-        g.setColour(Clr::textDim.brighter(0.2f));
+        g.setColour(Clr::text);  // white like scale preset
         g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
         g.drawText("QUANTIZE TRIGGER", labelX, quantizeOffBtn_.getY() - 13, labelW, 12,
                    juce::Justification::left);
@@ -2313,8 +2308,8 @@ void PluginEditor::paint(juce::Graphics& g)
 
     // ── Footer: how-to-use instructions (left column only) ───────────────────
     {
-        // Constrain to left column — same right edge as the column divider
-        const int footerRight = joystickPad_.isVisible() ? (joystickPad_.getX() - 4) : getWidth();
+        // Constrain to left column only (not the LFO columns)
+        const int footerRight = dividerX_ - 8;
         auto footer = juce::Rectangle<int>(0, getHeight() - 60, footerRight, 60).reduced(8, 0);
 
         // Separator line
@@ -2354,7 +2349,7 @@ void PluginEditor::paint(juce::Graphics& g)
         int ry = getHeight() - 55;  // identical to first left-footer row Y
 
         g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
-        g.setColour(Clr::textDim.brighter(0.3f));
+        g.setColour(Clr::textDim.withAlpha(0.8f));  // same white as left footer
 
         const juce::String hintRows[] = {
             "Left stick sends filter CC to your synth.",
@@ -2368,6 +2363,27 @@ void PluginEditor::paint(juce::Graphics& g)
         }
     }
 
+}
+
+// ─── paintOverChildren — beat pulse dot overlaid on top of knobs ──────────────
+
+void PluginEditor::paintOverChildren(juce::Graphics& g)
+{
+    // Beat pulse dot: drawn ON TOP of the FREE BPM knob so it's always visible
+    if (randomFreeTempoKnob_.isVisible() && !randomFreeTempoKnob_.getBounds().isEmpty())
+    {
+        const auto& kb = randomFreeTempoKnob_.getBounds();
+        // Centre the dot in the knob's bounding box
+        const float dotX = (float)kb.getCentreX() - 4.0f;
+        const float dotY = (float)kb.getCentreY() - 4.0f;
+        // Dim grey at beat=0, bright cyan at beat=1.0
+        const juce::Colour offClr = juce::Colour(0xFF2A3050);
+        const juce::Colour onClr  = juce::Colour(0xFF00E5FF);  // bright cyan
+        const juce::Colour dotClr = offClr.interpolatedWith(onClr, beatPulse_)
+                                          .withAlpha(0.3f + 0.7f * beatPulse_);
+        g.setColour(dotClr);
+        g.fillEllipse(dotX, dotY, 8.0f, 8.0f);
+    }
 }
 
 // ─── Timer (UI refresh) ───────────────────────────────────────────────────────
@@ -2520,6 +2536,37 @@ void PluginEditor::timerCallback()
         bpmDisplayLabel_.setText(juce::String(bpm, 1) + " BPM", juce::dontSendNotification);
     }
 
+    // Update gamepad OPTION indicator for preset-scroll mode
+    {
+        const bool presetScroll = proc_.getGamepad().isPresetScrollActive();
+        const bool connected    = proc_.getGamepad().isConnected();
+
+        if (presetScroll)
+        {
+            // Show OPTION mode indicator — append to existing controller name text
+            // Build suffix: existing label prefix (controller name) + " | OPTION"
+            // Read existing text to preserve controller name; replace only the color.
+            const juce::String currentText = gamepadStatusLabel_.getText();
+            // Strip any prior " | OPTION" suffix to avoid accumulation
+            const juce::String base = currentText.replace(" | OPTION", "");
+            gamepadStatusLabel_.setText(base + " | OPTION", juce::dontSendNotification);
+            gamepadStatusLabel_.setColour(juce::Label::textColourId, Clr::highlight);
+        }
+        else
+        {
+            // Restore normal color; strip OPTION suffix if present
+            const juce::String currentText = gamepadStatusLabel_.getText();
+            if (currentText.contains(" | OPTION"))
+            {
+                const juce::String base = currentText.replace(" | OPTION", "");
+                gamepadStatusLabel_.setText(base, juce::dontSendNotification);
+            }
+            // Restore color based on connection state
+            gamepadStatusLabel_.setColour(juce::Label::textColourId,
+                connected ? Clr::gateOn : Clr::textDim);
+        }
+    }
+
     // Update DAW-visible filter CC display parameters from live audio-thread values
     {
         auto* pCut = proc_.apvts.getParameter("filterCutLive");
@@ -2607,13 +2654,9 @@ void PluginEditor::timerCallback()
     else if (beatPulse_ > 0.0f)
         beatPulse_ = juce::jmax(0.0f, beatPulse_ - 0.11f);
 
-    // Repaint BPM label area to update beat dot
-    if (!bpmDisplayLabel_.getBounds().isEmpty())
-    {
-        auto dotArea = bpmDisplayLabel_.getBounds().withLeft(
-            bpmDisplayLabel_.getRight()).withWidth(14).expanded(2, 2);
-        repaint(dotArea);
-    }
+    // Repaint FREE BPM knob area to update beat dot (drawn by paintOverChildren)
+    if (!randomFreeTempoKnob_.getBounds().isEmpty())
+        repaint(randomFreeTempoKnob_.getBounds().expanded(2));
 
     // Repaint LFO panel header areas (title knockout may change)
     if (!lfoXPanelBounds_.isEmpty()) repaint(lfoXPanelBounds_);
