@@ -111,7 +111,7 @@ Plans:
 | 09. MIDI Panic | v1.3 | 2/2 | ✅ Shipped | 2026-02-25 |
 | 10. Trigger Quantization | v1.3 | 5/5 | ✅ Shipped | 2026-02-25 |
 | 11. UI Polish + Installer | v1.3 | 4/4 | ✅ Shipped | 2026-02-25 |
-| 12. LFO Engine Core | 2/2 | Complete   | 2026-02-26 | - |
+| 12. LFO Engine Core | 2/2 | Complete    | 2026-02-26 | - |
 | 13. processBlock Integration + APVTS | v1.4 | 0/? | Not started | - |
 | 14. LFO UI + Beat Clock | v1.4 | 0/? | Not started | - |
 | 15. Gamepad Preset Control | v1.4 | 0/? | Not started | - |
