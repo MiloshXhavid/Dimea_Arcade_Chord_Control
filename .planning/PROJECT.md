@@ -56,7 +56,11 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 
 ### Active — v1.4
 
-*(None defined yet — run `/gsd:new-milestone` to start)*
+- [ ] Dual LFO engine (X + Y axis) — waveforms, frequency, phase, distortion, level, sync
+- [ ] LFO UI section left of joystick — shape dropdown, sliders, on/off, sync button
+- [ ] Beat clock indicator — flashing dot next to Free BPM knob, DAW-sync aware
+- [ ] Performance review — LFO audio thread safety, no allocations, no races
+- [ ] GitHub v1.4 release + desktop backup
 
 ### Out of Scope
 
@@ -105,5 +109,15 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 | Border-only section panels | Fills covered drawAbove labels at same Y coordinate | ✓ Good |
 | Editor height 790 → 810 | Quantize row (20px) was clipped at 790 | ✓ Good |
 
+## Current Milestone: v1.4 LFO + Clock
+
+**Goal:** Add dual per-axis LFO modulation to the joystick with a beat clock indicator, then ship a clean GitHub release.
+
+**Target features:**
+- Dual LFO section (X + Y axis) left of joystick — 7 waveforms (Sine/Tri/Saw↑/Saw↓/Square/S&H/Random), Frequency / Phase / Distortion / Level sliders, Shape dropdown, Sync button, On/Off toggle per LFO
+- Beat clock dot next to Free BPM knob — flashes on every beat, follows DAW sync when active
+- Performance + stability review
+- GitHub v1.4 release + desktop backup
+
 ---
-*Last updated: 2026-02-25 — v1.3 shipped*
+*Last updated: 2026-02-26 — v1.4 milestone started*

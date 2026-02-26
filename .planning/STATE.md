@@ -9,9 +9,10 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 ## Current Position
 
-Phase: v1.3 complete — all phases shipped
-Status: Milestone closed. Run `/gsd:new-milestone` to plan v1.4.
-Last activity: 2026-02-25 — v1.3 milestone archived
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v1.4
+Last activity: 2026-02-26 — Milestone v1.4 started
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -39,4 +40,4 @@ None — milestone clean.
 
 Last session: 2026-02-25 (v1.3 milestone complete)
 Stopped at: Milestone archive complete
-Next step: `/gsd:new-milestone` to define v1.4
+Next step: `/gsd:plan-phase 12` to start Phase 12 (LFO Engine)
