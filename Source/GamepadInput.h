@@ -18,8 +18,8 @@ typedef struct _SDL_GameController SDL_GameController;
 //   L2 (LeftTrigger)   → voice 1 (Third)
 //   R1 (RightShoulder) → voice 2 (Fifth)
 //   R2 (RightTrigger)  → voice 3 (Tension)
-//   Left stick X       → filter cutoff (CC74)
-//   Left stick Y       → filter resonance (CC71)
+//   Left stick Y       → filter cutoff (CC74)
+//   Left stick X       → filter resonance (CC71)
 //   L3 (LeftStick btn) → all-notes trigger
 //   Cross (A)          → looper start/stop
 //   Square (X)         → looper reset
