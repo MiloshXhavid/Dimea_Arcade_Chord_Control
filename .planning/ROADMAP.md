@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 MVP** — Phases 01-07 (shipped 2026-02-23)
 - ✅ **v1.3 Polish & Quantization** — Phases 09-11 (shipped 2026-02-25)
-- 🚧 **v1.4 LFO + Clock** — Phases 12-15 (in progress)
+- 🚧 **v1.4 LFO + Clock** — Phases 12-16 (in progress)
 
 ## Phases
 
@@ -38,11 +38,11 @@ Full details: `.planning/milestones/v1.3-ROADMAP.md`
 
 **Milestone Goal:** Add dual per-axis LFO modulation to the joystick with a beat clock indicator, then ship a clean GitHub release.
 
-- [ ] **Phase 12: LFO Engine Core** — Isolated LFO DSP class (LfoEngine.h/cpp): all 7 waveforms, dual-axis phase accumulators, LCG RNG, distortion, beat detection, audio-thread safety
+- [x] **Phase 12: LFO Engine Core** — Isolated LFO DSP class (LfoEngine.h/cpp): all 7 waveforms, dual-axis phase accumulators, LCG RNG, distortion, beat detection, audio-thread safety (completed 2026-02-26)
 - [ ] **Phase 13: processBlock Integration and APVTS** — Wire LfoEngine into the processor: 14 APVTS params, process() call in processBlock, output applied in buildChordParams(), phase reset on DAW start
 - [ ] **Phase 14: LFO UI and Beat Clock** — Full LFO panel left of joystick + beat clock dot near Free BPM knob, all controls attached to APVTS
-- [ ] **Phase 15: Distribution** — GitHub v1.4 release with installer binary + release notes; desktop backup
-- [ ] **Phase 16: Gamepad Preset Control** — Option button toggles preset-scroll mode; BPM±1 controls send MIDI Program Change; UI shows active mode + current program number
+- [ ] **Phase 15: Gamepad Preset Control** — Option button toggles preset-scroll mode; BPM±1 controls send MIDI Program Change; UI shows active mode + current program number
+- [ ] **Phase 16: Distribution** — GitHub v1.4 release with installer binary + release notes; desktop backup
 
 ## Phase Details
 
@@ -84,16 +84,7 @@ Plans:
   4. Toggling Sync on an LFO panel switches the Rate control label and behavior between Hz display and subdivision steps — no UI glitch or layout shift
 **Plans**: TBD
 
-### Phase 15: Distribution
-**Goal**: v1.4 is publicly released on GitHub and backed up locally
-**Depends on**: Phase 14
-**Requirements**: DIST-01, DIST-02
-**Success Criteria** (what must be TRUE):
-  1. A GitHub release tagged `v1.4` exists with the installer binary attached and a release notes body listing the LFO + beat clock features
-  2. A copy of the built plugin and installer is present at `Desktop/Dima_plug-in` — confirmed by directory listing
-**Plans**: TBD
-
-### Phase 16: Gamepad Preset Control
+### Phase 15: Gamepad Preset Control
 **Goal**: The Option button on the PS/Xbox controller switches the BPM±1 controls into MIDI Program Change mode, with clear UI feedback showing the active mode and current program number
 **Depends on**: Phase 14 (UI framework in place)
 **Requirements**: CTRL-01, CTRL-02, CTRL-03
@@ -101,6 +92,15 @@ Plans:
   1. Pressing the Option button activates preset-scroll mode and a visible indicator appears in the plugin UI; pressing again deactivates it
   2. In preset-scroll mode, the gamepad controls that normally increment/decrement BPM instead send MIDI Program Change +1 / −1 on the configured MIDI channel — verified in DAW MIDI monitor
   3. The plugin UI displays the current program number (0–127) while preset-scroll mode is active; number updates on each Program Change sent
+**Plans**: TBD
+
+### Phase 16: Distribution
+**Goal**: v1.4 is publicly released on GitHub and backed up locally
+**Depends on**: Phase 15
+**Requirements**: DIST-01, DIST-02
+**Success Criteria** (what must be TRUE):
+  1. A GitHub release tagged `v1.4` exists with the installer binary attached and a release notes body listing the LFO + beat clock features
+  2. A copy of the built plugin and installer is present at `Desktop/Dima_plug-in` — confirmed by directory listing
 **Plans**: TBD
 
 ## Progress
@@ -111,11 +111,11 @@ Plans:
 | 09. MIDI Panic | v1.3 | 2/2 | ✅ Shipped | 2026-02-25 |
 | 10. Trigger Quantization | v1.3 | 5/5 | ✅ Shipped | 2026-02-25 |
 | 11. UI Polish + Installer | v1.3 | 4/4 | ✅ Shipped | 2026-02-25 |
-| 12. LFO Engine Core | 1/2 | In Progress|  | - |
+| 12. LFO Engine Core | 2/2 | Complete   | 2026-02-26 | - |
 | 13. processBlock Integration + APVTS | v1.4 | 0/? | Not started | - |
 | 14. LFO UI + Beat Clock | v1.4 | 0/? | Not started | - |
-| 15. Distribution | v1.4 | 0/? | Not started | - |
-| 16. Gamepad Preset Control | v1.4 | 0/? | Not started | - |
+| 15. Gamepad Preset Control | v1.4 | 0/? | Not started | - |
+| 16. Distribution | v1.4 | 0/? | Not started | - |
 
 ---
 *v1.0 shipped 2026-02-23 — 7 phases, 17 plans*
