@@ -1500,10 +1500,12 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     };
 
     // Enabled: hidden ToggleButton with ButtonAttachment — clickable LED area in paint()
-    lfoXEnabledHiddenBtn_.setClickingTogglesState(true);
-    lfoXEnabledHiddenBtn_.setAlpha(0.0f);
-    addAndMakeVisible(lfoXEnabledHiddenBtn_);
-    lfoXEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoXEnabled", lfoXEnabledHiddenBtn_);
+    lfoXEnabledBtn_.setButtonText("ON");
+    lfoXEnabledBtn_.setClickingTogglesState(true);
+    styleButton(lfoXEnabledBtn_);
+    lfoXEnabledBtn_.setTooltip("Enable/disable LFO X");
+    addAndMakeVisible(lfoXEnabledBtn_);
+    lfoXEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoXEnabled", lfoXEnabledBtn_);
 
     // ── LFO Y panel ───────────────────────────────────────────────────────────
     // Shape ComboBox
@@ -1600,10 +1602,12 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     };
 
     // Enabled: hidden ToggleButton with ButtonAttachment — clickable LED area in paint()
-    lfoYEnabledHiddenBtn_.setClickingTogglesState(true);
-    lfoYEnabledHiddenBtn_.setAlpha(0.0f);
-    addAndMakeVisible(lfoYEnabledHiddenBtn_);
-    lfoYEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoYEnabled", lfoYEnabledHiddenBtn_);
+    lfoYEnabledBtn_.setButtonText("ON");
+    lfoYEnabledBtn_.setClickingTogglesState(true);
+    styleButton(lfoYEnabledBtn_);
+    lfoYEnabledBtn_.setTooltip("Enable/disable LFO Y");
+    addAndMakeVisible(lfoYEnabledBtn_);
+    lfoYEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoYEnabled", lfoYEnabledBtn_);
 
     startTimerHz(30);
 }
@@ -1614,16 +1618,6 @@ PluginEditor::~PluginEditor()
     stopTimer();
 }
 
-void PluginEditor::mouseDown(const juce::MouseEvent& e)
-{
-    // Check if click landed in LFO enabled LED bounds — if so, toggle the hidden button
-    if (lfoXLedBounds_.contains(e.getPosition()))
-        lfoXEnabledHiddenBtn_.setToggleState(!lfoXEnabledHiddenBtn_.getToggleState(),
-                                              juce::sendNotificationSync);
-    else if (lfoYLedBounds_.contains(e.getPosition()))
-        lfoYEnabledHiddenBtn_.setToggleState(!lfoYEnabledHiddenBtn_.getToggleState(),
-                                              juce::sendNotificationSync);
-}
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
@@ -1639,12 +1633,12 @@ void PluginEditor::resized()
     auto left = area.removeFromLeft(kLeftColW);
     area.removeFromLeft(8);  // gap between left column and LFO panels
 
-    // LFO X panel column (130px)
-    auto lfoXCol = area.removeFromLeft(130);
+    // LFO X panel column (150px — matches half of joystick pad width)
+    auto lfoXCol = area.removeFromLeft(150);
     area.removeFromLeft(4);
 
-    // LFO Y panel column (130px)
-    auto lfoYCol = area.removeFromLeft(130);
+    // LFO Y panel column (150px)
+    auto lfoYCol = area.removeFromLeft(150);
     area.removeFromLeft(4);
 
     // Remaining right area (joystick + knobs + pads)
@@ -1664,19 +1658,11 @@ void PluginEditor::resized()
 
     right.removeFromTop(36);
 
-    // Knob row: X Range | Y Range | CUTOFF group | RESONANCE group
-    // Each filter group splits 40% (Atten, small) + 60% (Base, main).
+    // Knob row: CUTOFF group | RESONANCE group
+    // (X Range / Y Range knobs are now positioned under their LFO columns)
     {
         auto row = right.removeFromTop(90);
-        const int colW = (row.getWidth() - 9) / 4;  // 4 equal columns, 3 gaps × 3px
-
-        // X Range
-        { auto col = row.removeFromLeft(colW); row.removeFromLeft(3);
-          joyXAttenLabel_.setBounds(col.removeFromTop(14)); joyXAttenKnob_.setBounds(col); }
-
-        // Y Range
-        { auto col = row.removeFromLeft(colW); row.removeFromLeft(3);
-          joyYAttenLabel_.setBounds(col.removeFromTop(14)); joyYAttenKnob_.setBounds(col); }
+        const int colW = (row.getWidth() - 3) / 2;  // 2 equal columns, 1 gap × 3px
 
         // CUTOFF group: Atten (left 40%) | Base (right 60%)
         {
@@ -1953,18 +1939,28 @@ void PluginEditor::resized()
 
     // ── LFO X panel layout ─────────────────────────────────────────────────────
     {
-        // Start from top of lfoXCol (aligned with the joystick area)
         auto col = lfoXCol;
+
+        // Reserve bottom 96px for X Range knob + label
+        auto rangeArea = col.removeFromBottom(96);
+        col.removeFromBottom(6);  // gap between panel bottom and range knob
+        joyXAttenLabel_.setBounds(rangeArea.removeFromTop(14));
+        joyXAttenKnob_.setBounds(rangeArea);
+
         col.removeFromTop(14);  // clear header area
+
+        // Row 0: ON button (full width)
+        lfoXEnabledBtn_.setBounds(col.removeFromTop(22));
+        col.removeFromTop(4);
 
         // Row 1: Shape ComboBox (full width)
         lfoXShapeBox_.setBounds(col.removeFromTop(22));
         col.removeFromTop(4);
 
-        // Row 2: Rate slider (left 30px = label space in paint())
+        // Row 2: Rate slider (left 34px = label space in paint())
         {
             auto row = col.removeFromTop(18);
-            row.removeFromLeft(30);
+            row.removeFromLeft(34);
             lfoXRateSlider_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -1972,7 +1968,7 @@ void PluginEditor::resized()
         // Row 3: Phase slider
         {
             auto row = col.removeFromTop(18);
-            row.removeFromLeft(30);
+            row.removeFromLeft(34);
             lfoXPhaseSlider_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -1980,7 +1976,7 @@ void PluginEditor::resized()
         // Row 4: Level slider
         {
             auto row = col.removeFromTop(18);
-            row.removeFromLeft(30);
+            row.removeFromLeft(34);
             lfoXLevelSlider_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -1988,7 +1984,7 @@ void PluginEditor::resized()
         // Row 5: Distortion slider
         {
             auto row = col.removeFromTop(18);
-            row.removeFromLeft(30);
+            row.removeFromLeft(34);
             lfoXDistSlider_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -1996,36 +1992,38 @@ void PluginEditor::resized()
         // Row 6: SYNC button (full width)
         lfoXSyncBtn_.setBounds(col.removeFromTop(22));
 
-        // Panel bounds: wraps from ShapeBox top to SyncBtn bottom, full column width + padding
-        lfoXPanelBounds_ = lfoXShapeBox_.getBounds()
+        // Panel bounds: wraps from ON button top to SYNC button bottom
+        lfoXPanelBounds_ = lfoXEnabledBtn_.getBounds()
                               .getUnion(lfoXSyncBtn_.getBounds())
                               .withX(lfoXCol.getX())
                               .withWidth(lfoXCol.getWidth())
                               .expanded(0, 10);
-
-        // LED bounds: top-right of panel header (8px circle + hit area 12x12)
-        lfoXLedBounds_ = juce::Rectangle<int>(
-            lfoXPanelBounds_.getRight() - 18,
-            lfoXPanelBounds_.getY() + 1,
-            12, 12);
-
-        // Hidden button: placed over LED for accessibility
-        lfoXEnabledHiddenBtn_.setBounds(lfoXLedBounds_);
     }
 
     // ── LFO Y panel layout ─────────────────────────────────────────────────────
     {
         auto col = lfoYCol;
+
+        // Reserve bottom 96px for Y Range knob + label
+        auto rangeArea = col.removeFromBottom(96);
+        col.removeFromBottom(6);  // gap between panel bottom and range knob
+        joyYAttenLabel_.setBounds(rangeArea.removeFromTop(14));
+        joyYAttenKnob_.setBounds(rangeArea);
+
         col.removeFromTop(14);  // clear header area
+
+        // Row 0: ON button (full width)
+        lfoYEnabledBtn_.setBounds(col.removeFromTop(22));
+        col.removeFromTop(4);
 
         // Row 1: Shape ComboBox (full width)
         lfoYShapeBox_.setBounds(col.removeFromTop(22));
         col.removeFromTop(4);
 
-        // Row 2: Rate slider
+        // Row 2: Rate slider (left 34px = label space in paint())
         {
             auto row = col.removeFromTop(18);
-            row.removeFromLeft(30);
+            row.removeFromLeft(34);
             lfoYRateSlider_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -2033,7 +2031,7 @@ void PluginEditor::resized()
         // Row 3: Phase slider
         {
             auto row = col.removeFromTop(18);
-            row.removeFromLeft(30);
+            row.removeFromLeft(34);
             lfoYPhaseSlider_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -2041,7 +2039,7 @@ void PluginEditor::resized()
         // Row 4: Level slider
         {
             auto row = col.removeFromTop(18);
-            row.removeFromLeft(30);
+            row.removeFromLeft(34);
             lfoYLevelSlider_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -2049,7 +2047,7 @@ void PluginEditor::resized()
         // Row 5: Distortion slider
         {
             auto row = col.removeFromTop(18);
-            row.removeFromLeft(30);
+            row.removeFromLeft(34);
             lfoYDistSlider_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -2057,20 +2055,12 @@ void PluginEditor::resized()
         // Row 6: SYNC button (full width)
         lfoYSyncBtn_.setBounds(col.removeFromTop(22));
 
-        // Panel bounds
-        lfoYPanelBounds_ = lfoYShapeBox_.getBounds()
+        // Panel bounds: wraps from ON button top to SYNC button bottom
+        lfoYPanelBounds_ = lfoYEnabledBtn_.getBounds()
                               .getUnion(lfoYSyncBtn_.getBounds())
                               .withX(lfoYCol.getX())
                               .withWidth(lfoYCol.getWidth())
                               .expanded(0, 10);
-
-        // LED bounds
-        lfoYLedBounds_ = juce::Rectangle<int>(
-            lfoYPanelBounds_.getRight() - 18,
-            lfoYPanelBounds_.getY() + 1,
-            12, 12);
-
-        lfoYEnabledHiddenBtn_.setBounds(lfoYLedBounds_);
     }
     (void)rowH;
 }
@@ -2182,8 +2172,7 @@ void PluginEditor::paint(juce::Graphics& g)
     // and the button/label text already identifies those sections clearly.
 
     // ── LFO panel drawing ─────────────────────────────────────────────────────
-    auto drawLfoPanel = [&](juce::Rectangle<int> bounds, const juce::String& title,
-                            bool enabled)
+    auto drawLfoPanel = [&](juce::Rectangle<int> bounds, const juce::String& title)
     {
         if (bounds.isEmpty()) return;
         const auto fb = bounds.toFloat();
@@ -2207,17 +2196,10 @@ void PluginEditor::paint(juce::Graphics& g)
         g.setColour(Clr::textDim);
         g.drawText(title, textX, textY, textW, textH, juce::Justification::left);
 
-        // Enabled LED (8px circle to right of label)
-        const int ledX = (int)fb.getRight() - 14;
-        const int ledY = textY + (textH - 8) / 2;
-        g.setColour(enabled ? Clr::gateOn : Clr::gateOff);
-        g.fillEllipse((float)ledX, (float)ledY, 8.0f, 8.0f);
     };
 
-    const bool lfoXEnabled = *proc_.apvts.getRawParameterValue("lfoXEnabled") > 0.5f;
-    const bool lfoYEnabled = *proc_.apvts.getRawParameterValue("lfoYEnabled") > 0.5f;
-    drawLfoPanel(lfoXPanelBounds_, "LFO X", lfoXEnabled);
-    drawLfoPanel(lfoYPanelBounds_, "LFO Y", lfoYEnabled);
+    drawLfoPanel(lfoXPanelBounds_, "LFO X");
+    drawLfoPanel(lfoYPanelBounds_, "LFO Y");
 
     // LFO slider row labels (Rate, Phase, Level, Dist)
     auto drawSliderLabel = [&](juce::Rectangle<int> sliderBounds, const juce::String& text)
@@ -2225,8 +2207,8 @@ void PluginEditor::paint(juce::Graphics& g)
         g.setFont(juce::Font(9.0f));
         g.setColour(Clr::textDim);
         g.drawText(text,
-                   sliderBounds.getX() - 30, sliderBounds.getY(),
-                   28, sliderBounds.getHeight(),
+                   sliderBounds.getX() - 34, sliderBounds.getY(),
+                   32, sliderBounds.getHeight(),
                    juce::Justification::right);
     };
 
@@ -2633,8 +2615,8 @@ void PluginEditor::timerCallback()
         repaint(dotArea);
     }
 
-    // Repaint LFO panel LED areas (enabled state may change)
-    if (!lfoXPanelBounds_.isEmpty()) repaint(lfoXPanelBounds_.removeFromTop(16));
-    if (!lfoYPanelBounds_.isEmpty()) repaint(lfoYPanelBounds_.removeFromTop(16));
+    // Repaint LFO panel header areas (title knockout may change)
+    if (!lfoXPanelBounds_.isEmpty()) repaint(lfoXPanelBounds_);
+    if (!lfoYPanelBounds_.isEmpty()) repaint(lfoYPanelBounds_);
 
 }

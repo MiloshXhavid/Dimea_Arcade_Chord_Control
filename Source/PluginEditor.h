@@ -132,7 +132,6 @@ public:
 
     void paint(juce::Graphics&) override;
     void resized() override;
-    void mouseDown(const juce::MouseEvent& e) override;
 
 private:
     PluginProcessor& proc_;
@@ -266,10 +265,8 @@ private:
     // Panel bounds (set in resized(), drawn in paint())
     juce::Rectangle<int> lfoXPanelBounds_, lfoYPanelBounds_;
 
-    // Hidden enabled toggle buttons — carry ButtonAttachment to lfoXEnabled/lfoYEnabled
-    juce::ToggleButton lfoXEnabledHiddenBtn_, lfoYEnabledHiddenBtn_;
-    // LED hit areas (set in resized, checked in mouseDown)
-    juce::Rectangle<int> lfoXLedBounds_, lfoYLedBounds_;
+    // Enabled toggle buttons — visible ON/OFF buttons with ButtonAttachment
+    juce::TextButton lfoXEnabledBtn_, lfoYEnabledBtn_;
 
     // Panel bounds for section drawing — set in resized(), read in paint()
     juce::Rectangle<int> looperPanelBounds_;       // LOOPER section panel
