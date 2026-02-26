@@ -32,9 +32,9 @@
 
 ### Gamepad Preset Control
 
-- [ ] **CTRL-01**: Option button on gamepad toggles "preset scroll" mode; plugin UI shows a visible indicator when mode is active
-- [ ] **CTRL-02**: In preset scroll mode, the BPM up/down gamepad controls instead send MIDI Program Change +1 / −1 on a configurable MIDI channel
-- [ ] **CTRL-03**: Plugin UI displays the current MIDI program number while preset scroll mode is active
+- [x] **CTRL-01**: Option button on gamepad toggles "preset scroll" mode; plugin UI shows a visible indicator when mode is active
+- [x] **CTRL-02**: In preset scroll mode, the BPM up/down gamepad controls instead send MIDI Program Change +1 / −1 on a configurable MIDI channel
+- [x] **CTRL-03**: Plugin UI displays the current MIDI program number while preset scroll mode is active
 
 ### Distribution
 
@@ -82,9 +82,9 @@
 | PERF-01 | Phase 12 | Complete |
 | PERF-02 | Phase 12 | Complete |
 | PERF-03 | Phase 12 | Complete |
-| CTRL-01 | Phase 16 | Pending |
-| CTRL-02 | Phase 16 | Pending |
-| CTRL-03 | Phase 16 | Pending |
+| CTRL-01 | Phase 15 | Complete |
+| CTRL-02 | Phase 15 | Complete |
+| CTRL-03 | Phase 15 | Complete |
 | DIST-01 | Phase 15 | Pending |
 | DIST-02 | Phase 15 | Pending |
 

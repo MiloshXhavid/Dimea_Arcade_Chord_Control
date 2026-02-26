@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-26)
 
 **Core value:** XY joystick mapped to harmonic space — per-note trigger gates, scale quantization, gesture looper with trigger quantization, gamepad control — no competitor provides this as a unified instrument.
-**Current focus:** v1.5 Gamepad Preset Control — Phase 15 in progress
+**Current focus:** v1.5 Gamepad Preset Control — Phase 15 complete
 
 ## Current Position
 
 Phase: 15 of 15 (Gamepad Preset Control)
-Plan: 1 of 2 (Plan 01 complete — GamepadInput SDL layer done)
-Status: In progress
-Last activity: 2026-02-26 — Phase 15 Plan 01 complete (Option/Guide button preset-scroll toggle + D-pad PC delta in GamepadInput)
+Plan: 2 of 2 (Plan 02 complete — PC routing + OPTION indicator done)
+Status: Complete
+Last activity: 2026-02-26 — Phase 15 Plan 02 complete (MIDI PC routing in processBlock + OPTION UI indicator)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -24,8 +24,8 @@ v1.4 LFO    [██████████] Complete — Phase 14 done
   Phase 12  [██████████]   LFO Engine Core       Complete (2/2 plans done)
   Phase 13  [██████████]   processBlock + APVTS  Complete (1/1 plans done)
   Phase 14  [██████████]   LFO UI + Beat Clock   Complete (3/3 plans done)
-v1.5 Preset [█░░░░░░░░░]   In progress
-  Phase 15  [█░░░░░░░░░]   Gamepad Preset Ctrl   In progress (1/2 plans done)
+v1.5 Preset [██████████] Complete — Phase 15 done
+  Phase 15  [██████████]   Gamepad Preset Ctrl   Complete (2/2 plans done)
 ```
 
 ## Accumulated Context
@@ -64,6 +64,10 @@ Recent decisions affecting v1.5:
 - Phase 15-01: D-pad Up/Down PC delta fires on falling edge (button-up) — rising-edge would fire immediately on press before user has released, causing doubled PCs
 - Phase 15-01: One-frame lockout (optionFrameFired_) prevents D-pad Up/Down from registering BPM delta in the same 16ms frame Option fires
 - Phase 15-01: D-pad Left/Right always rising-edge regardless of preset-scroll mode — looper toggle semantics are mode-independent
+- Phase 15-02: programCounter_ is audio-thread-only int (no atomic) — never read from message thread
+- Phase 15-02: juce::MidiMessage::programChange takes 1-based channel + 0-based program; filterMidiCh stores 1-based directly, no conversion needed
+- Phase 15-02: Boundary clamp uses jlimit + equality check — if newProgram == programCounter_ after clamp, skip send (pressing at 0 or 127 does nothing)
+- Phase 15-02: OPTION indicator uses text suffix pattern (base + " | OPTION") — no blink/animation, satisfies subtle secondary-weight constraint
 
 ### Pending Todos
 
@@ -76,5 +80,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 15-01-PLAN.md (Option/Guide button preset-scroll toggle + D-pad PC delta in GamepadInput — commit 179e273)
-Next step: Phase 15 Plan 02 (PluginProcessor consumes consumePcDelta() to send Program Change MIDI)
+Stopped at: Completed 15-02-PLAN.md (MIDI PC routing in processBlock + OPTION UI indicator — commits 9489ea9, 1720a71)
+Next step: v1.5 milestone complete — /gsd:new-milestone for v1.6 or release
