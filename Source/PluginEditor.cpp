@@ -1862,6 +1862,41 @@ void PluginEditor::resized()
         quantizeSubdivBox_.setBounds(qRow);
     }
 
+    // Routing panel — below quantize trigger, above PS4 status label
+    right.removeFromTop(8);
+    {
+        const int rPanelX = right.getX();
+        const int rPanelW = right.getWidth();
+
+        // Routing label + mode dropdown
+        auto rSection = right.removeFromTop(14 + 22 + 4);
+        routingLabel_  .setBounds(rPanelX, rSection.getY(),      rPanelW, 14);
+        routingModeBox_.setBounds(rPanelX, rSection.getY() + 14, rPanelW, 22);
+
+        // Voice channel grid (Multi-Channel) and single target (Single Channel)
+        // Both occupy the same vertical band — visibility toggled by timerCallback.
+        auto rBottom = right.removeFromTop(12 + 20 + 4 + 12 + 20 + 4);
+        const int rY0 = rBottom.getY();
+        const int halfW = rPanelW / 2;
+        constexpr int labelH = 12, comboH = 20;
+
+        // singleChanTargetBox_ — same top as voice grid, full width
+        singleChanTargetBox_.setBounds(rPanelX, rY0, rPanelW, comboH);
+
+        // Voice 0 (Root) and Voice 2 (Fifth) — top row
+        voiceChLabel_[0].setBounds(rPanelX,         rY0,              halfW,      labelH);
+        voiceChLabel_[2].setBounds(rPanelX + halfW, rY0,              halfW,      labelH);
+        voiceChBox_[0]  .setBounds(rPanelX,         rY0 + labelH,     halfW - 2,  comboH);
+        voiceChBox_[2]  .setBounds(rPanelX + halfW, rY0 + labelH,     halfW - 2,  comboH);
+
+        // Voice 1 (Third) and Voice 3 (Tension) — bottom row
+        const int rY1 = rY0 + labelH + comboH + 4;
+        voiceChLabel_[1].setBounds(rPanelX,         rY1,              halfW,      labelH);
+        voiceChLabel_[3].setBounds(rPanelX + halfW, rY1,              halfW,      labelH);
+        voiceChBox_[1]  .setBounds(rPanelX,         rY1 + labelH,     halfW - 2,  comboH);
+        voiceChBox_[3]  .setBounds(rPanelX + halfW, rY1 + labelH,     halfW - 2,  comboH);
+    }
+
     // FILTER MOD panel bounds not used — right column panels removed (label conflicts)
 
     // Filter Mod hint is now drawn directly in paint() aligned with the left footer rows.
@@ -1963,44 +1998,6 @@ void PluginEditor::resized()
             bpmDisplayLabel_.setBounds(bpmRow);
         }
     }
-
-    left.removeFromTop(6);
-
-    // Routing panel — directly below the quantize/trigger section
-    {
-        const int rPanelX = left.getX();
-        const int rPanelW = left.getWidth();
-
-        // Routing label + mode dropdown
-        auto rSection = left.removeFromTop(14 + 22 + 4);
-        routingLabel_  .setBounds(rPanelX, rSection.getY(),      rPanelW, 14);
-        routingModeBox_.setBounds(rPanelX, rSection.getY() + 14, rPanelW, 22);
-
-        // Voice channel grid (Multi-Channel) and single target (Single Channel)
-        // Both occupy the same vertical band — visibility toggled by timerCallback.
-        auto rBottom = left.removeFromTop(12 + 20 + 4 + 12 + 20 + 4);
-        const int rY0 = rBottom.getY();
-        const int halfW = rPanelW / 2;
-        constexpr int labelH = 12, comboH = 20;
-
-        // singleChanTargetBox_ — same top as voice grid, full width
-        singleChanTargetBox_.setBounds(rPanelX, rY0, rPanelW, comboH);
-
-        // Voice 0 (Root) and Voice 2 (Fifth) — top row
-        voiceChLabel_[0].setBounds(rPanelX,         rY0,              halfW,      labelH);
-        voiceChLabel_[2].setBounds(rPanelX + halfW, rY0,              halfW,      labelH);
-        voiceChBox_[0]  .setBounds(rPanelX,         rY0 + labelH,     halfW - 2,  comboH);
-        voiceChBox_[2]  .setBounds(rPanelX + halfW, rY0 + labelH,     halfW - 2,  comboH);
-
-        // Voice 1 (Third) and Voice 3 (Tension) — bottom row
-        const int rY1 = rY0 + labelH + comboH + 4;
-        voiceChLabel_[1].setBounds(rPanelX,         rY1,              halfW,      labelH);
-        voiceChLabel_[3].setBounds(rPanelX + halfW, rY1,              halfW,      labelH);
-        voiceChBox_[1]  .setBounds(rPanelX,         rY1 + labelH,     halfW - 2,  comboH);
-        voiceChBox_[3]  .setBounds(rPanelX + halfW, rY1 + labelH,     halfW - 2,  comboH);
-    }
-
-    left.removeFromTop(4);
 
     // Reserve ARP block at the very bottom of the left column before the looper
     // consumes the rest. Height: 22 gap + 22 button + 4 gap + 14 label + 22 combo = 84px.
