@@ -8,14 +8,14 @@ ChordJoystick is a paid JUCE VST3 MIDI generator plugin for Windows that sends 4
 
 An XY joystick mapped to harmonic space — combined with per-note trigger gates, scale quantization, a gesture looper with trigger quantization, and gamepad control — that no existing MIDI tool provides as a unified instrument.
 
-## Current State (v1.3)
+## Current State (v1.4)
 
-- **Shipped:** 2026-02-25
+- **Shipped:** 2026-02-26
 - **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/latest
-- **Codebase:** ~4,900+ C++ LOC, 14 source files + Catch2 test suite
+- **Codebase:** ~5,500+ C++ LOC, 19 source files + Catch2 test suite
 - **Build:** JUCE 8.0.4 + CMake FetchContent + SDL2 2.30.9 static, VS 18 2026, Release
 - **Tests:** Catch2 — TC 12 quantize 233/233 assertions pass; 5 pre-existing `hasContent()` failures (not regressions)
-- **Installer:** `installer/Output/DimaChordJoystickMK2-Setup.exe` (Inno Setup 6, AppVersion=1.3)
+- **Installer:** `installer/Output/DimaChordJoystickMK2-Setup.exe` (Inno Setup 6, AppVersion=1.4)
 - **Known limitation:** COPY_PLUGIN_AFTER_BUILD requires elevation — use `fix-install.ps1` manually after rebuild
 
 ## Requirements
@@ -54,13 +54,25 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - ✓ LOOPER section panel with rounded border and floating knockout label — v1.3
 - ✓ Installer v1.3 with feature list — v1.3
 
-### Active — v1.4
+### Validated — v1.4
 
-- [ ] Dual LFO engine (X + Y axis) — waveforms, frequency, phase, distortion, level, sync
-- [ ] LFO UI section left of joystick — shape dropdown, sliders, on/off, sync button
-- [ ] Beat clock indicator — flashing dot next to Free BPM knob, DAW-sync aware
-- [ ] Performance review — LFO audio thread safety, no allocations, no races
-- [ ] GitHub v1.4 release + desktop backup
+- ✓ Dual LFO engine (X + Y axis) — 7 waveforms, Freq/Phase/Distortion/Level, DAW-sync — v1.4
+- ✓ LFO UI section left of joystick — shape dropdown, per-axis on/off, Sync toggle — v1.4
+- ✓ Beat clock dot on Free BPM knob face — flashes on beat, follows DAW sync — v1.4
+- ✓ Gamepad Option mode: D-pad Up/Down scrolls Program Changes, OPTION indicator — v1.4
+- ✓ GitHub v1.4 release + desktop backup — v1.4
+
+### Active — v1.5
+
+- [ ] Single Channel routing mode — all 4 voices → one MIDI channel, no note collisions
+- [ ] Per-voice Sub Octave — fires parallel note 1 oct lower; Hold/SubOct split button on pad UI
+- [ ] Left Joystick X/Y target expansion — add LFO freq/shape/level/arp gate len as modulation targets
+- [ ] LFO recording — arm, record 1 cycle, playback; Distort stays live; Clear button
+- [ ] Option Mode 1 Arp control — Circle=Arp on/off, Triangle=Rate, Square=Order, X=RND Sync
+- [ ] R3 + held pad (any mode) = toggle Sub Oct for that voice
+- [ ] Remove panic from right joystick (R3 standalone)
+- [ ] Bug fix: Looper wrong start position after record cycle
+- [ ] Bug fix: Crash on PS4 BT reconnect
 
 ### Out of Scope
 
@@ -109,15 +121,17 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 | Border-only section panels | Fills covered drawAbove labels at same Y coordinate | ✓ Good |
 | Editor height 790 → 810 | Quantize row (20px) was clipped at 790 | ✓ Good |
 
-## Current Milestone: v1.4 LFO + Clock
+## Current Milestone: v1.5 Routing + Expression
 
-**Goal:** Add dual per-axis LFO modulation to the joystick with a beat clock indicator, then ship a clean GitHub release.
+**Goal:** Add single-channel MIDI routing, per-voice sub octave, LFO recording, left-stick modulation targets, gamepad Option Mode 1 arp control, and fix known looper/BT crash bugs.
 
 **Target features:**
-- Dual LFO section (X + Y axis) left of joystick — 7 waveforms (Sine/Tri/Saw↑/Saw↓/Square/S&H/Random), Frequency / Phase / Distortion / Level sliders, Shape dropdown, Sync button, On/Off toggle per LFO
-- Beat clock dot next to Free BPM knob — flashes on every beat, follows DAW sync when active
-- Performance + stability review
-- GitHub v1.4 release + desktop backup
+- Single Channel mode — all 4 voices → configurable MIDI channel, note-collision safe
+- Sub Octave per voice — parallel note 1 oct lower, Split Hold/SubOct pad button, R3+pad shortcut
+- Left Joystick X/Y modulation targets expanded: LFO freq / shape / level / arp gate len
+- LFO recording — arm button, records 1 loop cycle, locked playback mode, Distort stays adjustable, Clear button
+- Option Mode 1 Arp: Circle = Arp on/off, Triangle = Rate, Square = Order, X = RND Sync; remove R3 panic
+- Bug fixes: looper start position after rec cycle; PS4 BT reconnect crash
 
 ---
-*Last updated: 2026-02-26 — v1.4 milestone started*
+*Last updated: 2026-02-28 — v1.5 milestone started*

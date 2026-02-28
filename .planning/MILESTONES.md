@@ -1,5 +1,17 @@
 # Milestones
 
+## v1.4 LFO + Clock (Shipped: 2026-02-26)
+
+**Phases completed:** Phases 12–16 (5 phases)
+
+**Key accomplishments:**
+- Dual LFO engine (X + Y axis) — 7 waveforms (Sine/Tri/Saw↑/Saw↓/Square/S&H/Random), Freq/Phase/Distortion/Level, DAW-sync
+- LFO UI section left of joystick — shape dropdown, per-axis on/off toggle, Sync button
+- Beat clock dot on Free BPM knob face — flashes on beat, follows DAW sync, 30 Hz polling
+- Gamepad Preset Control — Option mode: D-pad Up/Down scrolls Program Changes, OPTION indicator
+- MIDI Panic (CC64+CC120+CC123, 48 events, no CC121), trigger quantization Off/Live/Post, pluginval level 5 re-verified
+- GitHub v1.4 release + Inno Setup v1.4 installer
+
 ## v1.0 MVP (Shipped: 2026-02-23)
 
 **Phases completed:** 7 phases, 17 plans, 2 tasks

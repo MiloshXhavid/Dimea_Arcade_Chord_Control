@@ -5,29 +5,25 @@
 See: .planning/PROJECT.md (updated 2026-02-26)
 
 **Core value:** XY joystick mapped to harmonic space — per-note trigger gates, scale quantization, gesture looper with trigger quantization, gamepad control — no competitor provides this as a unified instrument.
-**Current focus:** v1.4 SHIPPED — GitHub release v1.4 live at MiloshXhavid/Dima_Plugin_Chrdmachine
+**Current focus:** v1.5 — Single-channel routing, sub octave, LFO recording, arp gamepad control, bug fixes
 
 ## Current Position
 
-Phase: 16 of 16 (Distribution)
-Plan: 2 of 2 (Both plans complete — Phase 16 DONE)
-Status: Complete
-Last activity: 2026-02-26 — Phase 16 Plan 02 complete (GitHub release v1.4 published, desktop backup created — all DIST requirements satisfied)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-28 — Milestone v1.5 started
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
-v1.3 Polish [██████████] SHIPPED 2026-02-25
-  Phase 09  [██████████]   MIDI Panic            Complete (2/2 plans)
-  Phase 10  [██████████]   Trigger Quantization  Complete (5/5 plans)
-  Phase 11  [██████████]   UI Polish + Installer Complete (4/4 plans)
-v1.4 LFO    [██████████] Complete — Phase 14 done
-  Phase 12  [██████████]   LFO Engine Core       Complete (2/2 plans done)
-  Phase 13  [██████████]   processBlock + APVTS  Complete (1/1 plans done)
-  Phase 14  [██████████]   LFO UI + Beat Clock   Complete (3/3 plans done)
-v1.5 Preset [██████████] Complete — Phase 15 done
-  Phase 15  [██████████]   Gamepad Preset Ctrl   Complete (2/2 plans done)
-v1.4 Dist   [██████████] SHIPPED 2026-02-26
-  Phase 16  [██████████]   Distribution          Complete (2/2 plans done)
+v1.4 LFO    [██████████] SHIPPED 2026-02-26
+  Phase 12  [██████████]   LFO Engine Core       Complete
+  Phase 13  [██████████]   processBlock + APVTS  Complete
+  Phase 14  [██████████]   LFO UI + Beat Clock   Complete
+  Phase 15  [██████████]   Gamepad Preset Ctrl   Complete
+  Phase 16  [██████████]   Distribution          Complete
+v1.5 Routing+Expression  [          ] In progress
+  Phase 17  [          ]   (TBD — roadmap pending)
 ```
 
 ## Accumulated Context
