@@ -110,10 +110,37 @@ void GamepadInput::timerCallback()
     while (SDL_PollEvent(&ev))
     {
         if (ev.type == SDL_CONTROLLERDEVICEADDED)
-            tryOpenController();
+        {
+            // Guard: only queue a reconnect if no controller is currently open.
+            // BT reconnect fires multiple ADDED events; the first one is sufficient.
+            // Defer by one tick so SDL_GameControllerOpen() is not called during
+            // active BT enumeration (avoids crash on some BT stacks).
+            if (!controller_)
+                pendingReopenTick_ = true;
+        }
         else if (ev.type == SDL_CONTROLLERDEVICEREMOVED)
-            closeController();
+        {
+            // Guard: only close if the removed device matches our open controller.
+            // Prevents closing the wrong device or a null controller handle.
+            if (controller_ &&
+                SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller_)) == ev.cdevice.which)
+            {
+                closeController();
+            }
+        }
     }
+
+    // Deferred open: one tick after ADDED event, BT enumeration has settled.
+    if (pendingReopenTick_ && !controller_)
+    {
+        pendingReopenTick_ = false;
+        tryOpenController();
+    }
+
+    // Fallback disconnect check: SDL_CONTROLLERDEVICEREMOVED is unreliable on some
+    // Windows USB drivers. Poll the attached state every tick to catch silent disconnects.
+    if (controller_ && !SDL_GameControllerGetAttached(controller_))
+        closeController();
 
     if (!controller_) return;
 
@@ -186,18 +213,19 @@ void GamepadInput::timerCallback()
             rightStickTrig_.store(true);
     }
 
-    // ── Option (Guide) button → preset-scroll mode toggle ────────────────────
+    // ── Options button (PS4: ≡ = SDL START) → cycles option mode 0→1→2→0 ──────
     optionFrameFired_ = false;
     {
-        const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_GUIDE) != 0;
+        const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_START) != 0;
         if (debounce(cur, btnOption_) && btnOption_.prev)  // rising edge = button down
         {
-            presetScrollActive_ = !presetScrollActive_;
-            optionFrameFired_   = true;  // lockout D-pad for this frame
+            const int next = (optionMode_.load(std::memory_order_relaxed) + 1) % 3;
+            optionMode_.store(next, std::memory_order_relaxed);
+            optionFrameFired_ = true;  // lockout D-pad for this frame
         }
     }
 
-    // ── D-pad: BPM delta (normal mode) or PC delta (preset-scroll mode) ──────
+    // ── D-pad: mode 0=BPM/looper, mode 1=octaves, mode 2=transpose+intervals ─
     if (!optionFrameFired_)
     {
         const bool curUp    = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_DPAD_UP)    != 0;
@@ -205,20 +233,34 @@ void GamepadInput::timerCallback()
         const bool curLeft  = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_DPAD_LEFT)  != 0;
         const bool curRight = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) != 0;
 
-        if (presetScrollActive_)
+        if (optionMode_.load(std::memory_order_relaxed) != 0)
         {
-            // Fire on falling edge (button-up): exactly one PC per physical press
-            if (debounce(curUp,   btnDpadUp_)   && !btnDpadUp_.prev)
-                pendingPcDelta_.fetch_add(1,  std::memory_order_relaxed);
-            if (debounce(curDown, btnDpadDown_) && !btnDpadDown_.prev)
-                pendingPcDelta_.fetch_add(-1, std::memory_order_relaxed);
-            // Left/Right keep their existing behaviour (looper rec toggles) — still rising-edge
-            if (debounce(curLeft,  btnDpadLeft_)  && btnDpadLeft_.prev)  dpadLeftTrig_.store(true);
-            if (debounce(curRight, btnDpadRight_) && btnDpadRight_.prev) dpadRightTrig_.store(true);
+            // Option modes 1 & 2: rising edge fires a press signal per direction.
+            const bool curOptBtn[4] = { curUp, curDown, curLeft, curRight };
+            ButtonState* btnOpt[4]  = { &btnDpadUp_, &btnDpadDown_, &btnDpadLeft_, &btnDpadRight_ };
+
+            for (int i = 0; i < 4; ++i)
+            {
+                const bool changed = debounce(curOptBtn[i], *btnOpt[i]);
+                if (changed && btnOpt[i]->prev)  // rising edge only
+                {
+                    const uint32_t elapsed = now - optDpadLastPressMs_[i];
+                    // First press: +1 (and record timestamp).
+                    // Second press within double-click window: -2 so that the net
+                    // change from the original value is -1 (cancels the +1 already
+                    // fired plus adds one decrement, regardless of whether the first
+                    // delta was consumed before the second press arrives).
+                    const int delta = (optDpadLastPressMs_[i] != 0 && elapsed < kDpadDoubleClickMs)
+                                          ? -2 : +1;
+                    pendingOptionDpadDelta_[i].fetch_add(delta, std::memory_order_relaxed);
+                    // Record timestamp for first press; reset it after a double-click
+                    optDpadLastPressMs_[i] = (delta == +1) ? now : 0;
+                }
+            }
         }
         else
         {
-            // Normal mode: unchanged rising-edge BPM delta triggers
+            // Normal mode: BPM delta (up/down) + looper rec state (left/right)
             if (debounce(curUp,    btnDpadUp_)    && btnDpadUp_.prev)    dpadUpTrig_.store(true);
             if (debounce(curDown,  btnDpadDown_)  && btnDpadDown_.prev)  dpadDownTrig_.store(true);
             if (debounce(curLeft,  btnDpadLeft_)  && btnDpadLeft_.prev)  dpadLeftTrig_.store(true);
