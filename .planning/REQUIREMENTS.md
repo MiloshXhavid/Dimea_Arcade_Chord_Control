@@ -53,8 +53,8 @@
 
 ### MIDI Routing
 
-- [ ] **ROUT-01**: User can select "Multi-Channel" (voices on ch 1–4, default) or "Single Channel" (all voices → one MIDI channel) via a dropdown in the bottom-right of the UI
-- [ ] **ROUT-02**: In Single Channel mode, user can select the target MIDI channel (1–16) via a second dropdown
+- [x] **ROUT-01**: User can select "Multi-Channel" (voices on ch 1–4, default) or "Single Channel" (all voices → one MIDI channel) via a dropdown in the bottom-right of the UI
+- [x] **ROUT-02**: In Single Channel mode, user can select the target MIDI channel (1–16) via a second dropdown
 - [x] **ROUT-03**: In Single Channel mode, same-pitch note collisions across voices are handled via reference counting — note-off only fires when the last voice on that pitch releases
 - [x] **ROUT-04**: In Single Channel mode, all CC messages (CC74, CC71) are sent to the selected channel
 - [x] **ROUT-05**: Looper playback in Single Channel mode uses the currently selected channel (live setting, not record-time channel)
@@ -169,8 +169,8 @@
 | DIST-02 | Phase 16 | Complete |
 | BUG-01 | Phase 17 | Complete |
 | BUG-02 | Phase 17 | Complete |
-| ROUT-01 | Phase 18 | Pending |
-| ROUT-02 | Phase 18 | Pending |
+| ROUT-01 | Phase 18 | Complete |
+| ROUT-02 | Phase 18 | Complete |
 | ROUT-03 | Phase 18 | Complete |
 | ROUT-04 | Phase 18 | Complete |
 | ROUT-05 | Phase 18 | Complete |
