@@ -1,6 +1,6 @@
 # Requirements: ChordJoystick MK2
 
-**Defined:** 2026-02-26
+**Defined:** 2026-02-26 (v1.4), 2026-02-28 (v1.5)
 **Core Value:** XY joystick mapped to harmonic space — per-note trigger gates, scale quantization, gesture looper with trigger quantization, and gamepad control — no competitor provides this as a unified instrument.
 
 ## v1.4 Requirements
@@ -40,6 +40,86 @@
 
 - [x] **DIST-01**: GitHub v1.4 release created with built installer binary and release notes
 - [x] **DIST-02**: Full plugin copy backed up to Desktop/Dima_plug-in
+
+## v1.5 Requirements
+
+**Defined:** 2026-02-28
+**Design decisions:**
+- LFO recording: pre-distortion samples stored; Distort applied live on playback
+- Arp step counter resets to 0 on toggle-off
+- Looper playback in Single Channel mode uses live channel setting (not record-time)
+- Random Hold mode: RND Sync applies (pad held + sync = gated synced bursts)
+- Gate Length is unified across Arp + Random sources (one parameter, both systems)
+
+### MIDI Routing
+
+- [ ] **ROUT-01**: User can select "Multi-Channel" (voices on ch 1–4, default) or "Single Channel" (all voices → one MIDI channel) via a dropdown in the bottom-right of the UI
+- [ ] **ROUT-02**: In Single Channel mode, user can select the target MIDI channel (1–16) via a second dropdown
+- [ ] **ROUT-03**: In Single Channel mode, same-pitch note collisions across voices are handled via reference counting — note-off only fires when the last voice on that pitch releases
+- [ ] **ROUT-04**: In Single Channel mode, all CC messages (CC74, CC71) are sent to the selected channel
+- [ ] **ROUT-05**: Looper playback in Single Channel mode uses the currently selected channel (live setting, not record-time channel)
+
+### Sub Octave
+
+- [ ] **SUBOCT-01**: Each of the 4 voice pads has a Sub Oct toggle — right half of the existing Hold button
+- [ ] **SUBOCT-02**: When Sub Oct is active for a voice, a second note-on fires exactly 12 semitones below the voice pitch on every trigger
+- [ ] **SUBOCT-03**: Sub Oct note-off always matches the pitch used at note-on time (snapshotted, not recomputed at release)
+- [ ] **SUBOCT-04**: User can toggle Sub Oct for a pad via gamepad by holding the pad button (R1/R2/L1/L2) and pressing R3
+
+### Left Joystick Modulation
+
+- [ ] **LJOY-01**: Left Joystick X dropdown offers: Filter Cutoff (CC74), Filter Resonance (CC71), LFO-X Frequency, LFO-X Phase, LFO-X Level, Gate Length
+- [ ] **LJOY-02**: Left Joystick Y dropdown offers the same set with LFO-Y variants: Filter Cutoff (CC74), Filter Resonance (CC71), LFO-Y Frequency, LFO-Y Phase, LFO-Y Level, Gate Length
+- [ ] **LJOY-03**: Left Joystick X dropdown appears before Left Joystick Y in the UI
+- [ ] **LJOY-04**: LFO Frequency target is suppressed (stick has no effect) when that LFO's Sync mode is active
+
+### LFO Recording
+
+- [ ] **LFOREC-01**: An "Arm" button next to the Sync button lets the user arm LFO recording (unarmed by default — LFO does not record automatically)
+- [ ] **LFOREC-02**: When armed and the looper starts recording, pre-distortion LFO output is captured into a dedicated ring buffer for exactly one loop cycle
+- [ ] **LFOREC-03**: After one loop cycle, recording stops automatically and LFO switches to playback — replaying stored values in sync with the looper
+- [ ] **LFOREC-04**: During LFO playback mode, Shape / Freq / Phase / Level / Sync controls are grayed out; Distort remains adjustable
+- [ ] **LFOREC-05**: A "Clear" button returns LFO recording to unarmed/normal mode and re-enables all grayed-out parameters
+- [ ] **LFOREC-06**: Distort is applied live on top of stored playback samples — never recorded
+
+### Arpeggiator
+
+- [ ] **ARP-01**: Arpeggiator steps through the current 4-voice chord at configurable Rate and Order, sending note-on/off on the active channel routing
+- [ ] **ARP-02**: Arp Rate options: 1/4, 1/8, 1/16, 1/32
+- [ ] **ARP-03**: Arp Order options: Up, Down, Up-Down, Random
+- [ ] **ARP-04**: Arp uses the unified Gate Length parameter (shared with Random trigger source)
+- [ ] **ARP-05**: When DAW sync is active, Arp on arms and waits for the next bar boundary before stepping begins
+- [ ] **ARP-06**: Arp off resets the step counter to 0
+
+### Random Trigger System
+
+- [ ] **RND-01**: Trigger source dropdown extended to: Pad / Joystick / Random Free / Random Hold (replaces existing Pad / Joystick / Random)
+- [ ] **RND-02**: Random Free mode fires gates continuously regardless of looper play state; if RND Sync is on, gates snap to the beat grid; if off, gates fire at free random intervals
+- [ ] **RND-03**: Random Hold mode fires gates only while the associated pad is physically held (touchplate or gamepad button); RND Sync applies the same way as Free mode
+- [ ] **RND-04**: "Population" knob (1–64) replaces the existing RND Density knob — sets the maximum number of gates fired per bar
+- [ ] **RND-05**: "Probability" knob (0–100%) replaces the existing RND Gate knob — chance each scheduled population slot actually fires
+- [ ] **RND-06**: Random subdivision options extended to include 1/64 (alongside existing 1/4, 1/8, 1/16, 1/32)
+- [ ] **RND-07**: Unified "Gate Length" parameter (0–100% of subdivision) controls note hold duration for both Arp and Random sources; left joystick X or Y can modulate it
+
+### Gamepad Option Mode 1
+
+- [ ] **OPT1-01**: In Option Mode 1 — Circle toggles Arp on/off; turning on resets looper to beat 0 and starts playback (or arms if DAW sync is active)
+- [ ] **OPT1-02**: In Option Mode 1 — Triangle steps Arp Rate up (1 press = one step up through 1/4 → 1/8 → 1/16 → 1/32); 2 quick presses = one step down
+- [ ] **OPT1-03**: In Option Mode 1 — Square steps Arp Order with the same two-press architecture (Up → Down → Up-Down → Random)
+- [ ] **OPT1-04**: In Option Mode 1 — X button toggles RND Sync (the existing `randomClockSync` parameter)
+- [ ] **OPT1-05**: In any mode — holding a pad button (R1/R2/L1/L2) and pressing R3 toggles Sub Oct for that voice
+- [ ] **OPT1-06**: R3 pressed alone no longer sends MIDI Panic — panic is UI button only
+- [ ] **OPT1-07**: Option Mode 2 (existing D-pad Program Change scrolling) continues working unchanged
+
+### Bug Fixes
+
+- [ ] **BUG-01**: Looper playback starts at the correct beat position after a record cycle completes (no anchor drift or offset)
+- [ ] **BUG-02**: Plugin does not crash when PS4 controller reconnects via Bluetooth (SDL2 double-open guard)
+
+### Distribution
+
+- [ ] **DIST-03**: GitHub v1.5 release created with built installer binary and release notes
+- [ ] **DIST-04**: Full plugin copy backed up to Desktop
 
 ## Future Requirements (v2+)
 
@@ -94,5 +174,5 @@
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-02-26*
-*Last updated: 2026-02-26 — traceability populated by roadmapper*
+*Requirements defined: 2026-02-26 (v1.4), 2026-02-28 (v1.5)*
+*Last updated: 2026-02-28 — v1.5 requirements defined*
