@@ -1123,17 +1123,6 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     thresholdSliderAtt_ = std::make_unique<juce::SliderParameterAttachment>(
         *p.apvts.getParameter("joystickThreshold"), thresholdSlider_);
 
-    // ── Joystick gate time slider ─────────────────────────────────────────────
-    gateTimeSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    gateTimeSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    gateTimeSlider_.setTooltip("Seconds of stillness before note-off");
-    gateTimeSlider_.setColour(juce::Slider::trackColourId,      Clr::highlight);
-    gateTimeSlider_.setColour(juce::Slider::backgroundColourId, Clr::accent);
-    gateTimeSlider_.setColour(juce::Slider::thumbColourId,      Clr::text);
-    addAndMakeVisible(gateTimeSlider_);
-    gateTimeSliderAtt_ = std::make_unique<juce::SliderParameterAttachment>(
-        *p.apvts.getParameter("joystickGateTime"), gateTimeSlider_);
-
     // ── Looper ────────────────────────────────────────────────────────────────
     loopPlayBtn_.setButtonText("PLAY");  loopPlayBtn_.setClickingTogglesState(true);
     loopRecBtn_.setButtonText("REC");    loopRecBtn_.setClickingTogglesState(true);
@@ -1764,8 +1753,6 @@ void PluginEditor::resized()
         joystickPad_.setBounds(padX, padRow.getY(), padSize, padSize);
     }
 
-    right.removeFromTop(14);
-
     // Knob row: CUTOFF group | RESONANCE group
     // (X Range / Y Range knobs are now positioned under their LFO columns)
     {
@@ -1842,12 +1829,6 @@ void PluginEditor::resized()
     filterYModeBox_.setBounds(right.removeFromTop(22));
     right.removeFromTop(12);
     filterXModeBox_.setBounds(right.removeFromTop(22));
-
-    // Joystick gate time + threshold sliders (labels drawn via drawAbove in paint())
-    right.removeFromTop(14);
-    gateTimeSlider_  .setBounds(right.removeFromTop(18));
-    right.removeFromTop(10);
-    thresholdSlider_ .setBounds(right.removeFromTop(18));
 
     // Quantize trigger — all 4 controls in one row: [Off][Live][Post][subdiv]
     right.removeFromTop(20);
@@ -2001,11 +1982,10 @@ void PluginEditor::resized()
     constexpr int kArpH = 84;
     arpBlockBounds_ = left.removeFromBottom(kArpH);
 
-    left.removeFromTop(10);  // push looper down toward arpeggiator
-
-    // Looper
+    // Looper — top-aligned with padAll_ and chord display
     {
-        auto section = left;
+        auto section = juce::Rectangle<int>(left.getX(), padAll_.getY(),
+                                            left.getWidth(), left.getBottom() - padAll_.getY());
 
         // Buttons row 1: PLAY / REC / RST / DEL
         auto btnRow = section.removeFromTop(36);
@@ -2206,15 +2186,16 @@ void PluginEditor::resized()
             joyYAttenKnob_.setBounds(lfoYCol.getX(), octKnobY, lfoYCol.getWidth(), octKnobH);
         }
     }
-    // ── Chord name label: large, centered in the combined LFO X + LFO Y strip ──
-    // Spans both LFO columns (304px).  Vertically centred in the free space
-    // below the Joy atten knobs (the last elements placed in the LFO columns).
+    // ── JOYSTICK GATE% slider + Chord name label ─────────────────────────────
+    // Slider spans both LFO columns, sits just below X/Y Range knobs.
+    // Chord label is centred in the remaining free space below the slider.
     {
         const int chordX = lfoXCol.getX();
         const int chordW = lfoYCol.getRight() - chordX;   // lfoX + gap + lfoY = 304px
+        thresholdSlider_.setBounds(chordX, joyXAttenKnob_.getBottom() + 4, chordW, 18);
         constexpr int chordH = 72;
-        const int topOfFree  = joyXAttenKnob_.getBottom() + 12;
-        const int areaBottom = getHeight() - 8 - 60;      // above footer
+        const int topOfFree  = thresholdSlider_.getBottom() + 8;
+        const int areaBottom = getHeight() - 8 - 60;
         const int chordY = topOfFree + (areaBottom - topOfFree - chordH) / 2;
         chordNameLabel_.setBounds(chordX, chordY, chordW, chordH);
     }
@@ -2438,8 +2419,7 @@ void PluginEditor::paint(juce::Graphics& g)
     drawAbove(randomFreeTempoKnob_, "FREE BPM");
     drawAbove(filterYModeBox_,      "LEFT Y");
     drawAbove(filterXModeBox_,      "LEFT X");
-    drawAbove(gateTimeSlider_,      "JOY LENGTH");
-    drawAbove(thresholdSlider_,     "JOY THRESH");
+    drawAbove(thresholdSlider_,     "JOYSTICK GATE%");
 
     // "QUANTIZE TRIGGER" section label — spans from Off button left edge to subdiv box right edge
     if (quantizeOffBtn_.isVisible())

@@ -149,7 +149,6 @@ PluginProcessor::createParameterLayout()
         ParamID::joystickYAtten, "Joy Y Attenuator",
         juce::NormalisableRange<float>(0.0f, 127.0f, 1.0f), 24.0f));
     addFloat(ParamID::joystickThreshold,  "Joystick Threshold", 0.001f, 0.1f, 0.015f);
-    addFloat("joystickGateTime", "Joystick Gate Time", 0.05f, 5.0f, 1.0f);
 
     // ── Scale ─────────────────────────────────────────────────────────────────
     {
@@ -1010,7 +1009,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     }
     tp.randomDensity      = apvts.getRawParameterValue(ParamID::randomDensity)->load();
     tp.randomGateTime     = apvts.getRawParameterValue(ParamID::randomGateTime)->load();
-    tp.joystickGateTime   = apvts.getRawParameterValue("joystickGateTime")->load();
+    tp.joystickGateTime   = apvts.getRawParameterValue("arpGateTime")->load() / 100.0f * 2.0f;
     // Per-voice random subdivisions (RandomSubdiv is a file-scope enum class in TriggerSystem.h)
     for (int v = 0; v < 4; ++v)
     {

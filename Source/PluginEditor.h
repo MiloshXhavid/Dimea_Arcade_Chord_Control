@@ -229,12 +229,9 @@ private:
     std::unique_ptr<juce::ButtonParameterAttachment>                 randomSyncButtonAtt_;
     std::unique_ptr<juce::SliderParameterAttachment>                 randomFreeTempoKnobAtt_;
 
-    // ── Joystick threshold + gate time ────────────────────────────────────────
+    // ── Joystick threshold ────────────────────────────────────────────────────
     juce::Slider thresholdSlider_;
     std::unique_ptr<juce::SliderParameterAttachment> thresholdSliderAtt_;
-
-    juce::Slider gateTimeSlider_;
-    std::unique_ptr<juce::SliderParameterAttachment> gateTimeSliderAtt_;
 
     // Last-seen globalTranspose — used to detect changes and repaint interval knob text boxes.
     int lastTransposeForKnobs_ = -1;
