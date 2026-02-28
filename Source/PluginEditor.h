@@ -106,6 +106,9 @@ public:
     void resized() override;
     void mouseDown(const juce::MouseEvent& e) override;
 
+    // Returns the current scale bitmask (bit N = pitch class N is in scale, already transposed).
+    uint16_t getActiveScaleMask() const { return activeScaleMask_; }
+
 private:
     juce::AudioProcessorValueTreeState& apvts_;
 
@@ -131,10 +134,40 @@ public:
     ~PluginEditor() override;
 
     void paint(juce::Graphics&) override;
+    void paintOverChildren(juce::Graphics&) override;
     void resized() override;
 
 private:
     PluginProcessor& proc_;
+
+    // ── ScaleSnapSlider ───────────────────────────────────────────────────────
+    // Snaps drag values to only pitch classes present in the current scale.
+    // scaleMask_ bit N = 1 means absolute pitch class N is in the scale (same
+    // format as ScaleKeyboard::activeScaleMask_). transpose_ = globalTranspose.
+    class ScaleSnapSlider : public juce::Slider
+    {
+    public:
+        void setScaleInfo(uint16_t mask, int tr) { scaleMask_ = mask; transpose_ = tr; }
+        double snapValue(double v, DragMode) override
+        {
+            const int iv = juce::jlimit(0, 12, static_cast<int>(std::round(v)));
+            auto valid = [&](int x) -> bool
+            {
+                if (x < 0 || x > 12) return false;
+                return ((scaleMask_ >> ((transpose_ + x + 1200) % 12)) & 1) != 0;
+            };
+            if (valid(iv)) return iv;
+            for (int r = 1; r <= 12; ++r)
+            {
+                if (valid(iv + r)) return iv + r;
+                if (valid(iv - r)) return iv - r;
+            }
+            return iv;
+        }
+    private:
+        uint16_t scaleMask_ = 0xFFF;  // all notes valid by default
+        int      transpose_ = 0;
+    };
 
     PixelLookAndFeel pixelLaf_;
     juce::Font       pixelFont_ { 10.0f };
@@ -148,7 +181,8 @@ private:
     juce::Label   joyXAttenLabel_, joyYAttenLabel_;
 
     // ── Chord intervals ───────────────────────────────────────────────────────
-    juce::Slider  transposeKnob_, thirdIntKnob_, fifthIntKnob_, tensionIntKnob_;
+    juce::Slider    transposeKnob_;
+    ScaleSnapSlider thirdIntKnob_, fifthIntKnob_, tensionIntKnob_;
     juce::Label   transposeLabel_, thirdIntLabel_, fifthIntLabel_, tensionIntLabel_;
 
     // ── Octave offsets ────────────────────────────────────────────────────────
@@ -169,6 +203,20 @@ private:
     // ── Trigger source per voice ──────────────────────────────────────────────
     juce::ComboBox trigSrc_[4];
     juce::Label    trigSrcLabel_[4];
+
+    // ── Routing panel ─────────────────────────────────────────────────────────
+    juce::Label    routingLabel_;            // "Routing:" section header
+    juce::ComboBox routingModeBox_;          // Multi-Channel / Single Channel
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> routingModeAtt_;
+
+    juce::ComboBox singleChanTargetBox_;     // visible in Single Channel mode
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> singleChanTargetAtt_;
+
+    // Per-voice channel dropdowns: visible in Multi-Channel mode only.
+    // First UI for the existing voiceCh0..3 APVTS params.
+    juce::Label    voiceChLabel_[4];         // "Root ch:", "Third ch:", etc.
+    juce::ComboBox voiceChBox_[4];
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> voiceChAtt_[4];
     juce::Slider   randomDensityKnob_;
     juce::Label    randomDensityLabel_;
     std::array<juce::ComboBox, 4>                                    randomSubdivBox_;
@@ -187,6 +235,17 @@ private:
 
     juce::Slider gateTimeSlider_;
     std::unique_ptr<juce::SliderParameterAttachment> gateTimeSliderAtt_;
+
+    // Last-seen globalTranspose — used to detect changes and repaint interval knob text boxes.
+    int lastTransposeForKnobs_ = -1;
+
+    // Last-seen scale mask — used to auto-snap interval values when scale/key changes.
+    uint16_t lastScaleMaskForSnap_ = 0xFFFF;
+
+    // Last-seen scale preset index — detects preset changes so intervals can be
+    // reset to natural positions (3rd=4, 5th=7, tension=11) before snapping.
+    // Initialised to current value in constructor so loading a saved state never triggers.
+    int lastScalePreset_ = -1;
 
     // Flash counters for gamepad button feedback (decremented by timer)
     int resetFlashCounter_    = 0;
@@ -232,6 +291,8 @@ private:
     juce::Slider      loopLengthKnob_;
     juce::Label       loopLengthLabel_;
     juce::Label       gamepadStatusLabel_;
+    juce::Label       optionLabel_;       // "OPTION" indicator — green when preset-scroll active
+    juce::Label       chordNameLabel_;    // chord name display (e.g. "Cmaj7"), bottom-right
     juce::TextButton  gamepadActiveBtn_;  // [GAMEPAD ON] / [GAMEPAD OFF] per-instance toggle
     juce::TextButton panicBtn_;   // [PANIC!] — one-shot MIDI all-notes-off on all 16 channels
     juce::Label       filterModHintLabel_;  // bottom-right hint text for Filter Mod behaviour
