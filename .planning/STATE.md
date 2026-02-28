@@ -35,18 +35,18 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 17 of 25 (Bug Fixes) — COMPLETE
-Plan: 3 of 3 in Phase 17 complete; next is Phase 18
-Status: Phase 17 complete, Phase 18 not started
-Last activity: 2026-02-28 — Plan 17-03 complete (pluginval level 5 PASS + smoke tests PASS — BUG-01 and BUG-02 verified fixed)
+Phase: 18 of 25 (Single-Channel Routing) — IN PROGRESS
+Plan: 1 of 3 in Phase 18 complete; next is Plan 18-02 (UI)
+Status: Phase 18 Plan 01 complete — processor infrastructure done; Plan 02 (UI) next
+Last activity: 2026-02-28 — Plan 18-01 complete (singleChanMode/singleChanTarget params, effectiveChannel lambda, noteCount dedup, all flush paths updated)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
 v1.3 Polish [██████████] SHIPPED 2026-02-25
 v1.4 LFO    [██████████] SHIPPED 2026-02-26
-v1.5 Routing+Expression  [          ] In progress
+v1.5 Routing+Expression  [█         ] In progress
   Phase 17  [██████████]   Bug Fixes              COMPLETE 2026-02-28
-  Phase 18  [          ]   Single-Channel Routing Not started
+  Phase 18  [███       ]   Single-Channel Routing In progress (1/3 plans)
   Phase 19  [          ]   Sub Octave Per Voice   Not started
   Phase 20  [          ]   RND Trigger Extensions Not started
   Phase 21  [          ]   Left Joystick Targets  Not started
@@ -59,7 +59,7 @@ v1.5 Routing+Expression  [          ] In progress
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 3 [Phase 17 complete])
+- Total plans completed: 35 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 4 [Phase 17 complete + 18-01])
 - Average duration: not tracked per plan
 - Total execution time: not tracked
 
@@ -82,6 +82,8 @@ Key v1.5 design decisions (locked, do not re-open):
 - [Phase 17-bug-fixes]: BUG-02: deferred-open pattern + instance-ID guard eliminates PS4 BT double-open and wrong-handle-close crashes
 - [Phase 17-01]: BUG-01 fix: loopStartPpq_ += loopLen (not p.ppqPosition - overshoot) — plan formula was wrong; advancing by loopLen is always correct and handles FP drift
 - [Phase 17-01]: TC 13 uses ppq = 4.0 - 1e-6 to expose FP drift bug; exact ppq=4.0 would not demonstrate the regression
+- [Phase 18-01]: allNotesOff flush paths (DAW stop, gamepad disconnect) now cover all 16 channels — not just voiceChs[v] — to ensure Single Channel mode correctness
+- [Phase 18-01]: processBlockBypassed uses sentChannel_ snapshots and calls resetNoteCount() on bypass activation
 
 ### Pending Todos
 
@@ -94,5 +96,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 17-03-PLAN.md (pluginval level 5 PASS + smoke tests PASS — Phase 17 complete)
-Next step: Execute Phase 18 (Single-Channel Routing)
+Stopped at: Completed 18-01-PLAN.md (processor infrastructure — singleChanMode/singleChanTarget params, effectiveChannel, noteCount dedup, all flush paths)
+Next step: Execute Phase 18 Plan 02 (Single-Channel Routing UI)

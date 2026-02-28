@@ -257,7 +257,7 @@ Plans:
 | 15. Gamepad Preset Control | v1.4 | 2/2 | Complete | 2026-02-26 |
 | 16. Distribution | v1.4 | 2/2 | Complete | 2026-02-26 |
 | 17. Bug Fixes | v1.5 | Complete    | 2026-02-28 | 2026-02-28 |
-| 18. Single-Channel Routing | v1.5 | 0/3 | Not started | - |
+| 18. Single-Channel Routing | 1/3 | In Progress|  | - |
 | 19. Sub Octave Per Voice | v1.5 | 0/TBD | Not started | - |
 | 20. Random Trigger System Extensions | v1.5 | 0/TBD | Not started | - |
 | 21. Left Joystick Modulation Expansion | v1.5 | 0/TBD | Not started | - |
