@@ -167,12 +167,54 @@
 | CTRL-03 | Phase 15 | Complete |
 | DIST-01 | Phase 16 | Complete |
 | DIST-02 | Phase 16 | Complete |
+| BUG-01 | Phase 17 | Pending |
+| BUG-02 | Phase 17 | Pending |
+| ROUT-01 | Phase 18 | Pending |
+| ROUT-02 | Phase 18 | Pending |
+| ROUT-03 | Phase 18 | Pending |
+| ROUT-04 | Phase 18 | Pending |
+| ROUT-05 | Phase 18 | Pending |
+| SUBOCT-01 | Phase 19 | Pending |
+| SUBOCT-02 | Phase 19 | Pending |
+| SUBOCT-03 | Phase 19 | Pending |
+| SUBOCT-04 | Phase 19 | Pending |
+| RND-01 | Phase 20 | Pending |
+| RND-02 | Phase 20 | Pending |
+| RND-03 | Phase 20 | Pending |
+| RND-04 | Phase 20 | Pending |
+| RND-05 | Phase 20 | Pending |
+| RND-06 | Phase 20 | Pending |
+| RND-07 | Phase 20 | Pending |
+| LJOY-01 | Phase 21 | Pending |
+| LJOY-02 | Phase 21 | Pending |
+| LJOY-03 | Phase 21 | Pending |
+| LJOY-04 | Phase 21 | Pending |
+| LFOREC-01 | Phase 22 | Pending |
+| LFOREC-02 | Phase 22 | Pending |
+| LFOREC-03 | Phase 22 | Pending |
+| LFOREC-04 | Phase 22 | Pending |
+| LFOREC-05 | Phase 22 | Pending |
+| LFOREC-06 | Phase 22 | Pending |
+| ARP-01 | Phase 23 | Pending |
+| ARP-02 | Phase 23 | Pending |
+| ARP-03 | Phase 23 | Pending |
+| ARP-04 | Phase 23 | Pending |
+| ARP-05 | Phase 23 | Pending |
+| ARP-06 | Phase 23 | Pending |
+| OPT1-01 | Phase 24 | Pending |
+| OPT1-02 | Phase 24 | Pending |
+| OPT1-03 | Phase 24 | Pending |
+| OPT1-04 | Phase 24 | Pending |
+| OPT1-05 | Phase 24 | Pending |
+| OPT1-06 | Phase 24 | Pending |
+| OPT1-07 | Phase 24 | Pending |
+| DIST-03 | Phase 25 | Pending |
+| DIST-04 | Phase 25 | Pending |
 
 **Coverage:**
-- v1.4 requirements: 21 total
-- Mapped to phases: 21 (Phase 12: 8, Phase 13: 5, Phase 14: 3, Phase 15: 2, Phase 16: 3)
-- Unmapped: 0 ✓
+- v1.4 requirements: 21 total — mapped to phases: 21 (Phase 12: 8, Phase 13: 5, Phase 14: 3, Phase 15: 2, Phase 16: 3) — unmapped: 0 ✓
+- v1.5 requirements: 43 total — mapped to phases: 43 (Phase 17: 2, Phase 18: 5, Phase 19: 4, Phase 20: 7, Phase 21: 4, Phase 22: 6, Phase 23: 6, Phase 24: 7, Phase 25: 2) — unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-26 (v1.4), 2026-02-28 (v1.5)*
-*Last updated: 2026-02-28 — v1.5 requirements defined*
+*Last updated: 2026-02-28 — v1.5 roadmap created, all 43 v1.5 requirements mapped to phases 17–25*
