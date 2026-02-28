@@ -1,3 +1,16 @@
+---
+gsd_state_version: 1.0
+milestone: v1.5
+milestone_name: Routing + Expression
+status: unknown
+last_updated: "2026-02-28T19:25:47.688Z"
+progress:
+  total_phases: 10
+  completed_phases: 8
+  total_plans: 26
+  completed_plans: 23
+---
+
 # Project State
 
 ## Project Reference
@@ -10,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 17 of 25 (Bug Fixes)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-28 — v1.5 roadmap defined (Phases 17–25, 43 requirements)
+Plan: 2 of TBD in current phase
+Status: In progress
+Last activity: 2026-02-28 — Plan 17-02 complete (BUG-02 BT reconnect crash fixed)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -33,7 +46,7 @@ v1.5 Routing+Expression  [          ] In progress
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 0)
+- Total plans completed: 30 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 1)
 - Average duration: not tracked per plan
 - Total execution time: not tracked
 
@@ -52,6 +65,8 @@ Key v1.5 design decisions (locked, do not re-open):
 - Population range 1–64; Probability 0–100%; subdivision adds 1/64
 - Phase 17 must precede Phase 22 (looper anchor bug corrupts LFO recording seams)
 - Phase 18 must precede Phase 19 (sentChannel_ infrastructure shared)
+- [Phase 17-bug-fixes]: pendingReopenTick_ is a plain bool (not atomic) — timerCallback() runs exclusively on JUCE message thread
+- [Phase 17-bug-fixes]: BUG-02: deferred-open pattern + instance-ID guard eliminates PS4 BT double-open and wrong-handle-close crashes
 
 ### Pending Todos
 
@@ -64,5 +79,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: v1.5 roadmap created — 9 phases (17–25), 43 requirements mapped, files written.
-Next step: /gsd:plan-phase 17
+Stopped at: Completed 17-02-PLAN.md (BUG-02 BT reconnect crash fix)
+Next step: Execute plan 17-03 (BT smoke test / manual verification)

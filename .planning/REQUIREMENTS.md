@@ -114,7 +114,7 @@
 ### Bug Fixes
 
 - [ ] **BUG-01**: Looper playback starts at the correct beat position after a record cycle completes (no anchor drift or offset)
-- [ ] **BUG-02**: Plugin does not crash when PS4 controller reconnects via Bluetooth (SDL2 double-open guard)
+- [x] **BUG-02**: Plugin does not crash when PS4 controller reconnects via Bluetooth (SDL2 double-open guard)
 
 ### Distribution
 
@@ -168,7 +168,7 @@
 | DIST-01 | Phase 16 | Complete |
 | DIST-02 | Phase 16 | Complete |
 | BUG-01 | Phase 17 | Pending |
-| BUG-02 | Phase 17 | Pending |
+| BUG-02 | Phase 17 | Complete |
 | ROUT-01 | Phase 18 | Pending |
 | ROUT-02 | Phase 18 | Pending |
 | ROUT-03 | Phase 18 | Pending |
