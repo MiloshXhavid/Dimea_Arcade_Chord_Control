@@ -252,7 +252,7 @@ Plans:
 | 14. LFO UI + Beat Clock | v1.4 | 3/3 | Complete | 2026-02-26 |
 | 15. Gamepad Preset Control | v1.4 | 2/2 | Complete | 2026-02-26 |
 | 16. Distribution | v1.4 | 2/2 | Complete | 2026-02-26 |
-| 17. Bug Fixes | 1/3 | In Progress|  | - |
+| 17. Bug Fixes | 2/3 | In Progress|  | - |
 | 18. Single-Channel Routing | v1.5 | 0/TBD | Not started | - |
 | 19. Sub Octave Per Voice | v1.5 | 0/TBD | Not started | - |
 | 20. Random Trigger System Extensions | v1.5 | 0/TBD | Not started | - |

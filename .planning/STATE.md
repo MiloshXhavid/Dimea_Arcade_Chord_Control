@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 17 of 25 (Bug Fixes)
-Plan: 2 of TBD in current phase
+Plan: 2 of 3 in current phase (17-01 and 17-02 complete; 17-03 pending)
 Status: In progress
-Last activity: 2026-02-28 — Plan 17-02 complete (BUG-02 BT reconnect crash fixed)
+Last activity: 2026-02-28 — Plan 17-01 complete (BUG-01 looper anchor drift fixed via loopStartPpq_ += loopLen)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -46,7 +46,7 @@ v1.5 Routing+Expression  [          ] In progress
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 30 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 1)
+- Total plans completed: 31 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 2)
 - Average duration: not tracked per plan
 - Total execution time: not tracked
 
@@ -67,6 +67,8 @@ Key v1.5 design decisions (locked, do not re-open):
 - Phase 18 must precede Phase 19 (sentChannel_ infrastructure shared)
 - [Phase 17-bug-fixes]: pendingReopenTick_ is a plain bool (not atomic) — timerCallback() runs exclusively on JUCE message thread
 - [Phase 17-bug-fixes]: BUG-02: deferred-open pattern + instance-ID guard eliminates PS4 BT double-open and wrong-handle-close crashes
+- [Phase 17-01]: BUG-01 fix: loopStartPpq_ += loopLen (not p.ppqPosition - overshoot) — plan formula was wrong; advancing by loopLen is always correct and handles FP drift
+- [Phase 17-01]: TC 13 uses ppq = 4.0 - 1e-6 to expose FP drift bug; exact ppq=4.0 would not demonstrate the regression
 
 ### Pending Todos
 
@@ -79,5 +81,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 17-02-PLAN.md (BUG-02 BT reconnect crash fix)
+Stopped at: Completed 17-01-PLAN.md (BUG-01 looper anchor drift fix)
 Next step: Execute plan 17-03 (BT smoke test / manual verification)
