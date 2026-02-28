@@ -1862,39 +1862,38 @@ void PluginEditor::resized()
         quantizeSubdivBox_.setBounds(qRow);
     }
 
-    // Routing panel — below quantize trigger, above PS4 status label
-    right.removeFromTop(8);
+    // Routing panel — compact, below quantize trigger, above PS4 status label
+    right.removeFromTop(4);
     {
         const int rPanelX = right.getX();
         const int rPanelW = right.getWidth();
-
-        // Routing label + mode dropdown
-        auto rSection = right.removeFromTop(14 + 22 + 4);
-        routingLabel_  .setBounds(rPanelX, rSection.getY(),      rPanelW, 14);
-        routingModeBox_.setBounds(rPanelX, rSection.getY() + 14, rPanelW, 22);
-
-        // Voice channel grid (Multi-Channel) and single target (Single Channel)
-        // Both occupy the same vertical band — visibility toggled by timerCallback.
-        auto rBottom = right.removeFromTop(12 + 20 + 4 + 12 + 20 + 4);
-        const int rY0 = rBottom.getY();
+        constexpr int comboH = 16;
         const int halfW = rPanelW / 2;
-        constexpr int labelH = 12, comboH = 20;
 
-        // singleChanTargetBox_ — same top as voice grid, full width
+        // "Routing" label + mode dropdown on one line
+        {
+            auto row = right.removeFromTop(comboH);
+            routingLabel_  .setBounds(row.removeFromLeft(46));
+            routingModeBox_.setBounds(row);
+        }
+        right.removeFromTop(2);
+
+        // Voice ch 2×2 grid (no row labels) and single-channel target — same band,
+        // visibility toggled by timerCallback.
+        const int rY0 = right.getY();
         singleChanTargetBox_.setBounds(rPanelX, rY0, rPanelW, comboH);
+        voiceChBox_[0].setBounds(rPanelX,         rY0, halfW - 2, comboH);
+        voiceChBox_[2].setBounds(rPanelX + halfW, rY0, halfW - 2, comboH);
 
-        // Voice 0 (Root) and Voice 2 (Fifth) — top row
-        voiceChLabel_[0].setBounds(rPanelX,         rY0,              halfW,      labelH);
-        voiceChLabel_[2].setBounds(rPanelX + halfW, rY0,              halfW,      labelH);
-        voiceChBox_[0]  .setBounds(rPanelX,         rY0 + labelH,     halfW - 2,  comboH);
-        voiceChBox_[2]  .setBounds(rPanelX + halfW, rY0 + labelH,     halfW - 2,  comboH);
+        right.removeFromTop(comboH + 2);
+        const int rY1 = right.getY();
+        voiceChBox_[1].setBounds(rPanelX,         rY1, halfW - 2, comboH);
+        voiceChBox_[3].setBounds(rPanelX + halfW, rY1, halfW - 2, comboH);
+        right.removeFromTop(comboH);
 
-        // Voice 1 (Third) and Voice 3 (Tension) — bottom row
-        const int rY1 = rY0 + labelH + comboH + 4;
-        voiceChLabel_[1].setBounds(rPanelX,         rY1,              halfW,      labelH);
-        voiceChLabel_[3].setBounds(rPanelX + halfW, rY1,              halfW,      labelH);
-        voiceChBox_[1]  .setBounds(rPanelX,         rY1 + labelH,     halfW - 2,  comboH);
-        voiceChBox_[3]  .setBounds(rPanelX + halfW, rY1 + labelH,     halfW - 2,  comboH);
+        // Row labels not needed — collapse to zero
+        for (int v = 0; v < 4; ++v)
+            voiceChLabel_[v].setBounds(0, 0, 0, 0);
     }
 
     // FILTER MOD panel bounds not used — right column panels removed (label conflicts)
@@ -2005,6 +2004,8 @@ void PluginEditor::resized()
     // the looper panel's bottom border line.
     constexpr int kArpH = 84;
     arpBlockBounds_ = left.removeFromBottom(kArpH);
+
+    left.removeFromTop(10);  // push looper down toward arpeggiator
 
     // Looper
     {
