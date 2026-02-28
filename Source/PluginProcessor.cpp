@@ -225,7 +225,7 @@ PluginProcessor::createParameterLayout()
     addInt(ParamID::voiceCh3, "Tension MIDI Channel", 1, 16, 4);
     {
         juce::StringArray routingModes { "Multi-Channel", "Single Channel" };
-        addChoice("singleChanMode",   "Routing Mode",          routingModes, 0);
+        addChoice("singleChanMode",   "Routing Mode",          routingModes, 1);
         addInt   ("singleChanTarget", "Single Channel Target",  1, 16, 1);
     }
 

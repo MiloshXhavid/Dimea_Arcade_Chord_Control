@@ -1743,6 +1743,8 @@ void PluginEditor::resized()
 
     dividerX_ = lfoXCol.getX();  // stays at ~464px from window left
 
+    right.removeFromTop(14);  // push right column content down
+
     // ── RIGHT COLUMN ──────────────────────────────────────────────────────────
 
     // Joystick pad — square, centered horizontally in the right column
@@ -1752,6 +1754,8 @@ void PluginEditor::resized()
         const int padX = padRow.getX() + (padRow.getWidth() - padSize) / 2;
         joystickPad_.setBounds(padX, padRow.getY(), padSize, padSize);
     }
+
+    right.removeFromTop(14);  // clearance so CUTOFF / RESONANCE titles are not hidden behind pad
 
     // Knob row: CUTOFF group | RESONANCE group
     // (X Range / Y Range knobs are now positioned under their LFO columns)
@@ -2111,14 +2115,11 @@ void PluginEditor::resized()
                               .withWidth(lfoXCol.getWidth())
                               .expanded(0, 10);
 
-        // X Range knob: aligned vertically with octave selectors in left column
-        {
-            const int octLabelY = rootOctLabel_.getBounds().getY();
-            const int octKnobY  = rootOctKnob_.getBounds().getY();
-            const int octKnobH  = rootOctKnob_.getBounds().getHeight();
-            joyXAttenLabel_.setBounds(lfoXCol.getX(), octLabelY, lfoXCol.getWidth(), 14);
-            joyXAttenKnob_.setBounds(lfoXCol.getX(), octKnobY, lfoXCol.getWidth(), octKnobH);
-        }
+        // X Range knob: directly below LFO X panel
+        col.removeFromTop(16);
+        joyXAttenLabel_.setBounds(lfoXCol.getX(), col.getY(), lfoXCol.getWidth(), 14);
+        col.removeFromTop(14);
+        joyXAttenKnob_.setBounds(lfoXCol.getX(), col.getY(), lfoXCol.getWidth(), 60);
     }
 
     // ── LFO Y panel layout ─────────────────────────────────────────────────────
@@ -2177,14 +2178,11 @@ void PluginEditor::resized()
                               .withWidth(lfoYCol.getWidth())
                               .expanded(0, 10);
 
-        // Y Range knob: aligned vertically with octave selectors in left column
-        {
-            const int octLabelY = rootOctLabel_.getBounds().getY();
-            const int octKnobY  = rootOctKnob_.getBounds().getY();
-            const int octKnobH  = rootOctKnob_.getBounds().getHeight();
-            joyYAttenLabel_.setBounds(lfoYCol.getX(), octLabelY, lfoYCol.getWidth(), 14);
-            joyYAttenKnob_.setBounds(lfoYCol.getX(), octKnobY, lfoYCol.getWidth(), octKnobH);
-        }
+        // Y Range knob: directly below LFO Y panel
+        col.removeFromTop(16);
+        joyYAttenLabel_.setBounds(lfoYCol.getX(), col.getY(), lfoYCol.getWidth(), 14);
+        col.removeFromTop(14);
+        joyYAttenKnob_.setBounds(lfoYCol.getX(), col.getY(), lfoYCol.getWidth(), 60);
     }
     // ── JOYSTICK GATE% slider + Chord name label ─────────────────────────────
     // Slider spans both LFO columns, sits just below X/Y Range knobs.
@@ -2192,12 +2190,9 @@ void PluginEditor::resized()
     {
         const int chordX = lfoXCol.getX();
         const int chordW = lfoYCol.getRight() - chordX;   // lfoX + gap + lfoY = 304px
-        thresholdSlider_.setBounds(chordX, joyXAttenKnob_.getBottom() + 4, chordW, 18);
+        thresholdSlider_.setBounds(chordX, joystickPad_.getBottom() + 4, chordW, 18);
         constexpr int chordH = 72;
-        const int topOfFree  = thresholdSlider_.getBottom() + 8;
-        const int areaBottom = getHeight() - 8 - 60;
-        const int chordY = topOfFree + (areaBottom - topOfFree - chordH) / 2;
-        chordNameLabel_.setBounds(chordX, chordY, chordW, chordH);
+        chordNameLabel_.setBounds(chordX, padAll_.getY(), chordW, chordH);
     }
 
     (void)rowH;
