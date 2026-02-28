@@ -143,7 +143,11 @@ Plans:
   1. After recording a loop and letting it play back, the first beat of every subsequent cycle aligns exactly with the DAW grid — no audible phase offset or late-start drift
   2. Disconnecting and reconnecting a PS4 controller via Bluetooth during a live session does not crash the plugin and the controller resumes normal operation within one reconnect cycle
   3. Both fixes pass a pluginval level 5 run with no new failures introduced
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 17-01-PLAN.md — LooperEngine.cpp: overshoot-corrected loopStartPpq_ anchor fix; TC 13 regression test (BUG-01)
+- [ ] 17-02-PLAN.md — GamepadInput.h/cpp: !controller_ guard on ADDED, instance-ID guard on REMOVED, pendingReopenTick_ deferred open (BUG-02)
+- [ ] 17-03-PLAN.md — pluginval level 5 run + manual smoke test checkpoint (both bugs)
 
 ### Phase 18: Single-Channel Routing
 **Goal**: Users can route all four voices to a single configurable MIDI channel so that any monophonic or paraphonic synthesizer can be driven by the plugin without per-voice MIDI channel setup in the DAW
@@ -248,7 +252,7 @@ Plans:
 | 14. LFO UI + Beat Clock | v1.4 | 3/3 | Complete | 2026-02-26 |
 | 15. Gamepad Preset Control | v1.4 | 2/2 | Complete | 2026-02-26 |
 | 16. Distribution | v1.4 | 2/2 | Complete | 2026-02-26 |
-| 17. Bug Fixes | v1.5 | 0/TBD | Not started | - |
+| 17. Bug Fixes | v1.5 | 0/3 | Not started | - |
 | 18. Single-Channel Routing | v1.5 | 0/TBD | Not started | - |
 | 19. Sub Octave Per Voice | v1.5 | 0/TBD | Not started | - |
 | 20. Random Trigger System Extensions | v1.5 | 0/TBD | Not started | - |
