@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "ScaleQuantizer.h"
+#include "ChordNameHelper.h"
 #include <BinaryData.h>
 #include <cmath>
 
@@ -14,6 +15,36 @@ namespace Clr
     static const juce::Colour textDim   { 0xFF7A8AB0 };  // blue-grey labels
     static const juce::Colour gateOn    { 0xFF00E676 };  // bright green
     static const juce::Colour gateOff   { 0xFF252843 };  // dark inactive pads
+}
+
+// ─── Interval snap helper ────────────────────────────────────────────────────
+// Returns the nearest in-scale semitone to 'iv' (0..12), with downward preference.
+// mask = ScaleKeyboard::getActiveScaleMask() (bit N = pitch-class N is in scale, pre-transposed).
+// transpose = globalTranspose parameter value (0..11).
+
+static int snapIntervalToScale(int iv, uint16_t mask, int transpose)
+{
+    iv = juce::jlimit(0, 12, iv);
+    auto valid = [&](int x) -> bool
+    {
+        if (x < 0 || x > 12) return false;
+        return ((mask >> ((transpose + x + 1200) % 12)) & 1) != 0;
+    };
+    if (valid(iv)) return iv;
+    for (int r = 1; r <= 12; ++r)
+    {
+        if (valid(iv - r)) return iv - r;  // downward preference
+        if (valid(iv + r)) return iv + r;
+    }
+    return iv;
+}
+
+// ─── Chord name helper ───────────────────────────────────────────────────────
+// Thin JUCE wrapper around computeChordNameStr (see ChordNameHelper.h).
+
+static juce::String computeChordName(const int pitches[4], int transposePc)
+{
+    return juce::String(computeChordNameStr(pitches, transposePc));
 }
 
 // ─── PixelLookAndFeel implementation ─────────────────────────────────────────
@@ -365,12 +396,14 @@ void JoystickPad::paint(juce::Graphics& g)
 
     constexpr float dotR    = 7.0f;
     constexpr float tickLen = 5.0f;
+    // Border inner edge is 2px from the component boundary (drawRect b.reduced(1), 2px thick).
+    // Adding this margin ensures the dot edge just touches the border at ±1.0 display value
+    // and never visually crosses it — even when unclipped LFO value exceeds ±1.
+    constexpr float brdr    = 2.0f;
 
-    // Clamp cursor centre so the full dot always stays inside the pad bounds —
-    // prevents it from "disappearing" into the edge when LFO level is high.
-    const float cx = juce::jlimit(b.getX() + dotR, b.getRight()  - dotR,
+    const float cx = juce::jlimit(b.getX() + dotR + brdr, b.getRight()  - dotR - brdr,
                                   (displayX + 1.0f) * 0.5f * b.getWidth()  + b.getX());
-    const float cy = juce::jlimit(b.getY() + dotR, b.getBottom() - dotR,
+    const float cy = juce::jlimit(b.getY() + dotR + brdr, b.getBottom() - dotR - brdr,
                                   (1.0f - (displayY + 1.0f) * 0.5f) * b.getHeight() + b.getY());
 
     // Static centre reference — same shape as cursor, always visible
@@ -889,6 +922,23 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     fifthIntAtt_   = std::make_unique<SliderAtt>(p.apvts, "fifthInterval",   fifthIntKnob_);
     tensionIntAtt_ = std::make_unique<SliderAtt>(p.apvts, "tensionInterval", tensionIntKnob_);
 
+    // Override textFromValueFunction on the 3 interval knobs so they display the absolute
+    // note name (e.g. "E") rather than a raw semitone count. Must be set AFTER attachment
+    // creation because the attachment's constructor overwrites textFromValueFunction.
+    {
+        static const char* kN[12] = {"C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"};
+        auto noteNameFn = [this](double val) -> juce::String
+        {
+            const int tr  = static_cast<int>(
+                proc_.apvts.getRawParameterValue("globalTranspose")->load());
+            const int idx = ((tr + static_cast<int>(std::round(val))) % 12 + 12) % 12;
+            return juce::String(kN[idx]);
+        };
+        thirdIntKnob_  .textFromValueFunction = noteNameFn;
+        fifthIntKnob_  .textFromValueFunction = noteNameFn;
+        tensionIntKnob_.textFromValueFunction = noteNameFn;
+    }
+
     // ── Octave offsets ────────────────────────────────────────────────────────
     styleKnob(rootOctKnob_);    styleLabel(rootOctLabel_,    "Root Oct");
     styleKnob(thirdOctKnob_);   styleLabel(thirdOctLabel_,   "3rd Oct");
@@ -941,6 +991,39 @@ PluginEditor::PluginEditor(PluginProcessor& p)
         addAndMakeVisible(trigSrc_[i]);
         addAndMakeVisible(trigSrcLabel_[i]);
         trigSrcAtt_[i] = std::make_unique<ComboAtt>(p.apvts, trigSrcIDs[i], trigSrc_[i]);
+    }
+
+    // ── Routing panel setup ───────────────────────────────────────────────────
+    routingLabel_.setText("Routing", juce::dontSendNotification);
+    routingLabel_.setFont(juce::Font(11.0f));
+    addAndMakeVisible(routingLabel_);
+
+    routingModeBox_.addItem("Multi-Channel",  1);
+    routingModeBox_.addItem("Single Channel", 2);
+    styleCombo(routingModeBox_);
+    addAndMakeVisible(routingModeBox_);
+    routingModeAtt_ = std::make_unique<ComboAtt>(p.apvts, "singleChanMode", routingModeBox_);
+
+    // Single Channel target dropdown (1-16)
+    for (int ch = 1; ch <= 16; ++ch)
+        singleChanTargetBox_.addItem("Ch " + juce::String(ch), ch);
+    styleCombo(singleChanTargetBox_);
+    addAndMakeVisible(singleChanTargetBox_);
+    singleChanTargetAtt_ = std::make_unique<ComboAtt>(p.apvts, "singleChanTarget", singleChanTargetBox_);
+
+    // Per-voice channel dropdowns (Multi-Channel mode)
+    const char* voiceNames[4] = { "Root ch", "Third ch", "Fifth ch", "Tension ch" };
+    for (int v = 0; v < 4; ++v)
+    {
+        voiceChLabel_[v].setText(voiceNames[v], juce::dontSendNotification);
+        voiceChLabel_[v].setFont(juce::Font(10.0f));
+        addAndMakeVisible(voiceChLabel_[v]);
+
+        for (int ch = 1; ch <= 16; ++ch)
+            voiceChBox_[v].addItem(juce::String(ch), ch);
+        styleCombo(voiceChBox_[v]);
+        addAndMakeVisible(voiceChBox_[v]);
+        voiceChAtt_[v] = std::make_unique<ComboAtt>(p.apvts, "voiceCh" + juce::String(v), voiceChBox_[v]);
     }
 
     randomDensityKnob_.setSliderStyle(juce::Slider::RotaryVerticalDrag);
@@ -1161,15 +1244,17 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     // ── Quantize mode buttons (Off / Live / Post) ─────────────────────────────
     constexpr int kQuantizeRadioGroup = 1;  // No other radio groups in this editor
 
-    quantizeOffBtn_ .setButtonText("Off");
-    quantizeLiveBtn_.setButtonText("Live");
-    quantizePostBtn_.setButtonText("Post");
+    quantizeOffBtn_ .setButtonText("OFF");
+    quantizeLiveBtn_.setButtonText("LIVE");
+    quantizePostBtn_.setButtonText("POST");
 
     for (auto* btn : { &quantizeOffBtn_, &quantizeLiveBtn_, &quantizePostBtn_ })
     {
         btn->setRadioGroupId(kQuantizeRadioGroup, juce::dontSendNotification);
         btn->setClickingTogglesState(true);
         styleButton(*btn);
+        btn->setColour(juce::TextButton::buttonOnColourId, Clr::gateOn);
+        btn->setColour(juce::TextButton::buttonColourId,   Clr::gateOff);
         addAndMakeVisible(*btn);
     }
 
@@ -1206,6 +1291,21 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     gamepadStatusLabel_.setJustificationType(juce::Justification::centredRight);
     gamepadStatusLabel_.setColour(juce::Label::textColourId, Clr::textDim);
     addAndMakeVisible(gamepadStatusLabel_);
+
+    // OPTION mode indicator — always visible, grayed out until preset-scroll activates
+    optionLabel_.setText("OPTION", juce::dontSendNotification);
+    optionLabel_.setFont(juce::Font(10.0f));
+    optionLabel_.setJustificationType(juce::Justification::centredRight);
+    optionLabel_.setColour(juce::Label::textColourId, Clr::textDim);
+    addAndMakeVisible(optionLabel_);
+
+    // Chord name display — centered in the middle LFO column strip, large bold font
+    chordNameLabel_.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 48.0f, juce::Font::bold));
+    chordNameLabel_.setJustificationType(juce::Justification::centred);
+    chordNameLabel_.setColour(juce::Label::textColourId,       juce::Colour(0xFF131525));  // dark text
+    chordNameLabel_.setColour(juce::Label::backgroundColourId, juce::Colour(0xFFF0F0F8));  // near-white bg
+    chordNameLabel_.setColour(juce::Label::outlineColourId,    Clr::highlight);             // pink border
+    addAndMakeVisible(chordNameLabel_);
 
     // Update gamepad status label with specific controller type on hot-plug events.
     // Passes controller name string (empty = disconnected) via onConnectionChangeUI.
@@ -1614,6 +1714,9 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(lfoYEnabledBtn_);
     lfoYEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "lfoYEnabled", lfoYEnabledBtn_);
 
+    // Capture current preset so the first timer tick doesn't misread a change.
+    lastScalePreset_ = static_cast<int>(p.apvts.getRawParameterValue("scalePreset")->load());
+
     startTimerHz(60);  // 60 Hz for smooth LFO joystick tracking
 }
 
@@ -1661,12 +1764,12 @@ void PluginEditor::resized()
         joystickPad_.setBounds(padX, padRow.getY(), padSize, padSize);
     }
 
-    right.removeFromTop(36);
+    right.removeFromTop(14);
 
     // Knob row: CUTOFF group | RESONANCE group
     // (X Range / Y Range knobs are now positioned under their LFO columns)
     {
-        auto row = right.removeFromTop(90);
+        auto row = right.removeFromTop(76);
         const int colW = (row.getWidth() - 3) / 2;  // 2 equal columns, 1 gap × 3px
 
         // CUTOFF group: Atten (left 50%) | Base (right 50%)
@@ -1716,7 +1819,7 @@ void PluginEditor::resized()
         padAll_.setBounds(row);
     }
 
-    right.removeFromTop(6);
+    right.removeFromTop(3);
 
     // Gamepad status row: 4 equal-width buttons [GAMEPAD] [FILTER MOD] [REC FILTER] [PANIC]
     {
@@ -1726,7 +1829,9 @@ void PluginEditor::resized()
         filterModBtn_.setBounds(row.removeFromLeft(bW));     row.removeFromLeft(4);
         filterRecBtn_.setBounds(row.removeFromLeft(bW));     row.removeFromLeft(4);
         panicBtn_.setBounds(row);  // takes remaining (same width as others)
-        gamepadStatusLabel_.setBounds(getWidth() - 8 - 200, getHeight() - 20, 200, 16);
+        // Bottom-right strip: [controller 148px] [4px] [OPTION 48px] [8px margin]
+        optionLabel_.setBounds       (getWidth() - 8 - 48,       getHeight() - 20, 48,  16);
+        gamepadStatusLabel_.setBounds(getWidth() - 8 - 48 - 4 - 148, getHeight() - 20, 148, 16);
     }
 
     // GAMEPAD panel bounds not used — right column panels removed (label conflicts)
@@ -1743,6 +1848,19 @@ void PluginEditor::resized()
     gateTimeSlider_  .setBounds(right.removeFromTop(18));
     right.removeFromTop(10);
     thresholdSlider_ .setBounds(right.removeFromTop(18));
+
+    // Quantize trigger — all 4 controls in one row: [Off][Live][Post][subdiv]
+    right.removeFromTop(20);
+    {
+        auto qRow = right.removeFromTop(18);
+        constexpr int kDropW = 52;  // wide enough for "1/32"
+        constexpr int kGap   = 2;
+        const int btnW = (qRow.getWidth() - kDropW - 3 * kGap) / 3;
+        quantizeOffBtn_ .setBounds(qRow.removeFromLeft(btnW)); qRow.removeFromLeft(kGap);
+        quantizeLiveBtn_.setBounds(qRow.removeFromLeft(btnW)); qRow.removeFromLeft(kGap);
+        quantizePostBtn_.setBounds(qRow.removeFromLeft(btnW)); qRow.removeFromLeft(kGap);
+        quantizeSubdivBox_.setBounds(qRow);
+    }
 
     // FILTER MOD panel bounds not used — right column panels removed (label conflicts)
 
@@ -1848,6 +1966,42 @@ void PluginEditor::resized()
 
     left.removeFromTop(6);
 
+    // Routing panel — directly below the quantize/trigger section
+    {
+        const int rPanelX = left.getX();
+        const int rPanelW = left.getWidth();
+
+        // Routing label + mode dropdown
+        auto rSection = left.removeFromTop(14 + 22 + 4);
+        routingLabel_  .setBounds(rPanelX, rSection.getY(),      rPanelW, 14);
+        routingModeBox_.setBounds(rPanelX, rSection.getY() + 14, rPanelW, 22);
+
+        // Voice channel grid (Multi-Channel) and single target (Single Channel)
+        // Both occupy the same vertical band — visibility toggled by timerCallback.
+        auto rBottom = left.removeFromTop(12 + 20 + 4 + 12 + 20 + 4);
+        const int rY0 = rBottom.getY();
+        const int halfW = rPanelW / 2;
+        constexpr int labelH = 12, comboH = 20;
+
+        // singleChanTargetBox_ — same top as voice grid, full width
+        singleChanTargetBox_.setBounds(rPanelX, rY0, rPanelW, comboH);
+
+        // Voice 0 (Root) and Voice 2 (Fifth) — top row
+        voiceChLabel_[0].setBounds(rPanelX,         rY0,              halfW,      labelH);
+        voiceChLabel_[2].setBounds(rPanelX + halfW, rY0,              halfW,      labelH);
+        voiceChBox_[0]  .setBounds(rPanelX,         rY0 + labelH,     halfW - 2,  comboH);
+        voiceChBox_[2]  .setBounds(rPanelX + halfW, rY0 + labelH,     halfW - 2,  comboH);
+
+        // Voice 1 (Third) and Voice 3 (Tension) — bottom row
+        const int rY1 = rY0 + labelH + comboH + 4;
+        voiceChLabel_[1].setBounds(rPanelX,         rY1,              halfW,      labelH);
+        voiceChLabel_[3].setBounds(rPanelX + halfW, rY1,              halfW,      labelH);
+        voiceChBox_[1]  .setBounds(rPanelX,         rY1 + labelH,     halfW - 2,  comboH);
+        voiceChBox_[3]  .setBounds(rPanelX + halfW, rY1 + labelH,     halfW - 2,  comboH);
+    }
+
+    left.removeFromTop(4);
+
     // Reserve ARP block at the very bottom of the left column before the looper
     // consumes the rest. Height: 22 gap + 22 button + 4 gap + 14 label + 22 combo = 84px.
     // The 16px trim on the panel border puts the ARPEGGIATOR title safely below
@@ -1899,24 +2053,9 @@ void PluginEditor::resized()
             loopLengthKnob_.setBounds(ctrlRow.removeFromTop(22));
         }
 
-        section.removeFromTop(4);
-
-        // Quantize row: [Off][Live][Post] [subdiv dropdown]
-        {
-            auto qRow = section.removeFromTop(20);
-            constexpr int qBtnW = 32;
-            constexpr int qDropW = 58;  // widened from 48 — "1/32" was truncated at 48px
-            constexpr int qGap = 2;
-
-            quantizeOffBtn_ .setBounds(qRow.removeFromLeft(qBtnW)); qRow.removeFromLeft(qGap);
-            quantizeLiveBtn_.setBounds(qRow.removeFromLeft(qBtnW)); qRow.removeFromLeft(qGap);
-            quantizePostBtn_.setBounds(qRow.removeFromLeft(qBtnW)); qRow.removeFromLeft(qGap + 4);
-            quantizeSubdivBox_.setBounds(qRow.removeFromLeft(qDropW));
-        }
-
         // Looper panel bounds — computed from actual control bounds after layout
+        // (quantize section moved to right column, so not included here)
         looperPanelBounds_ = loopPlayBtn_.getBounds()
-            .getUnion(quantizeSubdivBox_.getBounds())
             .withX(left.getX())
             .withWidth(left.getWidth())
             .expanded(0, 4);
@@ -2073,6 +2212,19 @@ void PluginEditor::resized()
             joyYAttenKnob_.setBounds(lfoYCol.getX(), octKnobY, lfoYCol.getWidth(), octKnobH);
         }
     }
+    // ── Chord name label: large, centered in the combined LFO X + LFO Y strip ──
+    // Spans both LFO columns (304px).  Vertically centred in the free space
+    // below the Joy atten knobs (the last elements placed in the LFO columns).
+    {
+        const int chordX = lfoXCol.getX();
+        const int chordW = lfoYCol.getRight() - chordX;   // lfoX + gap + lfoY = 304px
+        constexpr int chordH = 72;
+        const int topOfFree  = joyXAttenKnob_.getBottom() + 12;
+        const int areaBottom = getHeight() - 8 - 60;      // above footer
+        const int chordY = topOfFree + (areaBottom - topOfFree - chordH) / 2;
+        chordNameLabel_.setBounds(chordX, chordY, chordW, chordH);
+    }
+
     (void)rowH;
 }
 
@@ -2292,7 +2444,7 @@ void PluginEditor::paint(juce::Graphics& g)
     drawAbove(randomFreeTempoKnob_, "FREE BPM");
     drawAbove(filterYModeBox_,      "LEFT Y");
     drawAbove(filterXModeBox_,      "LEFT X");
-    drawAbove(gateTimeSlider_,      "JOYSTICK GATE LENGTH");
+    drawAbove(gateTimeSlider_,      "JOY LENGTH");
     drawAbove(thresholdSlider_,     "JOY THRESH");
 
     // "QUANTIZE TRIGGER" section label — spans from Off button left edge to subdiv box right edge
@@ -2390,6 +2542,15 @@ void PluginEditor::paintOverChildren(juce::Graphics& g)
 
 void PluginEditor::timerCallback()
 {
+    // Routing panel visibility
+    const bool isSingle = (*proc_.apvts.getRawParameterValue("singleChanMode") > 0.5f);
+    singleChanTargetBox_.setVisible(isSingle);
+    for (int v = 0; v < 4; ++v)
+    {
+        voiceChLabel_[v].setVisible(!isSingle);
+        voiceChBox_[v].setVisible(!isSingle);
+    }
+
     // Partial repaint for looper position bar (driven by this 30 Hz timer)
     // Only call repaint() if the bar area is valid — avoids repainting the full editor.
     if (!looperPositionBarBounds_.isEmpty())
@@ -2536,34 +2697,32 @@ void PluginEditor::timerCallback()
         bpmDisplayLabel_.setText(juce::String(bpm, 1) + " BPM", juce::dontSendNotification);
     }
 
-    // Update gamepad OPTION indicator for preset-scroll mode
+    // Update OPTION indicator — dim=off, green=octaves mode, red=interval mode
     {
-        const bool presetScroll = proc_.getGamepad().isPresetScrollActive();
-        const bool connected    = proc_.getGamepad().isConnected();
+        const int optMode = proc_.getGamepad().getOptionMode();
+        const juce::String newText = (optMode == 0) ? "OPTION"
+                                   : (optMode == 1) ? "OCTAVE"
+                                   :                  "INTRVL";
+        const juce::Colour newCol  = (optMode == 0) ? Clr::textDim
+                                   : (optMode == 1) ? Clr::gateOn
+                                   :                  juce::Colour(0xFFFF4444);  // red for mode 2
+        if (optionLabel_.getText() != newText)
+            optionLabel_.setText(newText, juce::dontSendNotification);
+        optionLabel_.setColour(juce::Label::textColourId, newCol);
+    }
 
-        if (presetScroll)
+    // Poll controller connection so the status label stays accurate even when the
+    // SDL disconnect event is delayed (common with Bluetooth on Windows).
+    {
+        const bool connected = proc_.getGamepad().isConnected();
+        if (!connected)
         {
-            // Show OPTION mode indicator — append to existing controller name text
-            // Build suffix: existing label prefix (controller name) + " | OPTION"
-            // Read existing text to preserve controller name; replace only the color.
-            const juce::String currentText = gamepadStatusLabel_.getText();
-            // Strip any prior " | OPTION" suffix to avoid accumulation
-            const juce::String base = currentText.replace(" | OPTION", "");
-            gamepadStatusLabel_.setText(base + " | OPTION", juce::dontSendNotification);
-            gamepadStatusLabel_.setColour(juce::Label::textColourId, Clr::highlight);
-        }
-        else
-        {
-            // Restore normal color; strip OPTION suffix if present
-            const juce::String currentText = gamepadStatusLabel_.getText();
-            if (currentText.contains(" | OPTION"))
+            const juce::String cur = gamepadStatusLabel_.getText();
+            if (cur != "No controller")
             {
-                const juce::String base = currentText.replace(" | OPTION", "");
-                gamepadStatusLabel_.setText(base, juce::dontSendNotification);
+                gamepadStatusLabel_.setText("No controller", juce::dontSendNotification);
+                gamepadStatusLabel_.setColour(juce::Label::textColourId, Clr::textDim);
             }
-            // Restore color based on connection state
-            gamepadStatusLabel_.setColour(juce::Label::textColourId,
-                connected ? Clr::gateOn : Clr::textDim);
         }
     }
 
@@ -2661,5 +2820,90 @@ void PluginEditor::timerCallback()
     // Repaint LFO panel header areas (title knockout may change)
     if (!lfoXPanelBounds_.isEmpty()) repaint(lfoXPanelBounds_);
     if (!lfoYPanelBounds_.isEmpty()) repaint(lfoYPanelBounds_);
+
+    // ── Scale mask: snap slider info + auto-snap interval values on change ──────
+    // Runs every tick; snap sliders get fresh mask for drag snapping.
+    // When the mask itself changes (scale preset OR transpose changed), the stored
+    // APVTS interval values are re-snapped to the nearest scale degree (downward
+    // preference) so the knobs immediately display musically correct note names.
+    {
+        const int      curTr   = static_cast<int>(proc_.apvts.getRawParameterValue("globalTranspose")->load());
+        const uint16_t curMask = scaleKeys_.getActiveScaleMask();
+
+        // Always push fresh mask into drag-snap sliders
+        thirdIntKnob_  .setScaleInfo(curMask, curTr);
+        fifthIntKnob_  .setScaleInfo(curMask, curTr);
+        tensionIntKnob_.setScaleInfo(curMask, curTr);
+
+        // Refresh note-name text boxes when transpose changes.
+        // repaint() only redraws knob graphics; updateText() re-evaluates
+        // textFromValueFunction so the text box shows the new note name.
+        if (curTr != lastTransposeForKnobs_)
+        {
+            lastTransposeForKnobs_ = curTr;
+            thirdIntKnob_  .updateText();
+            fifthIntKnob_  .updateText();
+            tensionIntKnob_.updateText();
+        }
+
+        // When the scale PRESET changes (not a custom-scale note toggle), reset the
+        // three interval knobs to their natural "function" positions — major 3rd (4),
+        // perfect 5th (7), major 7th (11) — before the snap block below quantises
+        // them to the actual scale degrees.  Custom scale is excluded: the user owns
+        // those toggles and the intervals should not be disturbed.
+        {
+            const int  curPreset  = static_cast<int>(proc_.apvts.getRawParameterValue("scalePreset")->load());
+            const bool customOn   = *proc_.apvts.getRawParameterValue("useCustomScale") > 0.5f;
+
+            if (!customOn && curPreset != lastScalePreset_)
+            {
+                lastScalePreset_ = curPreset;
+                auto resetParam = [&](const char* id, int value)
+                {
+                    auto* p = proc_.apvts.getParameter(id);
+                    p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(value)));
+                };
+                resetParam("thirdInterval",   4);
+                resetParam("fifthInterval",   7);
+                resetParam("tensionInterval", 11);
+            }
+        }
+
+        // Re-snap interval APVTS values when the scale mask changes
+        if (curMask != lastScaleMaskForSnap_)
+        {
+            lastScaleMaskForSnap_ = curMask;
+
+            auto snapParam = [&](const char* id)
+            {
+                const int cur     = static_cast<int>(proc_.apvts.getRawParameterValue(id)->load());
+                const int snapped = snapIntervalToScale(cur, curMask, curTr);
+                if (snapped != cur)
+                {
+                    auto* p = proc_.apvts.getParameter(id);
+                    p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(snapped)));
+                }
+            };
+            snapParam("thirdInterval");
+            snapParam("fifthInterval");
+            snapParam("tensionInterval");
+            // APVTS attachment update is async; call updateText() immediately so
+            // the note-name text boxes reflect the snapped value right away.
+            thirdIntKnob_  .updateText();
+            fifthIntKnob_  .updateText();
+            tensionIntKnob_.updateText();
+        }
+    }
+
+    // ── Chord name display ────────────────────────────────────────────────────
+    // heldPitch_ is updated every processBlock (post-LFO), so refreshing on
+    // every timer tick keeps the label live: LFO sweeps, scale changes, and
+    // transpose all reflect immediately.  Label::setText is a no-op when the
+    // text hasn't changed, so there is no unnecessary repaint cost.
+    {
+        const auto pitches = proc_.getCurrentPitches();
+        const int transposePc = (int)proc_.apvts.getRawParameterValue("globalTranspose")->load();
+        chordNameLabel_.setText(computeChordName(pitches.data(), transposePc), juce::dontSendNotification);
+    }
 
 }
