@@ -3,6 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Routing + Expression
 status: unknown
+last_updated: "2026-03-01T07:26:23.914Z"
+progress:
+  total_phases: 17
+  completed_phases: 15
+  total_plans: 41
+  completed_plans: 40
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.5
+milestone_name: Routing + Expression
+status: unknown
 last_updated: "2026-03-01T07:09:26.634Z"
 progress:
   total_phases: 16
