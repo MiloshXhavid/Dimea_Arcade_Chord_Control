@@ -93,12 +93,12 @@
 
 ### Random Trigger System
 
-- [ ] **RND-01**: Trigger source dropdown extended to: Pad / Joystick / Random Free / Random Hold (replaces existing Pad / Joystick / Random)
-- [ ] **RND-02**: Random Free mode fires gates continuously regardless of looper play state; if RND Sync is on, gates snap to the beat grid; if off, gates fire at free random intervals
-- [ ] **RND-03**: Random Hold mode fires gates only while the associated pad is physically held (touchplate or gamepad button); RND Sync applies the same way as Free mode
-- [ ] **RND-04**: "Population" knob (1–64) replaces the existing RND Density knob — sets the maximum number of gates fired per bar
-- [ ] **RND-05**: "Probability" knob (0–100%) replaces the existing RND Gate knob — chance each scheduled population slot actually fires
-- [ ] **RND-06**: Random subdivision options extended to include 1/64 (alongside existing 1/4, 1/8, 1/16, 1/32)
+- [x] **RND-01**: Trigger source dropdown extended to: Pad / Joystick / Random Free / Random Hold (replaces existing Pad / Joystick / Random)
+- [x] **RND-02**: Random Free mode fires gates continuously regardless of looper play state; if RND Sync is on, gates snap to the beat grid; if off, gates fire at free random intervals
+- [x] **RND-03**: Random Hold mode fires gates only while the associated pad is physically held (touchplate or gamepad button); RND Sync applies the same way as Free mode
+- [x] **RND-04**: "Population" knob (1–64) replaces the existing RND Density knob — sets the maximum number of gates fired per bar
+- [x] **RND-05**: "Probability" knob (0–100%) replaces the existing RND Gate knob — chance each scheduled population slot actually fires
+- [x] **RND-06**: Random subdivision options extended to include 1/64 (alongside existing 1/4, 1/8, 1/16, 1/32)
 - [ ] **RND-07**: Unified "Gate Length" parameter (0–100% of subdivision) controls note hold duration for both Arp and Random sources; left joystick X or Y can modulate it
 
 ### Gamepad Option Mode 1
@@ -178,12 +178,12 @@
 | SUBOCT-02 | Phase 19 | Complete |
 | SUBOCT-03 | Phase 19 | Complete |
 | SUBOCT-04 | Phase 19 | Complete |
-| RND-01 | Phase 20 | Pending |
-| RND-02 | Phase 20 | Pending |
-| RND-03 | Phase 20 | Pending |
-| RND-04 | Phase 20 | Pending |
-| RND-05 | Phase 20 | Pending |
-| RND-06 | Phase 20 | Pending |
+| RND-01 | Phase 20 | Complete |
+| RND-02 | Phase 20 | Complete |
+| RND-03 | Phase 20 | Complete |
+| RND-04 | Phase 20 | Complete |
+| RND-05 | Phase 20 | Complete |
+| RND-06 | Phase 20 | Complete |
 | RND-07 | Phase 20 | Pending |
 | LJOY-01 | Phase 21 | Pending |
 | LJOY-02 | Phase 21 | Pending |
