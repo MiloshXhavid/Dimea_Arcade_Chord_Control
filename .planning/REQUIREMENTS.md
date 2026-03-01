@@ -75,11 +75,11 @@
 
 ### LFO Recording
 
-- [ ] **LFOREC-01**: An "Arm" button next to the Sync button lets the user arm LFO recording (unarmed by default — LFO does not record automatically)
+- [x] **LFOREC-01**: An "Arm" button next to the Sync button lets the user arm LFO recording (unarmed by default — LFO does not record automatically)
 - [x] **LFOREC-02**: When armed and the looper starts recording, pre-distortion LFO output is captured into a dedicated ring buffer for exactly one loop cycle
 - [x] **LFOREC-03**: After one loop cycle, recording stops automatically and LFO switches to playback — replaying stored values in sync with the looper
-- [ ] **LFOREC-04**: During LFO playback mode, Shape / Freq / Phase / Level / Sync controls are grayed out; Distort remains adjustable
-- [ ] **LFOREC-05**: A "Clear" button returns LFO recording to unarmed/normal mode and re-enables all grayed-out parameters
+- [x] **LFOREC-04**: During LFO playback mode, Shape / Freq / Phase / Level / Sync controls are grayed out; Distort remains adjustable
+- [x] **LFOREC-05**: A "Clear" button returns LFO recording to unarmed/normal mode and re-enables all grayed-out parameters
 - [x] **LFOREC-06**: Distort is applied live on top of stored playback samples — never recorded
 
 ### Arpeggiator
@@ -189,11 +189,11 @@
 | LJOY-02 | Phase 21 | Complete |
 | LJOY-03 | Phase 21 | Complete |
 | LJOY-04 | Phase 21 | Complete |
-| LFOREC-01 | Phase 22 | Pending |
+| LFOREC-01 | Phase 22 | Complete |
 | LFOREC-02 | Phase 22 | Complete |
 | LFOREC-03 | Phase 22 | Complete |
-| LFOREC-04 | Phase 22 | Pending |
-| LFOREC-05 | Phase 22 | Pending |
+| LFOREC-04 | Phase 22 | Complete |
+| LFOREC-05 | Phase 22 | Complete |
 | LFOREC-06 | Phase 22 | Complete |
 | ARP-01 | Phase 23 | Pending |
 | ARP-02 | Phase 23 | Pending |
