@@ -445,13 +445,18 @@ void TouchPlate::mouseDown(const juce::MouseEvent&)
 {
     const int src = static_cast<int>(
         proc_.apvts.getRawParameterValue("triggerSource" + juce::String(voice_))->load());
-    if (src == 0)  // only active in PAD mode
+    if (src == 0)  // TouchPlate: hold-mode-aware
     {
         // Hold mode is inverted: press = mute (note-off), release = note-on (hold resumes).
         if (proc_.padHold_[voice_].load())
             proc_.setPadState(voice_, false);
         else
             proc_.setPadState(voice_, true);
+        repaint();
+    }
+    else if (src == 3)  // RandomHold: touch = trigger (rising edge), no hold-mode inversion
+    {
+        proc_.setPadState(voice_, true);
         repaint();
     }
 }
@@ -468,6 +473,10 @@ void TouchPlate::mouseUp(const juce::MouseEvent&)
         else
             proc_.setPadState(voice_, false);
     }
+    else if (src == 3)  // RandomHold: release = hard-cut
+    {
+        proc_.setPadState(voice_, false);
+    }
     repaint();  // always repaint so dim state stays current
 }
 
@@ -475,7 +484,7 @@ void TouchPlate::paint(juce::Graphics& g)
 {
     const int src = static_cast<int>(
         proc_.apvts.getRawParameterValue("triggerSource" + juce::String(voice_))->load());
-    const bool isPadMode = (src == 0);  // 0 = TouchPlate
+    const bool isPadMode = (src == 0 || src == 3);  // 0 = TouchPlate, 3 = RandomHold (also pad-driven)
     const bool active    = isPadMode && proc_.isGateOpen(voice_);
     const bool arpStep   = (proc_.getArpCurrentVoice() == voice_);
     const bool looperOn  = proc_.isLooperVoiceActive(voice_);
@@ -520,14 +529,15 @@ GlobalTouchPlate::GlobalTouchPlate(PluginProcessor& p) : proc_(p) {}
 void GlobalTouchPlate::mouseDown(const juce::MouseEvent&)
 {
     pressed_ = true;
-    // Trigger only voices that are in PAD mode (triggerSource == 0).
-    // Respect hold mode per voice: in hold mode press = note-off (mirrors individual TouchPlate).
+    // Trigger voices in PAD mode (src==0) or RandomHold (src==3).
     for (int v = 0; v < 4; ++v)
     {
         const int src = static_cast<int>(
             proc_.apvts.getRawParameterValue("triggerSource" + juce::String(v))->load());
         if (src == 0)
-            proc_.setPadState(v, !proc_.padHold_[v].load());
+            proc_.setPadState(v, !proc_.padHold_[v].load());  // hold-mode aware
+        else if (src == 3)
+            proc_.setPadState(v, true);  // RandomHold: touch = trigger
     }
     repaint();
 }
@@ -540,7 +550,9 @@ void GlobalTouchPlate::mouseUp(const juce::MouseEvent&)
         const int src = static_cast<int>(
             proc_.apvts.getRawParameterValue("triggerSource" + juce::String(v))->load());
         if (src == 0)
-            proc_.setPadState(v, proc_.padHold_[v].load());
+            proc_.setPadState(v, proc_.padHold_[v].load());  // hold-mode aware
+        else if (src == 3)
+            proc_.setPadState(v, false);  // RandomHold: release = hard-cut
     }
     repaint();
 }
@@ -553,7 +565,7 @@ void GlobalTouchPlate::paint(juce::Graphics& g)
     {
         const int src = static_cast<int>(
             proc_.apvts.getRawParameterValue("triggerSource" + juce::String(v))->load());
-        if (src == 0) { anyPadMode = true; break; }
+        if (src == 0 || src == 3) { anyPadMode = true; break; }
     }
 
     // Distinct colour: a teal/cyan hue, different from the per-voice pads

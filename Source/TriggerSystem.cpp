@@ -318,7 +318,10 @@ void TriggerSystem::resetAllGates()
         joySettleSamples_[v]     = 0;
         joyLastBend_[v]          = 0;
         joystickStillSamples_[v] = 0;
-        padPressed_[v].store(false);
+        // NOTE: padPressed_ is intentionally NOT reset here.
+        // The physical pad state is owned by the UI/gamepad thread; resetting it
+        // would cause setPadState() to detect a false rising edge (re-triggering a
+        // note) the next time it is called while the pad is still held.
         padJustFired_[v].store(false);
 
         // Per-voice random clock state
