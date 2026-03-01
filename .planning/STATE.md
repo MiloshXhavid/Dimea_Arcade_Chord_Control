@@ -44,14 +44,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** XY joystick mapped to harmonic space — per-note trigger gates, scale quantization, gesture looper with trigger quantization, gamepad control — no competitor provides this as a unified instrument.
-**Current focus:** v1.5 — Phase 22: LFO Recording (Phase 21 complete)
+**Current focus:** v1.5 — Phase 22: LFO Recording (22-02 complete)
 
 ## Current Position
 
 Phase: 22 of 25 (LFO Recording) — In progress
-Plan: 22-01 complete (1/? plans)
-Status: Phase 22 plan 01 COMPLETE — LfoEngine DSP foundation: LfoRecState enum, ring buffer, arm/record/playback state machine, linear-interp playback
-Last activity: 2026-03-01 — Phase 22 plan 01 complete
+Plan: 22-02 complete (2/? plans)
+Status: Phase 22 plan 02 COMPLETE — PluginProcessor wired as LFO recording authority: edge detection, passthrough methods, playbackPhase injection
+Last activity: 2026-03-01 — Phase 22 plan 02 complete
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -63,7 +63,7 @@ v1.5 Routing+Expression  [████      ] In progress
   Phase 19  [██████████]   Sub Octave Per Voice   COMPLETE 2026-03-01
   Phase 20  [██████████]   RND Trigger Extensions COMPLETE 2026-03-01
   Phase 21  [██████████]   Left Joystick Targets  COMPLETE 2026-03-01
-  Phase 22  [█         ]   LFO Recording          In progress (22-01 done)
+  Phase 22  [██        ]   LFO Recording          In progress (22-02 done)
   Phase 23  [          ]   Arpeggiator            Not started
   Phase 24  [          ]   Gamepad Option Mode 1  Not started
   Phase 25  [          ]   Distribution           Not started
@@ -72,7 +72,7 @@ v1.5 Routing+Expression  [████      ] In progress
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 43 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 12 [Phase 17 complete + 18-01 + 18-02 + 18-03 + 19-01 + 19-02 + 20-01 + 20-02 + 20-03 + 21-01 + 21-02 + 22-01])
+- Total plans completed: 44 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 13 [Phase 17 complete + 18-01 + 18-02 + 18-03 + 19-01 + 19-02 + 20-01 + 20-02 + 20-03 + 21-01 + 21-02 + 22-01 + 22-02])
 - Average duration: not tracked per plan
 - Total execution time: not tracked
 
@@ -126,6 +126,9 @@ Key v1.5 design decisions (locked, do not re-open):
 - [Phase 22-01]: reset() intentionally does NOT clear recState_ — transport stop must not destroy captured LFO recording; clearRecording() is the explicit API
 - [Phase 22-01]: std::atomic<int> used for recState_ (not std::atomic<LfoRecState>) — established MSVC C2338 workaround
 - [Phase 22-01]: capturedCount_ capped to kRecBufSize via std::min in playback — handles partial and ring-wrapped captures correctly
+- [Phase 22-02]: Edge detection block inserted after looper_.process() return, before chord params — state transitions fire before LFO is processed in same block
+- [Phase 22-02]: playbackPhase computed inside each LFO enabled branch independently to avoid computation when LFO is disabled
+- [Phase 22-02]: loopOut.looperReset has two independent consumers: note-off handler (existing) + new clearRecording dispatch — both fire from same flag without conflict
 
 ### Pending Todos
 
@@ -138,5 +141,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 22-01-PLAN.md — LfoEngine DSP foundation for LFO recording
-Next step: Phase 22 plan 02 — processor integration (drive state transitions, set playbackPhase)
+Stopped at: Completed 22-02-PLAN.md — PluginProcessor LFO recording wiring (edge detection, passthrough methods, playbackPhase)
+Next step: Phase 22 plan 03 — LFO recording UI (ARM/CLR buttons, state polling in timerCallback)

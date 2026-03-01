@@ -221,8 +221,8 @@ Plans:
   4. Pressing the Clear button returns the LFO to normal (unarmed) mode — all grayed-out controls become interactive again and the LFO resumes real-time generation
 **Plans**: 3 plans
 Plans:
-- [ ] 22-01-PLAN.md — LfoEngine DSP: RecState enum, ring buffer capture, playback branch
-- [ ] 22-02-PLAN.md — PluginProcessor: passthrough methods, edge detection, playbackPhase injection
+- [x] 22-01-PLAN.md — LfoEngine DSP: RecState enum, ring buffer capture, playback branch
+- [x] 22-02-PLAN.md — PluginProcessor: passthrough methods, edge detection, playbackPhase injection
 - [ ] 22-03-PLAN.md — PluginEditor: ARM/CLR buttons, blink, grayout, smoke-test checkpoint
 
 ### Phase 23: Arpeggiator
@@ -277,7 +277,7 @@ Plans:
 | 19. Sub Octave Per Voice | 2/2 | Complete    | 2026-03-01 | - |
 | 20. Random Trigger System Extensions | v1.5 | 3/3 | Complete | 2026-03-01 |
 | 21. Left Joystick Modulation Expansion | 2/2 | Complete    | 2026-03-01 | - |
-| 22. LFO Recording | 1/3 | In Progress|  | - |
+| 22. LFO Recording | 2/3 | In Progress| 2026-03-01 | - |
 | 23. Arpeggiator | v1.5 | 0/TBD | Not started | - |
 | 24. Gamepad Option Mode 1 | v1.5 | 0/TBD | Not started | - |
 | 25. Distribution | v1.5 | 0/TBD | Not started | - |
