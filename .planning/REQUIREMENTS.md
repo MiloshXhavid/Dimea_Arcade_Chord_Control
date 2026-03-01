@@ -72,6 +72,9 @@
 - [x] **LJOY-02**: Left Joystick Y dropdown offers the same set with LFO-Y variants: Filter Cutoff (CC74), Filter Resonance (CC71), LFO-Y Frequency, LFO-Y Phase, LFO-Y Level, Gate Length
 - [x] **LJOY-03**: Left Joystick X dropdown appears before Left Joystick Y in the UI
 - [x] **LJOY-04**: LFO Frequency target is suppressed (stick has no effect) when that LFO's Sync mode is active
+- [ ] **LJOY-05**: When the left joystick is routed to any LFO parameter (Freq/Phase/Level) or Gate Length, the corresponding UI slider visually tracks the joystick position in real time at 30 Hz (via timerCallback display atomic poll)
+- [ ] **LJOY-06**: The LFO slider's current value defines the center/base; joystick modulates above or below it (base + offset model). Releasing the stick to center causes the slider display to return to the user-set base value
+- [ ] **LJOY-07**: Gate Length joystick modulation uses a 50ms SmoothedValue ramp — no zipper noise when moving the joystick during active notes
 
 ### LFO Recording
 
@@ -189,6 +192,9 @@
 | LJOY-02 | Phase 21 | Complete |
 | LJOY-03 | Phase 21 | Complete |
 | LJOY-04 | Phase 21 | Complete |
+| LJOY-05 | Phase 24.1 | Pending |
+| LJOY-06 | Phase 24.1 | Pending |
+| LJOY-07 | Phase 24.1 | Pending |
 | LFOREC-01 | Phase 22 | Complete |
 | LFOREC-02 | Phase 22 | Complete |
 | LFOREC-03 | Phase 22 | Complete |
@@ -213,8 +219,8 @@
 
 **Coverage:**
 - v1.4 requirements: 21 total — mapped to phases: 21 (Phase 12: 8, Phase 13: 5, Phase 14: 3, Phase 15: 2, Phase 16: 3) — unmapped: 0 ✓
-- v1.5 requirements: 43 total — mapped to phases: 43 (Phase 17: 2, Phase 18: 5, Phase 19: 4, Phase 20: 7, Phase 21: 4, Phase 22: 6, Phase 23: 6, Phase 24: 7, Phase 25: 2) — unmapped: 0 ✓
+- v1.5 requirements: 46 total — mapped to phases: 46 (Phase 17: 2, Phase 18: 5, Phase 19: 4, Phase 20: 7, Phase 21: 4, Phase 22: 6, Phase 23: 6, Phase 24: 7, Phase 24.1: 3, Phase 25: 2) — unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-26 (v1.4), 2026-02-28 (v1.5)*
-*Last updated: 2026-03-01 — Phase 24 complete: OPT1-01..OPT1-07 all verified*
+*Last updated: 2026-03-01 — Phase 24.1: LJOY-05, LJOY-06, LJOY-07 minted*

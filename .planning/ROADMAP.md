@@ -62,6 +62,7 @@ Full details: Phase Details section below (Phases 12–16).
 - [x] **Phase 22: LFO Recording** — Arm/Record/Playback state machine in LfoEngine, pre-distortion ring buffer, ARM/CLR buttons with blink and grayout UI, Distort stays live (completed 2026-03-01)
 - [x] **Phase 23: Arpeggiator** — All 6 ARP requirements (ARP-01..ARP-06) verified in Ableton Live MIDI monitor: 4-voice sequencing, 4 rate options, 4 order modes, gate length, bar-boundary launch, step-counter reset (completed 2026-03-01)
 - [x] **Phase 24: Gamepad Option Mode 1** — Mode-1 face-button dispatch (Circle/Triangle/Square/X), R3 no-op confirmed, face-button looper dispatch gated to Mode 1; "ARP" label + per-mode control highlight (completed 2026-03-01)
+- [ ] **Phase 24.1: LFO Joystick Visual Tracking and Center Offset** — Display atomics + timerCallback slider tracking; base+offset dispatch model; SmoothedValue gate smoothing (pre-distribution fix)
 - [ ] **Phase 25: Distribution** — v1.5 installer, GitHub release, desktop backup
 
 ## Phase Details
@@ -256,6 +257,21 @@ Plans:
 - [x] 24-02-PLAN.md — PluginProcessor.cpp: Mode 1 arp dispatch + looper consume gate; PluginEditor.cpp: "ARP" label + per-mode control highlight (completed 2026-03-01)
 - [x] 24-03-PLAN.md — Deploy VST3 + DAW smoke test checkpoint (all 7 OPT1 requirements + visual feedback) (completed 2026-03-01)
 
+### Phase 24.1: LFO Joystick Visual Tracking and Center Offset (INSERTED)
+
+**Goal**: LFO and Gate Length sliders visually track the left joystick in real time; the slider base value is preserved as the center point; gate length modulation is smooth
+**Depends on**: Phase 24
+**Requirements**: LJOY-05, LJOY-06, LJOY-07
+**Success Criteria** (what must be TRUE):
+  1. When the left joystick is routed to an LFO parameter (Freq/Phase/Level) or Gate Length, the corresponding UI slider thumb moves in real time as the joystick moves — at 30 Hz via timerCallback
+  2. The LFO slider's pre-joystick value defines the rest position — releasing the stick to center causes the slider to return to that base value, not stay at the last joystick position
+  3. Rapidly moving the joystick while Gate Length is the target produces no audible zipper noise — the SmoothedValue ramp eliminates stepped note-off artifacts
+  4. During LFO recording Playback mode, grayed-out sliders do NOT visually update even when the joystick is routed to them
+**Plans**: 2 plans
+Plans:
+- [ ] 24.1-01-PLAN.md — PluginProcessor.h/cpp: 7 display atomics, 6 override floats, SmoothedValue; LFO block override consumption; dispatch block base+offset refactor; gate smoothing
+- [ ] 24.1-02-PLAN.md — PluginEditor.cpp timerCallback display poll; deploy VST3; human smoke test checkpoint
+
 ### Phase 25: Distribution
 **Goal**: v1.5 is publicly released on GitHub and backed up locally
 **Depends on**: Phase 24
@@ -287,10 +303,11 @@ Plans:
 | 22. LFO Recording | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
 | 23. Arpeggiator | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
 | 24. Gamepad Option Mode 1 | v1.5 | 3/3 | Complete | 2026-03-01 |
+| 24.1. LFO Joystick Visual Tracking | v1.5 | 0/2 | Not started | - |
 | 25. Distribution | v1.5 | 0/TBD | Not started | - |
 
 ---
 *v1.0 shipped 2026-02-23 — 7 phases, 17 plans*
 *v1.3 shipped 2026-02-25 — 3 phases, 11 plans, 47 files changed*
 *v1.4 shipped 2026-02-26 — 5 phases, 9 plans, GitHub release at MiloshXhavid/Dima_Plugin_Chrdmachine/releases/tag/v1.4*
-*v1.5 roadmap defined 2026-02-28 — 9 phases (17–25), 43 requirements*
+*v1.5 roadmap defined 2026-02-28 — 9 phases (17–25), 43 requirements; Phase 24.1 inserted 2026-03-01 (3 new requirements: LJOY-05, LJOY-06, LJOY-07)*
