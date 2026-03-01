@@ -72,6 +72,12 @@ public:
         return pendingOptionDpadDelta_[dir].exchange(0, std::memory_order_relaxed);
     }
 
+    // Option Mode 1 face-button arp dispatch consumers (called from processBlock optMode==1 block)
+    int  consumeArpRateDelta()  { return pendingArpRateDelta_.exchange(0, std::memory_order_relaxed); }
+    int  consumeArpOrderDelta() { return pendingArpOrderDelta_.exchange(0, std::memory_order_relaxed); }
+    bool consumeArpCircle()     { return pendingArpCircle_.exchange(false, std::memory_order_relaxed); }
+    bool consumeRndSyncToggle() { return pendingRndSyncToggle_.exchange(false, std::memory_order_relaxed); }
+
     // Whether a gamepad is connected
     bool isConnected() const { return controller_ != nullptr; }
 
@@ -166,6 +172,26 @@ private:
     static constexpr uint32_t kDpadDoubleClickMs = 300;
     std::atomic<int>  pendingOptionDpadDelta_[4] {};
     uint32_t          optDpadLastPressMs_[4] = {};
+
+    // ── Option Mode 1 face-button arp dispatch signals ────────────────────────
+    // pendingArpRateDelta_: +1 = single Triangle press, -2 = second press within kDpadDoubleClickMs
+    // pendingArpOrderDelta_: same pattern for Square
+    // pendingArpCircle_: Circle rising edge (arp toggle)
+    // pendingRndSyncToggle_: Cross rising edge (RND Sync toggle)
+    std::atomic<int>  pendingArpRateDelta_  {0};
+    std::atomic<int>  pendingArpOrderDelta_ {0};
+    std::atomic<bool> pendingArpCircle_     {false};
+    std::atomic<bool> pendingRndSyncToggle_ {false};
+
+    uint32_t          arpRateLastPressMs_   = 0;
+    uint32_t          arpOrderLastPressMs_  = 0;
+
+    // Separate ButtonState trackers for Mode 1 face buttons (separate from looper button states
+    // so that looper atoms continue firing in all modes from the unconditional looper block).
+    ButtonState btnMode1Circle_;
+    ButtonState btnMode1Triangle_;
+    ButtonState btnMode1Square_;
+    ButtonState btnMode1Cross_;
 
     bool sdlInitialised_    = false;  // guard: SdlContext::release() only if acquire() succeeded
     bool pendingReopenTick_ = false;  // deferred BT open: set on SDL_CONTROLLERDEVICEADDED, consumed after event loop

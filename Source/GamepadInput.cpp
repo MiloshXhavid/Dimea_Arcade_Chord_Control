@@ -266,6 +266,52 @@ void GamepadInput::timerCallback()
             if (debounce(curLeft,  btnDpadLeft_)  && btnDpadLeft_.prev)  dpadLeftTrig_.store(true);
             if (debounce(curRight, btnDpadRight_) && btnDpadRight_.prev) dpadRightTrig_.store(true);
         }
+
+        // ── Mode 1 face-button arp dispatch ──────────────────────────────────────
+        // Uses separate ButtonState trackers (btnMode1*) so the unconditional looper
+        // button atoms above still fire in all modes — PluginProcessor gates consumption.
+        // This block is inside !optionFrameFired_ so it cannot fire in the same frame
+        // the Option button toggles mode.
+        if (optionMode_.load(std::memory_order_relaxed) == 1)
+        {
+            // Circle (SDL B) → arp toggle
+            {
+                const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_B) != 0;
+                if (debounce(cur, btnMode1Circle_) && btnMode1Circle_.prev)
+                    pendingArpCircle_.store(true, std::memory_order_relaxed);
+            }
+
+            // Triangle (SDL Y) → arp rate delta (double-click pattern)
+            {
+                const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_Y) != 0;
+                if (debounce(cur, btnMode1Triangle_) && btnMode1Triangle_.prev)
+                {
+                    const uint32_t elapsed = now - arpRateLastPressMs_;
+                    const int delta = (arpRateLastPressMs_ != 0 && elapsed < kDpadDoubleClickMs) ? -2 : +1;
+                    pendingArpRateDelta_.fetch_add(delta, std::memory_order_relaxed);
+                    arpRateLastPressMs_ = (delta == +1) ? now : 0;
+                }
+            }
+
+            // Square (SDL X) → arp order delta (double-click pattern)
+            {
+                const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_X) != 0;
+                if (debounce(cur, btnMode1Square_) && btnMode1Square_.prev)
+                {
+                    const uint32_t elapsed = now - arpOrderLastPressMs_;
+                    const int delta = (arpOrderLastPressMs_ != 0 && elapsed < kDpadDoubleClickMs) ? -2 : +1;
+                    pendingArpOrderDelta_.fetch_add(delta, std::memory_order_relaxed);
+                    arpOrderLastPressMs_ = (delta == +1) ? now : 0;
+                }
+            }
+
+            // Cross (SDL A) → RND Sync toggle
+            {
+                const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_A) != 0;
+                if (debounce(cur, btnMode1Cross_) && btnMode1Cross_.prev)
+                    pendingRndSyncToggle_.store(true, std::memory_order_relaxed);
+            }
+        }
     }
 }
 
