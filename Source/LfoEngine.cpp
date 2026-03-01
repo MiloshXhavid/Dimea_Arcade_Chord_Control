@@ -120,13 +120,23 @@ float LfoEngine::process(const ProcessParams& p)
         const int state = recState_.load(std::memory_order_relaxed);
         if (state == static_cast<int>(LfoRecState::Recording))
         {
-            // Write one value per processBlock call.
-            // Wraps at kRecBufSize (ring behavior after buffer is full).
-            recBuf_[captureWriteIdx_] = output;
-            captureWriteIdx_ = (captureWriteIdx_ + 1) % kRecBufSize;
-            ++capturedCount_;
-            // NOTE: state transition Recording→Playback is driven by processBlock()
+            // Write 8 linearly-interpolated values between the previous block's output
+            // and the current block's output. At 512-sample blocks / 44100 Hz this gives
+            // ~8x denser capture (~2752 values for a 2-bar loop at 120 BPM) compared to
+            // writing a single value per block (~344 values), eliminating visible choppiness
+            // during playback interpolation.
+            // NOTE: state transition Recording->Playback is driven by processBlock()
             // edge-detecting looper_.isRecording() false edge. Do NOT self-transition here.
+            static constexpr int kSubBlockWrites = 8;
+            for (int i = 0; i < kSubBlockWrites; ++i)
+            {
+                if (captureWriteIdx_ >= kRecBufSize)
+                    break;
+                const float t = (i + 1) * (1.0f / static_cast<float>(kSubBlockWrites));
+                recBuf_[captureWriteIdx_++] = lastRecValue_ + t * (output - lastRecValue_);
+            }
+            lastRecValue_ = output;
+            capturedCount_ = captureWriteIdx_;
         }
         else if (state == static_cast<int>(LfoRecState::Playback))
         {
@@ -213,17 +223,19 @@ void LfoEngine::arm()
 
 void LfoEngine::clearRecording()
 {
-    // Any state→Unarmed. Does NOT zero recBuf_ (preserving old data is harmless).
+    // Any state->Unarmed. Does NOT zero recBuf_ (preserving old data is harmless).
     recState_.store(static_cast<int>(LfoRecState::Unarmed), std::memory_order_relaxed);
     captureWriteIdx_ = 0;
     capturedCount_   = 0;
+    lastRecValue_    = 0.0f;
 }
 
 void LfoEngine::startCapture()
 {
-    // Armed→Recording. Resets write head. Called from audio thread only.
+    // Armed->Recording. Resets write head. Called from audio thread only.
     captureWriteIdx_ = 0;
     capturedCount_   = 0;
+    lastRecValue_    = 0.0f;
     recState_.store(static_cast<int>(LfoRecState::Recording), std::memory_order_relaxed);
 }
 

@@ -120,8 +120,9 @@ private:
     // ── LFO recording ring buffer ─────────────────────────────────────────────
     static constexpr int kRecBufSize = 4096;
     float recBuf_[kRecBufSize] = {};
-    int   captureWriteIdx_     = 0;  // audio-thread-only write position
-    int   capturedCount_       = 0;  // audio-thread-only written sample count
+    int   captureWriteIdx_     = 0;     // audio-thread-only write position
+    int   capturedCount_       = 0;     // audio-thread-only written sample count
+    float lastRecValue_        = 0.0f;  // previous block's captured value for sub-block interpolation
 
     // Atomic int (not atomic<LfoRecState>) — avoids MSVC C2338 on enum class in atomics.
     // Cast to/from LfoRecState on every store/load.
