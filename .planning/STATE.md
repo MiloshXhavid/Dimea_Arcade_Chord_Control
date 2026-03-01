@@ -172,6 +172,7 @@ Key v1.5 design decisions (locked, do not re-open):
 - [Phase 24-02]: looper consume calls wrapped in `if (optMode != 1)` — Mode 0 and Mode 2 retain full looper face-button control; Mode 1 exclusively dispatches arp signals
 - [Phase 24-02]: lastHighlightMode_ int in PluginEditor.h guards per-mode highlight block to avoid redundant 30Hz repaints; Mode 1 = green tint, Mode 2 = muted blue, Mode 0 = transparent
 - [Phase 24-02]: Mode 1 label changed from "OCTAVE" to "ARP" — arp control is now primary Mode 1 identity; D-pad octave remains available but is secondary
+- [Phase 08-02]: All 6 post-v1.0 patches (PATCH-01 through PATCH-06) verified via loopMIDI + MIDI-OX; 08-VALIDATION.md signed off 2026-03-01
 
 ### Pending Todos
 
@@ -184,5 +185,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 24.1-01-PLAN.md — override floats, display atomics, SmoothedValue added; base+offset dispatch replaces writeParam; build verified
+Stopped at: Completed 08-02-PLAN.md — all 6 patches manually verified, 08-VALIDATION.md signed off, Phase 08 complete
 Next step: Phase 24.1 Plan 02 — timerCallback display poll, build, deploy, human verify with PS controller
