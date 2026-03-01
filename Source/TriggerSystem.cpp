@@ -38,21 +38,23 @@ void TriggerSystem::triggerAllNotes()
 // Subdivision helper lambdas (file-scope statics, computed once)
 static auto subdivBeatsFor = [](RandomSubdiv s) -> double {
     switch (s) {
-        case RandomSubdiv::Quarter:      return 1.0;
-        case RandomSubdiv::Eighth:       return 0.5;
-        case RandomSubdiv::Sixteenth:    return 0.25;
-        case RandomSubdiv::ThirtySecond: return 0.125;
+        case RandomSubdiv::Quarter:         return 1.0;
+        case RandomSubdiv::Eighth:          return 0.5;
+        case RandomSubdiv::Sixteenth:       return 0.25;
+        case RandomSubdiv::ThirtySecond:    return 0.125;
+        case RandomSubdiv::SixtyFourthNote: return 0.0625;
     }
     return 0.5;
 };
 
-static float hitsPerBarToProbability(float density, RandomSubdiv subdiv)
+static float hitsPerBarToProbability(float population, RandomSubdiv subdiv)
 {
     const float subdivsPerBar = static_cast<float>(
-        subdiv == RandomSubdiv::Quarter ? 4 :
-        subdiv == RandomSubdiv::Eighth  ? 8 :
-        subdiv == RandomSubdiv::Sixteenth ? 16 : 32);
-    return juce::jlimit(0.0f, 1.0f, density / subdivsPerBar);
+        subdiv == RandomSubdiv::Quarter         ?  4 :
+        subdiv == RandomSubdiv::Eighth          ?  8 :
+        subdiv == RandomSubdiv::Sixteenth       ? 16 :
+        subdiv == RandomSubdiv::ThirtySecond    ? 32 : 64);  // SixtyFourthNote = 64
+    return juce::jlimit(0.0f, 1.0f, population / subdivsPerBar);
 }
 
 void TriggerSystem::processBlock(const ProcessParams& p)
@@ -212,31 +214,58 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             // Skip the common trigger path — JOY source handled inline above.
             trigger = false;
         }
-        else if (src == TriggerSource::Random)
+        else if (src == TriggerSource::RandomFree)
         {
             if (randomFired[v])
             {
-                const float prob = hitsPerBarToProbability(p.randomDensity, p.randomSubdiv[v]);
-                if (nextRandom() < prob)
+                const float popProb  = hitsPerBarToProbability(p.randomPopulation, p.randomSubdiv[v]);
+                const float userProb = p.randomProbability;   // 0.0–1.0, default 1.0
+                if (nextRandom() < popProb && nextRandom() < userProb)
+                    trigger = true;
+            }
+        }
+        else if (src == TriggerSource::RandomHold)
+        {
+            const bool padHeld = padPressed_[v].load();
+            // Hard-cut: pad released mid-note -> immediate note-off
+            if (!padHeld && gateOpen_[v].load())
+            {
+                fireNoteOff(v, ch - 1, 0, p);
+                randomGateRemaining_[v] = 0;
+            }
+            // Gate fires only if pad is held AND a subdivision tick occurred AND both rolls pass
+            else if (padHeld && randomFired[v])
+            {
+                const float popProb  = hitsPerBarToProbability(p.randomPopulation, p.randomSubdiv[v]);
+                const float userProb = p.randomProbability;
+                if (nextRandom() < popProb && nextRandom() < userProb)
                     trigger = true;
             }
         }
 
         if (trigger)
         {
-            if (src == TriggerSource::Random)
+            if (src == TriggerSource::RandomFree || src == TriggerSource::RandomHold)
             {
-                // Random source: fire note-on and start gate-time countdown
+                // Auto-trigger source: fire note-on and start gate-time countdown
                 if (gateOpen_[v].load())
                     fireNoteOff(v, ch - 1, 0, p);
                 fireNoteOn(v, p.heldPitches[v], ch - 1, 0, p);
 
-                const double beats            = subdivBeatsFor(p.randomSubdiv[v]);
-                const double beatsPerSec      = p.bpm / 60.0;
-                const double samplesPerSubdiv = (p.sampleRate / beatsPerSec) * beats;
-                const int minDurationSamples  = static_cast<int>(0.010 * p.sampleRate); // 10ms floor
-                randomGateRemaining_[v] = std::max(minDurationSamples,
-                    static_cast<int>(p.randomGateTime * samplesPerSubdiv));
+                if (p.gateLength <= 0.0f)
+                {
+                    // Manual mode: open gate, no timer — next trigger will close it via fireNoteOff at note-on
+                    randomGateRemaining_[v] = -1;
+                }
+                else
+                {
+                    const double beats            = subdivBeatsFor(p.randomSubdiv[v]);
+                    const double beatsPerSec      = p.bpm / 60.0;
+                    const double samplesPerSubdiv = (p.sampleRate / beatsPerSec) * beats;
+                    const int minDurationSamples  = static_cast<int>(0.010 * p.sampleRate); // 10ms floor
+                    randomGateRemaining_[v] = std::max(minDurationSamples,
+                        static_cast<int>(p.gateLength * samplesPerSubdiv));
+                }
             }
             else
             {
@@ -246,8 +275,10 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             }
         }
 
-        // Auto note-off countdown for RND source
-        if (src == TriggerSource::Random && gateOpen_[v].load() && randomGateRemaining_[v] > 0)
+        // Auto note-off countdown for RandomFree / RandomHold sources
+        // The -1 sentinel (manual open gate) is correctly skipped by the > 0 guard
+        if ((src == TriggerSource::RandomFree || src == TriggerSource::RandomHold)
+            && gateOpen_[v].load() && randomGateRemaining_[v] > 0)
         {
             randomGateRemaining_[v] -= p.blockSize;
             if (randomGateRemaining_[v] <= 0)
@@ -256,8 +287,9 @@ void TriggerSystem::processBlock(const ProcessParams& p)
                 fireNoteOff(v, ch - 1, p.blockSize - 1, p);
             }
         }
-        // Clear countdown if mode is not RND (prevents ghost note-off on mode switch)
-        if (src != TriggerSource::Random)
+        // Clear countdown if mode is not a random source (prevents ghost note-off on mode switch)
+        // Also clears the -1 sentinel when switching away from manual-gate mode.
+        if (src != TriggerSource::RandomFree && src != TriggerSource::RandomHold)
             randomGateRemaining_[v] = 0;
     }
 
