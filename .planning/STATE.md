@@ -48,10 +48,10 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 21 of 25 (Left Joystick Targets) — COMPLETE
-Plan: 21-02 verified and complete (2/2 plans)
-Status: Phase 21 COMPLETE — 6-item left-stick targets wired end-to-end (APVTS + processBlock + UI); checkpoint:human-verify approved
-Last activity: 2026-03-01 — Phase 21 plan 02 checkpoint approved; phase complete
+Phase: 22 of 25 (LFO Recording) — In progress
+Plan: 22-01 complete (1/? plans)
+Status: Phase 22 plan 01 COMPLETE — LfoEngine DSP foundation: LfoRecState enum, ring buffer, arm/record/playback state machine, linear-interp playback
+Last activity: 2026-03-01 — Phase 22 plan 01 complete
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -63,7 +63,7 @@ v1.5 Routing+Expression  [████      ] In progress
   Phase 19  [██████████]   Sub Octave Per Voice   COMPLETE 2026-03-01
   Phase 20  [██████████]   RND Trigger Extensions COMPLETE 2026-03-01
   Phase 21  [██████████]   Left Joystick Targets  COMPLETE 2026-03-01
-  Phase 22  [          ]   LFO Recording          Not started
+  Phase 22  [█         ]   LFO Recording          In progress (22-01 done)
   Phase 23  [          ]   Arpeggiator            Not started
   Phase 24  [          ]   Gamepad Option Mode 1  Not started
   Phase 25  [          ]   Distribution           Not started
@@ -72,7 +72,7 @@ v1.5 Routing+Expression  [████      ] In progress
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 42 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 11 [Phase 17 complete + 18-01 + 18-02 + 18-03 + 19-01 + 19-02 + 20-01 + 20-02 + 20-03 + 21-01 + 21-02])
+- Total plans completed: 43 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 12 [Phase 17 complete + 18-01 + 18-02 + 18-03 + 19-01 + 19-02 + 20-01 + 20-02 + 20-03 + 21-01 + 21-02 + 22-01])
 - Average duration: not tracked per plan
 - Total execution time: not tracked
 
@@ -122,6 +122,10 @@ Key v1.5 design decisions (locked, do not re-open):
 - [Phase 21-01]: CC emit blocks guarded to xMode<=1 / yMode<=1 — modes 2-5 never emit MIDI CC
 - [Phase 21-02]: drawAbove() labels auto-follow component position — no paint() changes needed when resized() layout order swaps
 - [Phase 21-02]: timerCallback Atten label update guarded by change-check (getText() != newText) to avoid 30Hz redundant styleLabel() calls
+- [Phase 22-01]: recBuf_ stores post-level, pre-distortion values — distortion is never recorded, always applied live on output (LFOREC-06)
+- [Phase 22-01]: reset() intentionally does NOT clear recState_ — transport stop must not destroy captured LFO recording; clearRecording() is the explicit API
+- [Phase 22-01]: std::atomic<int> used for recState_ (not std::atomic<LfoRecState>) — established MSVC C2338 workaround
+- [Phase 22-01]: capturedCount_ capped to kRecBufSize via std::min in playback — handles partial and ring-wrapped captures correctly
 
 ### Pending Todos
 
@@ -133,6 +137,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-01 (checkpoint approved)
-Stopped at: Phase 21 COMPLETE — checkpoint:human-verify approved; all 6 left-stick targets verified in DAW
-Next step: Phase 22 — LFO Recording
+Last session: 2026-03-01
+Stopped at: Completed 22-01-PLAN.md — LfoEngine DSP foundation for LFO recording
+Next step: Phase 22 plan 02 — processor integration (drive state transitions, set playbackPhase)

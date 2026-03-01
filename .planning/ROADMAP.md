@@ -277,7 +277,7 @@ Plans:
 | 19. Sub Octave Per Voice | 2/2 | Complete    | 2026-03-01 | - |
 | 20. Random Trigger System Extensions | v1.5 | 3/3 | Complete | 2026-03-01 |
 | 21. Left Joystick Modulation Expansion | 2/2 | Complete    | 2026-03-01 | - |
-| 22. LFO Recording | v1.5 | 0/3 | Not started | - |
+| 22. LFO Recording | 1/3 | In Progress|  | - |
 | 23. Arpeggiator | v1.5 | 0/TBD | Not started | - |
 | 24. Gamepad Option Mode 1 | v1.5 | 0/TBD | Not started | - |
 | 25. Distribution | v1.5 | 0/TBD | Not started | - |
