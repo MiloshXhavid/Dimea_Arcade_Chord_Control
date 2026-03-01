@@ -599,6 +599,37 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     if (loopOut.hasJoystickX) joystickX.store(loopOut.joystickX);
     if (loopOut.hasJoystickY) joystickY.store(loopOut.joystickY);
 
+    // ── LFO Recording state machine — edge detection (Phase 22) ──────────────
+    {
+        const bool looperNowRecording = looper_.isRecording();
+
+        // Rising edge: looper just started recording → start capture on armed LFOs
+        if (!prevLooperRecording_ && looperNowRecording)
+        {
+            if (lfoX_.getRecState() == LfoRecState::Armed)
+                lfoX_.startCapture();
+            if (lfoY_.getRecState() == LfoRecState::Armed)
+                lfoY_.startCapture();
+        }
+        // Falling edge: looper just stopped recording → push to Playback
+        else if (prevLooperRecording_ && !looperNowRecording)
+        {
+            if (lfoX_.getRecState() == LfoRecState::Recording)
+                lfoX_.stopCapture();
+            if (lfoY_.getRecState() == LfoRecState::Recording)
+                lfoY_.stopCapture();
+        }
+
+        prevLooperRecording_ = looperNowRecording;
+
+        // Looper Clear (deleteLoop or reset) → return LFO to Unarmed live mode
+        if (loopOut.looperReset)
+        {
+            lfoX_.clearRecording();
+            lfoY_.clearRecording();
+        }
+    }
+
     // ── Build chord params ────────────────────────────────────────────────────
     ChordEngine::Params chordP = buildChordParams();
 
@@ -640,6 +671,14 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             xp.phaseShift   = *apvts.getRawParameterValue(ParamID::lfoXPhase) / 360.0f;
             xp.distortion   = *apvts.getRawParameterValue(ParamID::lfoXDistortion);
             xp.level        = xLevel;
+            // Inject looper playback position for LFO recording playback sync.
+            // Only meaningful when recState == Playback; ignored in all other states.
+            {
+                const double loopLenBeats = looper_.getLoopLengthBeats();
+                xp.playbackPhase = (loopLenBeats > 0.0)
+                    ? static_cast<float>(std::fmod(looper_.getPlaybackBeat() / loopLenBeats, 1.0))
+                    : 0.0f;
+            }
             xTarget = lfoX_.process(xp);
         }
 
@@ -668,6 +707,14 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             yp.phaseShift   = *apvts.getRawParameterValue(ParamID::lfoYPhase) / 360.0f;
             yp.distortion   = *apvts.getRawParameterValue(ParamID::lfoYDistortion);
             yp.level        = yLevel;
+            // Inject looper playback position for LFO recording playback sync.
+            // Only meaningful when recState == Playback; ignored in all other states.
+            {
+                const double loopLenBeats = looper_.getLoopLengthBeats();
+                yp.playbackPhase = (loopLenBeats > 0.0)
+                    ? static_cast<float>(std::fmod(looper_.getPlaybackBeat() / loopLenBeats, 1.0))
+                    : 0.0f;
+            }
             yTarget = lfoY_.process(yp);
         }
 
