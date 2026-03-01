@@ -2700,13 +2700,17 @@ void PluginEditor::timerCallback()
         const bool lfoXOn = (*proc_.apvts.getRawParameterValue("lfoXEnabled") > 0.5f);
         lfoXArmBtn_.setEnabled(lfoXOn);
 
-        // Control grayout during Playback
+        // Control grayout during Playback.
+        // setEnabled() blocks interaction; setAlpha() provides the visual dim because
+        // PixelLookAndFeel::drawLinearSlider and drawButtonBackground do not check
+        // isEnabled() for color — JUCE's default alpha fade does not apply here.
         const bool xPlayback = (xState == LfoRecState::Playback);
-        lfoXShapeBox_   .setEnabled(!xPlayback);
-        lfoXRateSlider_ .setEnabled(!xPlayback);
-        lfoXPhaseSlider_.setEnabled(!xPlayback);
-        lfoXLevelSlider_.setEnabled(!xPlayback);
-        lfoXSyncBtn_    .setEnabled(!xPlayback);
+        const float xDimAlpha = xPlayback ? 0.35f : 1.0f;
+        lfoXShapeBox_   .setEnabled(!xPlayback);  lfoXShapeBox_   .setAlpha(xDimAlpha);
+        lfoXRateSlider_ .setEnabled(!xPlayback);  lfoXRateSlider_ .setAlpha(xDimAlpha);
+        lfoXPhaseSlider_.setEnabled(!xPlayback);  lfoXPhaseSlider_.setAlpha(xDimAlpha);
+        lfoXLevelSlider_.setEnabled(!xPlayback);  lfoXLevelSlider_.setAlpha(xDimAlpha);
+        lfoXSyncBtn_    .setEnabled(!xPlayback);  lfoXSyncBtn_    .setAlpha(xDimAlpha);
         // lfoXDistSlider_ always enabled (Distort stays live during playback)
         // lfoXClearBtn_ always enabled (must be clickable to exit playback)
     }
@@ -2735,11 +2739,12 @@ void PluginEditor::timerCallback()
         lfoYArmBtn_.setEnabled(lfoYOn);
 
         const bool yPlayback = (yState == LfoRecState::Playback);
-        lfoYShapeBox_   .setEnabled(!yPlayback);
-        lfoYRateSlider_ .setEnabled(!yPlayback);
-        lfoYPhaseSlider_.setEnabled(!yPlayback);
-        lfoYLevelSlider_.setEnabled(!yPlayback);
-        lfoYSyncBtn_    .setEnabled(!yPlayback);
+        const float yDimAlpha = yPlayback ? 0.35f : 1.0f;
+        lfoYShapeBox_   .setEnabled(!yPlayback);  lfoYShapeBox_   .setAlpha(yDimAlpha);
+        lfoYRateSlider_ .setEnabled(!yPlayback);  lfoYRateSlider_ .setAlpha(yDimAlpha);
+        lfoYPhaseSlider_.setEnabled(!yPlayback);  lfoYPhaseSlider_.setAlpha(yDimAlpha);
+        lfoYLevelSlider_.setEnabled(!yPlayback);  lfoYLevelSlider_.setAlpha(yDimAlpha);
+        lfoYSyncBtn_    .setEnabled(!yPlayback);  lfoYSyncBtn_    .setAlpha(yDimAlpha);
         // lfoYDistSlider_ and lfoYClearBtn_ always enabled
     }
 
