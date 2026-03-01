@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 
@@ -14,6 +15,12 @@
 // ─── Waveform enum ───────────────────────────────────────────────────────────
 // Exactly 7 values — order matches APVTS integer parameter mapping.
 enum class Waveform { Sine = 0, Triangle, SawUp, SawDown, Square, SH, Random };
+
+// ─── LfoRecState enum ────────────────────────────────────────────────────────
+// Recording state machine for LFO capture / playback.
+// Stored as std::atomic<int> inside LfoEngine (not std::atomic<LfoRecState>)
+// to avoid MSVC C2338 on enum class in atomics.
+enum class LfoRecState { Unarmed = 0, Armed, Recording, Playback };
 
 // ─── ProcessParams struct ─────────────────────────────────────────────────────
 // All fields with sensible defaults so callers only need to fill what differs.
@@ -43,6 +50,7 @@ struct ProcessParams
     float    phaseShift    = 0.0f;         // 0.0..1.0 maps to 0..360 degrees
     float    distortion    = 0.0f;         // 0.0..1.0, additive LCG noise post-waveform
     float    level         = 1.0f;         // 0.0..1.0 amplitude / depth
+    float    playbackPhase = 0.0f;         // normalized looper position [0.0, 1.0) — used when recState==Playback
 };
 
 // ─── LfoEngine class ──────────────────────────────────────────────────────────
@@ -60,6 +68,20 @@ public:
     // Call from prepareToPlay() and on transport stop.
     // NOT audio-thread safe with simultaneous process() call.
     void reset();
+
+    // ── Recording state machine ───────────────────────────────────────────────
+    // Transitions driven by processBlock (audio thread) and PluginEditor via
+    // PluginProcessor (message thread).
+    void arm();            // Unarmed→Armed or Playback→Armed (re-arm). Message thread.
+    void clearRecording(); // Any state→Unarmed, clears buffer. Message thread.
+    void startCapture();   // Armed→Recording, resets write head. Audio thread only.
+    void stopCapture();    // Recording→Playback. Audio thread only.
+
+    // State read — message thread polls this in timerCallback().
+    LfoRecState getRecState() const
+    {
+        return static_cast<LfoRecState>(recState_.load(std::memory_order_relaxed));
+    }
 
 private:
     // ── Timing state ─────────────────────────────────────────────────────────
@@ -94,4 +116,14 @@ private:
     // Evaluates the waveform at normalized phase phi in [0, 1).
     // Non-const because Random waveform calls nextLcg() which mutates rng_.
     float evaluateWaveform(Waveform w, float phi);
+
+    // ── LFO recording ring buffer ─────────────────────────────────────────────
+    static constexpr int kRecBufSize = 4096;
+    float recBuf_[kRecBufSize] = {};
+    int   captureWriteIdx_     = 0;  // audio-thread-only write position
+    int   capturedCount_       = 0;  // audio-thread-only written sample count
+
+    // Atomic int (not atomic<LfoRecState>) — avoids MSVC C2338 on enum class in atomics.
+    // Cast to/from LfoRecState on every store/load.
+    std::atomic<int> recState_ { 0 };  // 0 = Unarmed
 };
