@@ -288,6 +288,12 @@ PluginProcessor::createParameterLayout()
         addChoice(ParamID::lfoYSubdiv, "LFO Y Subdivision", subdivs, 2);  // default: 1/4
     }
 
+    // ── Sub Octave (Phase 19) ─────────────────────────────────────────────────
+    addBool("subOct0", "Sub Oct Root",    false);
+    addBool("subOct1", "Sub Oct Third",   false);
+    addBool("subOct2", "Sub Oct Fifth",   false);
+    addBool("subOct3", "Sub Oct Tension", false);
+
     return layout;
 }
 

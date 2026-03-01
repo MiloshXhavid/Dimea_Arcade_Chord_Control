@@ -256,6 +256,14 @@ private:
     // send the matching noteOff and avoid stuck notes.
     std::array<int, 4> looperActivePitch_ {-1, -1, -1, -1};
 
+    // ── Sub Octave (Phase 19) ─────────────────────────────────────────────────
+    // Sub pitch snapshotted at live gate-open (tp.onNote isOn branch).
+    int subHeldPitch_[4]         = { -1, -1, -1, -1 };
+    // Sub pitch snapshotted at looper gate-on (live SUB8 param at emission time).
+    int looperActiveSubPitch_[4] = { -1, -1, -1, -1 };
+    // True while sub note is actively on — used for mid-note toggle detection.
+    std::atomic<bool> subOctSounding_[4] = {};
+
     // ── Single-Channel Routing state (audio-thread-only) ─────────────────────
     // Reference counter: noteCount_[ch-1][pitch] = number of voices holding
     // a note-on on that (channel, pitch) pair. noteOn emits only when count
