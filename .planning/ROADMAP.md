@@ -54,7 +54,7 @@ Full details: Phase Details section below (Phases 12–16).
 
 - [x] **Phase 17: Bug Fixes** — Looper anchor drift fixed (loopStartPpq_ += loopLen) + SDL2 BT reconnect crash eliminated (deferred-open + instance-ID guard) — pluginval level 5 PASS, smoke tests PASS (completed 2026-02-28)
 - [x] **Phase 18: Single-Channel Routing** — singleChanMode / singleChanTarget APVTS params, effectiveChannel() helper, noteCount[16][128] reference counter, UI toggle + channel selector (completed 2026-03-01)
-- [ ] **Phase 19: Sub Octave Per Voice** — subOct0..3 APVTS bools, -12 semitone parallel note, sentSubOctPitch snapshot, all emission + flush paths, R3+pad gamepad shortcut, per-pad UI toggle
+- [x] **Phase 19: Sub Octave Per Voice** — subOct0..3 APVTS bools, -12 semitone parallel note, sentSubOctPitch snapshot, all emission + flush paths, R3+pad gamepad shortcut, per-pad UI toggle (completed 2026-03-01)
 - [ ] **Phase 20: Random Trigger System Extensions** — Free/Hold trigger modes, Population + Probability knobs, 1/64 subdivision, unified Gate Length param
 - [ ] **Phase 21: Left Joystick Modulation Expansion** — Extended filterXMode / filterYMode choice lists, LFO freq/shape/level + arp gate length targets, pending-atomic dispatch
 - [ ] **Phase 22: LFO Recording** — Arm/Record/Playback state machine in LfoEngine, pre-distortion ring buffer, clear button, gray-out UI, Distort stays live
@@ -261,7 +261,7 @@ Plans:
 | 16. Distribution | v1.4 | 2/2 | Complete | 2026-02-26 |
 | 17. Bug Fixes | v1.5 | Complete    | 2026-02-28 | 2026-02-28 |
 | 18. Single-Channel Routing | v1.5 | 3/3 | Complete | 2026-03-01 |
-| 19. Sub Octave Per Voice | 1/2 | In Progress|  | - |
+| 19. Sub Octave Per Voice | 2/2 | Complete   | 2026-03-01 | - |
 | 20. Random Trigger System Extensions | v1.5 | 0/TBD | Not started | - |
 | 21. Left Joystick Modulation Expansion | v1.5 | 0/TBD | Not started | - |
 | 22. LFO Recording | v1.5 | 0/TBD | Not started | - |

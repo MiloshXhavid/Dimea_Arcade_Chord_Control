@@ -61,7 +61,7 @@
 
 ### Sub Octave
 
-- [ ] **SUBOCT-01**: Each of the 4 voice pads has a Sub Oct toggle — right half of the existing Hold button
+- [x] **SUBOCT-01**: Each of the 4 voice pads has a Sub Oct toggle — right half of the existing Hold button
 - [x] **SUBOCT-02**: When Sub Oct is active for a voice, a second note-on fires exactly 12 semitones below the voice pitch on every trigger
 - [x] **SUBOCT-03**: Sub Oct note-off always matches the pitch used at note-on time (snapshotted, not recomputed at release)
 - [x] **SUBOCT-04**: User can toggle Sub Oct for a pad via gamepad by holding the pad button (R1/R2/L1/L2) and pressing R3
@@ -174,7 +174,7 @@
 | ROUT-03 | Phase 18 | Complete |
 | ROUT-04 | Phase 18 | Complete |
 | ROUT-05 | Phase 18 | Complete |
-| SUBOCT-01 | Phase 19 | Pending |
+| SUBOCT-01 | Phase 19 | Complete |
 | SUBOCT-02 | Phase 19 | Complete |
 | SUBOCT-03 | Phase 19 | Complete |
 | SUBOCT-04 | Phase 19 | Complete |
