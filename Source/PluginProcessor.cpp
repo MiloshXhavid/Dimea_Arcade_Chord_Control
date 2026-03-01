@@ -569,6 +569,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     double ppqPos       = -1.0;
     double dawBpm       = 120.0;
     bool   isDawPlaying = false;
+    int    timeSigNumer = 4;           // beats per bar — default 4/4 (ARP-05)
     if (auto* head = getPlayHead())
     {
         if (auto posOpt = head->getPosition(); posOpt.hasValue())
@@ -578,6 +579,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                 ppqPos = *ppq;
             if (auto bpmOpt = posOpt->getBpm(); bpmOpt.hasValue())
                 dawBpm = *bpmOpt;
+            if (auto sig = posOpt->getTimeSignature(); sig.hasValue())  // ARP-05
+                timeSigNumer = sig->numerator;                           // ARP-05
         }
     }
     const bool hasDaw = isDawPlaying;
@@ -1318,6 +1321,21 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             arpWaitingForPlay_ = false;  // disabled — reset arm state
         if (clockStarted)
             arpWaitingForPlay_ = false;  // clock just started — launch
+
+        // ARP-05: bar-boundary release — fires when armed and the current audio block
+        // crosses a bar line while the DAW is already playing.
+        // Guard: arpSyncOn only (looper sync uses looperJustStarted above).
+        if (arpWaitingForPlay_ && arpSyncOn && isDawPlaying && ppqPos >= 0.0)
+        {
+            const double beatsThisBlock = lp.bpm * static_cast<double>(blockSize)
+                                          / (sampleRate_ * 60.0);
+            const double beatsPerBar    = static_cast<double>(timeSigNumer);
+            const long long barAtStart  = static_cast<long long>(ppqPos / beatsPerBar);
+            const long long barAtEnd    = static_cast<long long>((ppqPos + beatsThisBlock)
+                                                                 / beatsPerBar);
+            if (barAtEnd > barAtStart)
+                arpWaitingForPlay_ = false;   // bar boundary crossed — launch
+        }
     }
     prevArpOn_ = arpOn;
 
