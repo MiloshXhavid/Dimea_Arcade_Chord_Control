@@ -202,9 +202,12 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. The Left Joystick X dropdown offers at least six target options including Filter Cutoff (CC74), LFO-X Frequency, LFO-X Phase, LFO-X Level, and Gate Length; the Left Joystick Y dropdown offers the equivalent Y-axis variants
   2. Selecting LFO-X Frequency as the Left Joystick X target and moving the left stick left-right produces audible LFO rate changes — confirmed by LFO waveform speed changing in the UI
-  3. When LFO Sync mode is active, selecting LFO Frequency as the stick target has no effect on LFO rate — the stick moves without changing speed
+  3. When LFO Sync mode is active and LFO Frequency is the stick target, the stick scales the sync subdivision rate (0.25x–4x multiplier) — stays grid-locked but speed changes expressively
   4. Switching a stick target from CC74 to any LFO parameter stops CC74 from being emitted — no leftover CC messages on the old target after a target change
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 21-01-PLAN.md — Processor backend: extend APVTS 6-item choice params, lfoXSubdivMult_/lfoYSubdivMult_ atomics, processBlock LFO/Gate dispatch, subdivision multiplier wiring
+- [ ] 21-02-PLAN.md — UI: 6-item ComboBoxes, X-above-Y layout swap, timerCallback Atten label relabeling, smoke-test checkpoint
 
 ### Phase 22: LFO Recording
 **Goal**: Players can capture one loop cycle of live LFO output into the LFO and replay it in perfect sync with the looper — enabling repeatable LFO shapes from live performance without programming — while Distort stays adjustable during playback
