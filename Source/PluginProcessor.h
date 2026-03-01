@@ -84,6 +84,15 @@ public:
     bool looperIsRecPending()           const { return looper_.isRecordPending() || looper_.isRecPendingNextCycle(); }
     void looperArmWait()                      { looper_.armWait(); }
 
+    // ── LFO Recording (Phase 22) ──────────────────────────────────────────────
+    // Message-thread callers: PluginEditor ARM / CLR button onClick handlers.
+    void armLfoX()             { lfoX_.arm();            }
+    void armLfoY()             { lfoY_.arm();            }
+    void clearLfoXRecording()  { lfoX_.clearRecording(); }
+    void clearLfoYRecording()  { lfoY_.clearRecording(); }
+    LfoRecState getLfoXRecState() const { return lfoX_.getRecState(); }
+    LfoRecState getLfoYRecState() const { return lfoY_.getRecState(); }
+
     // Quantize mode (0=Off 1=Live 2=Post) + subdivision (0=1/4 1=1/8 2=1/16 3=1/32)
     // Called from PluginEditor onClick handlers and timerCallback.
     void setQuantizeMode(int mode)
@@ -220,6 +229,7 @@ private:
     bool allNotesWasHeld_ = false;       // audio thread only — tracks previous L3 held state
     bool prevIsDawPlaying_ = false;      // audio thread only — for DAW stop detection
     bool prevLooperWasPlaying_ = false;  // audio thread only — for looper stop detection
+    bool prevLooperRecording_  = false;  // audio thread only — LFO rec edge detection
     int   prevXMode_    = -1;            // audio thread only — dedup reset on X mode change
     int   prevYMode_    = -1;            // audio thread only — dedup reset on Y mode change
     float prevFilterX_  = -99.0f;       // audio thread only — raw joystick X, -99 = uninitialised
