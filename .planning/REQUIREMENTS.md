@@ -84,12 +84,12 @@
 
 ### Arpeggiator
 
-- [ ] **ARP-01**: Arpeggiator steps through the current 4-voice chord at configurable Rate and Order, sending note-on/off on the active channel routing
-- [ ] **ARP-02**: Arp Rate options: 1/4, 1/8, 1/16, 1/32
-- [ ] **ARP-03**: Arp Order options: Up, Down, Up-Down, Random
-- [ ] **ARP-04**: Arp uses the unified Gate Length parameter (shared with Random trigger source)
-- [ ] **ARP-05**: When DAW sync is active, Arp on arms and waits for the next bar boundary before stepping begins
-- [ ] **ARP-06**: Arp off resets the step counter to 0
+- [x] **ARP-01**: Arpeggiator steps through the current 4-voice chord at configurable Rate and Order, sending note-on/off on the active channel routing
+- [x] **ARP-02**: Arp Rate options: 1/4, 1/8, 1/16, 1/32
+- [x] **ARP-03**: Arp Order options: Up, Down, Up-Down, Random
+- [x] **ARP-04**: Arp uses the unified Gate Length parameter (shared with Random trigger source)
+- [x] **ARP-05**: When DAW sync is active, Arp on arms and waits for the next bar boundary before stepping begins
+- [x] **ARP-06**: Arp off resets the step counter to 0
 
 ### Random Trigger System
 
@@ -195,12 +195,12 @@
 | LFOREC-04 | Phase 22 | Complete |
 | LFOREC-05 | Phase 22 | Complete |
 | LFOREC-06 | Phase 22 | Complete |
-| ARP-01 | Phase 23 | Pending |
-| ARP-02 | Phase 23 | Pending |
-| ARP-03 | Phase 23 | Pending |
-| ARP-04 | Phase 23 | Pending |
-| ARP-05 | Phase 23 | Pending |
-| ARP-06 | Phase 23 | Pending |
+| ARP-01 | Phase 23 | Complete |
+| ARP-02 | Phase 23 | Complete |
+| ARP-03 | Phase 23 | Complete |
+| ARP-04 | Phase 23 | Complete |
+| ARP-05 | Phase 23 | Complete |
+| ARP-06 | Phase 23 | Complete |
 | OPT1-01 | Phase 24 | Pending |
 | OPT1-02 | Phase 24 | Pending |
 | OPT1-03 | Phase 24 | Pending |
