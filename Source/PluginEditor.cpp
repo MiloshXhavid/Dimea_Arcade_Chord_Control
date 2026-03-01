@@ -2209,14 +2209,13 @@ void PluginEditor::resized()
 
     // LFO Y panel column (150px)
     auto lfoYCol = area.removeFromLeft(150);
-    area.removeFromLeft(4);
+    area.removeFromLeft(8);  // wider gap between LFO Y and right column (visual division)
 
     // Remaining right area (joystick + knobs + pads)
     auto right = area;
 
-    dividerX_ = lfoXCol.getX();  // stays at ~464px from window left
-
-    right.removeFromTop(14);  // push right column content down
+    dividerX_  = lfoXCol.getX();           // between left col and LFO columns
+    dividerX2_ = lfoYCol.getRight() + 4;   // between LFO columns and right column
 
     // ── RIGHT COLUMN ──────────────────────────────────────────────────────────
 
@@ -2457,12 +2456,10 @@ void PluginEditor::resized()
         }
     }
 
-    // Reserve ARP block at the very bottom of the left column before the looper
-    // consumes the rest. Height: 22 gap + 22 button + 4 gap + 14 label + 22 combo = 84px.
-    // The 16px trim on the panel border puts the ARPEGGIATOR title safely below
-    // the looper panel's bottom border line.
+    // Arp block: bottom aligns with joystick pad bottom (joystickPad_ already laid out above).
     constexpr int kArpH = 84;
-    arpBlockBounds_ = left.removeFromBottom(kArpH);
+    arpBlockBounds_ = juce::Rectangle<int>(
+        left.getX(), joystickPad_.getBottom() - kArpH, left.getWidth(), kArpH);
 
     // Looper — top-aligned with padAll_ and chord display
     {
@@ -2509,12 +2506,13 @@ void PluginEditor::resized()
             loopLengthKnob_.setBounds(ctrlRow.removeFromTop(22));
         }
 
-        // Looper panel bounds — computed from actual control bounds after layout
-        // (quantize section moved to right column, so not included here)
-        looperPanelBounds_ = loopPlayBtn_.getBounds()
-            .withX(left.getX())
-            .withWidth(left.getWidth())
-            .expanded(0, 4);
+        // Looper panel bounds — spans all looper controls (play row → subdiv/length row)
+        {
+            const int looperTop    = loopPlayBtn_.getY();
+            const int looperBottom = juce::jmax(loopLengthKnob_.getBottom(), loopSubdivBox_.getBottom());
+            looperPanelBounds_ = juce::Rectangle<int>(
+                left.getX(), looperTop - 6, left.getWidth(), looperBottom - looperTop + 10);
+        }
     }
 
     // Arpeggiator block — bottom-left panel
@@ -2736,11 +2734,12 @@ void PluginEditor::paint(juce::Graphics& g)
     g.setColour(Clr::accent.brighter(0.5f));
     g.drawRect(getLocalBounds().reduced(2), 1);
 
-    // Subtle vertical divider between left and right columns — fixed at column boundary
+    // Vertical dividers — left col | LFO cols | right col
     if (joystickPad_.isVisible())
     {
         g.setColour(Clr::accent.withAlpha(0.5f));
-        g.drawLine((float)(dividerX_ - 4), 32.0f, (float)(dividerX_ - 4), (float)getHeight() - 8, 1.0f);
+        g.drawLine((float)(dividerX_ - 4),  32.0f, (float)(dividerX_ - 4),  (float)getHeight() - 8, 1.0f);
+        g.drawLine((float)dividerX2_,        32.0f, (float)dividerX2_,        (float)getHeight() - 8, 1.0f);
     }
 
     // Section labels
@@ -2813,11 +2812,10 @@ void PluginEditor::paint(juce::Graphics& g)
         g.drawText(title, textX, textY, textW, textH, juce::Justification::centred);
     };
 
-    drawSectionPanel(looperPanelBounds_,    "LOOPER");
     // Right-column panels omitted: the floating title fights with drawAbove labels
     // and the button/label text already identifies those sections clearly.
 
-    // ── LFO panel drawing ─────────────────────────────────────────────────────
+    // ── LFO panel drawing (also used for Looper box) ──────────────────────────
     auto drawLfoPanel = [&](juce::Rectangle<int> bounds, const juce::String& title)
     {
         if (bounds.isEmpty()) return;
@@ -2844,8 +2842,9 @@ void PluginEditor::paint(juce::Graphics& g)
 
     };
 
-    drawLfoPanel(lfoXPanelBounds_, "LFO X");
-    drawLfoPanel(lfoYPanelBounds_, "LFO Y");
+    drawLfoPanel(lfoXPanelBounds_,    "LFO X");
+    drawLfoPanel(lfoYPanelBounds_,    "LFO Y");
+    drawLfoPanel(looperPanelBounds_,  "LOOPER");
 
     // LFO slider row labels (Rate, Phase, Level, Dist)
     auto drawSliderLabel = [&](juce::Rectangle<int> sliderBounds, const juce::String& text)

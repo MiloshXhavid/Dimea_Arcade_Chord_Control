@@ -294,9 +294,9 @@ private:
     int arpBlinkCounter_      = 0;  // blink ARP button while armed, waiting for DAW play
     float beatPulse_          = 0.0f;  // 0.0-1.0 — decays in timerCallback for beat dot
 
-    // Divider line X position — set in resized(), used in paint() so it's
-    // independent of the joystick pad's centered position.
-    int dividerX_ = 460;
+    // Divider line X positions — set in resized(), used in paint().
+    int dividerX_  = 460;   // between left column and LFO columns
+    int dividerX2_ = 770;   // between LFO columns and right column
 
     // True while the physical stick is (or was recently) the last writer of
     // joystickX/Y — lets us correctly return the cursor to 0 on stick release
