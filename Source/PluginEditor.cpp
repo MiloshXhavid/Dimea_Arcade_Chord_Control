@@ -1055,6 +1055,11 @@ void ScaleKeyboard::mouseDown(const juce::MouseEvent& e)
         if (!noteRect(n).contains(e.position))
             continue;
 
+        // Translate the visual (transposed) key position back to the base pitch class
+        const int transpose = static_cast<int>(
+            apvts_.getRawParameterValue("globalTranspose")->load());
+        const int baseNote = ((n - transpose) % 12 + 12) % 12;
+
         // If in preset mode, copy the current preset (pre-transpose) into
         // scaleNote0..11 before switching to edit mode, so the first click
         // feels like "edit this preset" rather than "start from blank".
@@ -1081,10 +1086,10 @@ void ScaleKeyboard::mouseDown(const juce::MouseEvent& e)
                 *p = true;
         }
 
-        // Toggle the clicked note
-        const bool cur = isNoteActive(n);
+        // Toggle the base pitch class corresponding to the clicked visual key
+        const bool cur = isNoteActive(baseNote);
         if (auto* p = dynamic_cast<juce::AudioParameterBool*>(
-                apvts_.getParameter("scaleNote" + juce::String(n))))
+                apvts_.getParameter("scaleNote" + juce::String(baseNote))))
             *p = !cur;
         repaint();
         return;
@@ -1093,15 +1098,8 @@ void ScaleKeyboard::mouseDown(const juce::MouseEvent& e)
 
 void ScaleKeyboard::paint(juce::Graphics& g)
 {
-    // Colours for scale-highlight states:
-    //   custom-toggle active (editing mode)  -> red highlight (editing)
-    //   scale preset active note             -> red highlight / darker red
-    //   normal inactive                      -> white / black like piano keys
-
-    // When Custom toggle is on, show user-toggled notes (edit mode).
-    // When off, show preset scale highlights shifted by transpose.
-    const bool editingCustom =
-        apvts_.getRawParameterValue("useCustomScale")->load() > 0.5f;
+    // activeScaleMask_ always has the transpose-shifted pitch classes applied,
+    // for both preset and custom scales.  Use it for display in all modes.
 
     // White keys first
     for (int n = 0; n < 12; ++n)
@@ -1109,16 +1107,8 @@ void ScaleKeyboard::paint(juce::Graphics& g)
         if (kIsBlack[n]) continue;
         auto r = noteRect(n);
 
-        juce::Colour fill;
-        if (editingCustom)
-        {
-            fill = isNoteActive(n) ? Clr::gateOn : juce::Colours::white;
-        }
-        else
-        {
-            const bool inScale = (activeScaleMask_ >> n) & 1;
-            fill = inScale ? Clr::gateOn : juce::Colours::white;
-        }
+        const bool inScale = (activeScaleMask_ >> n) & 1;
+        const juce::Colour fill = inScale ? Clr::gateOn : juce::Colours::white;
 
         g.setColour(fill);
         g.fillRoundedRectangle(r.reduced(0.5f), 2.0f);
@@ -1131,16 +1121,8 @@ void ScaleKeyboard::paint(juce::Graphics& g)
         if (!kIsBlack[n]) continue;
         auto r = noteRect(n);
 
-        juce::Colour fill;
-        if (editingCustom)
-        {
-            fill = isNoteActive(n) ? Clr::gateOn.darker(0.3f) : juce::Colour(0xFF1A1D2E);
-        }
-        else
-        {
-            const bool inScale = (activeScaleMask_ >> n) & 1;
-            fill = inScale ? Clr::gateOn.darker(0.3f) : juce::Colour(0xFF1A1D2E);
-        }
+        const bool inScale = (activeScaleMask_ >> n) & 1;
+        const juce::Colour fill = inScale ? Clr::gateOn.darker(0.3f) : juce::Colour(0xFF1A1D2E);
 
         g.setColour(fill);
         g.fillRoundedRectangle(r, 2.0f);
@@ -2866,7 +2848,7 @@ void PluginEditor::paint(juce::Graphics& g)
     };
     (void)drawSectionTitle;
 
-    // ── DIMEA logo — LFO column band, between scale display bottom and gamepad display top ──
+    // ── DIMEA logo — PNG, centred in zone between quantizer box and gamepad display ──
     if (logoImage_.isValid() && !quantizerBoxBounds_.isEmpty())
     {
         const int logoY1 = quantizerBoxBounds_.getBottom();
@@ -2876,25 +2858,24 @@ void PluginEditor::paint(juce::Graphics& g)
             const auto logoDest = juce::Rectangle<int>(dividerX_, logoY1,
                                                        dividerX2_ - dividerX_, logoY2 - logoY1)
                                       .toFloat();
-            g.setOpacity(0.70f);
+
+            g.setOpacity(0.90f);
             g.drawImage(logoImage_, logoDest,
                         juce::RectanglePlacement::centred);
             g.setOpacity(1.0f);
 
-            // Compute where the image actually landed so the slogan overlay lands precisely
-            const auto imgBounds = juce::RectanglePlacement(
-                juce::RectanglePlacement::centred)
-                .appliedTo(juce::Rectangle<float>(0, 0,
-                               (float)logoImage_.getWidth(), (float)logoImage_.getHeight()),
-                           logoDest);
+            // Slogan overlay — positioned relative to where the image actually landed
+            const auto imgBounds = juce::RectanglePlacement(juce::RectanglePlacement::centred)
+                                      .appliedTo(juce::Rectangle<float>(0, 0,
+                                                     (float)logoImage_.getWidth(),
+                                                     (float)logoImage_.getHeight()),
+                                                 logoDest);
 
-            // "BRINGING HARMONY TO THE PEOPLE" lives at ~81–92% of the image height
-            const float sloganTop = imgBounds.getY() + imgBounds.getHeight() * 0.81f;
-            const float sloganH   = imgBounds.getHeight() * 0.13f;
-            const float fontSize  = juce::jlimit(8.0f, 11.5f, sloganH * 0.72f);
-
+            const float sloganTop  = imgBounds.getY() + imgBounds.getHeight() * 0.81f;
+            const float sloganH    = imgBounds.getHeight() * 0.13f;
+            const float fontSize   = juce::jlimit(8.0f, 11.5f, sloganH * 0.72f);
             g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), fontSize, juce::Font::plain)
-                       .withExtraKerningFactor(0.14f));
+                          .withExtraKerningFactor(0.14f));
             g.setColour(juce::Colour(0xFF00D8FF).withAlpha(0.92f));
             g.drawText("BRINGING HARMONY TO THE PEOPLE",
                        juce::Rectangle<float>(imgBounds.getX(), sloganTop,

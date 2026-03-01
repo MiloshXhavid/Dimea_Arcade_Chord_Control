@@ -115,3 +115,14 @@ None — no external service configuration required.
 ---
 *Phase: 10-trigger-quantization-infrastructure*
 *Completed: 2026-02-25*
+
+## Self-Check: PASSED
+
+- FOUND: Source/LooperEngine.h (originalStore_, pendingQuantize_, quantizeMode_, lastSnappedOnBeat_, lastRawOnBeat_, scratchDedup_, all 5 public API methods)
+- FOUND: Source/LooperEngine.cpp (applyQuantizeToStore(), pendingQuantize_ service block in process(), hasOriginals_ reset in finaliseRecording(), live quantize in recordGate())
+- FOUND: Source/PluginProcessor.h (stubs replaced with real looper_ calls)
+- FOUND: Source/PluginProcessor.cpp (quantizeMode+quantizeSubdiv push in processBlock())
+- FOUND: 10-03-SUMMARY.md
+- COMMITS: 2c2fb3c (Task 1) + 41e1118 (Task 2) + f2bb98f (docs) — all verified
+- BUILD: ChordJoystick + ChordJoystickTests both compile clean
+- TESTS: 22/27 pass; 5 pre-existing hasContent() failures (TC 4, 5, 6, 10, 11) — TC 12 PASSES

@@ -103,6 +103,7 @@ endif()
 # ─── Plugin target ───────────────────────────────────────────────────────────
 juce_add_binary_data(ChordJoystickFonts
     SOURCES Fonts/PressStart2P-Regular.ttf
+            Resources/DimeaLogo.png
 )
 
 juce_add_plugin(ChordJoystick

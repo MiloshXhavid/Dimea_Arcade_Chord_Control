@@ -257,6 +257,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> voiceChAtt_[4];
     juce::Slider   randomDensityKnob_;
     juce::Label    randomDensityLabel_;
+    juce::Label    randomProbabilityLabel_;
     std::array<juce::ComboBox, 4>                                    randomSubdivBox_;
     std::array<std::unique_ptr<juce::ComboBoxParameterAttachment>, 4> randomSubdivAtt_;
     juce::Slider                                                     randomProbabilityKnob_;   // attaches to "randomProbability" APVTS param
@@ -308,6 +309,18 @@ private:
 
     // Bounds of the filter knob group panels (set in resized, drawn in paint)
     juce::Rectangle<int> filterCutGroupBounds_, filterResGroupBounds_;
+    juce::Rectangle<int> modXSubBounds_, modYSubBounds_;  // X / Y sub-panel halves in MODULATION box
+    juce::Rectangle<int> triggerBoxBounds_;
+    juce::Rectangle<int> modulationBoxBounds_;
+    juce::Rectangle<int> routingBoxBounds_;
+    juce::Label          filterXModeLabel_, filterYModeLabel_;
+
+    // QUANTIZER box bounds (set in resized(), drawn in paint())
+    juce::Rectangle<int> quantizerBoxBounds_;
+    juce::Rectangle<int> intervalSubBounds_, octaveSubBounds_;
+
+    // TRIGGER SELECTION and RANDOM box bounds (set in resized(), drawn in paint())
+    juce::Rectangle<int> trigSelBounds_, randomBoxBounds_;
 
     // ── Filter (gamepad) ─────────────────────────────────────────────────────
     juce::Slider filterXAttenKnob_,  filterYAttenKnob_;
@@ -384,6 +397,9 @@ private:
 
     // ── Gamepad display ───────────────────────────────────────────────────────
     GamepadDisplayComponent gamepadDisplay_;
+
+    // DIMEA logo image (loaded once from BinaryData, drawn in paint())
+    juce::Image logoImage_;
 
     // Panel bounds for section drawing — set in resized(), read in paint()
     juce::Rectangle<int> looperPanelBounds_;       // LOOPER section panel

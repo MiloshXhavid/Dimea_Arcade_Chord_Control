@@ -51,6 +51,20 @@ R3 alone = already a no-op (Phase 19 removed R3 panic). Holding pad + R3 = Sub O
 ### UI label for Mode 1
 Change label from `"OCTAVE"` to `"ARP"` (colour stays green). The arp control is now the primary Mode 1 identity. The D-pad octave functionality remains but is secondary. Label is updated in `timerCallback()` at the same site as Mode 1 / Mode 2 label dispatch in PluginEditor.cpp.
 
+### Option Mode visual feedback on knobs/controls
+When optMode changes, affected controls receive a subtle colour highlight so the player knows what is gamepad-editable. Highlight is applied in `timerCallback()` alongside the label update — no new timer or extra polling needed.
+
+**Mode 1 — highlight these controls** (arp + octave, both editable via Mode 1):
+- Arp section: Arp on/off toggle, Arp Rate knob/dropdown, Arp Order dropdown, RND Sync toggle
+- Octave section: rootOctave, thirdOctave, fifthOctave, tensionOctave knobs
+
+**Mode 2 — highlight these controls** (transpose + intervals, all editable via D-pad):
+- globalTranspose knob, thirdInterval knob, fifthInterval knob, tensionInterval knob
+
+**Mode 0 (no option active) — no highlight** — all controls return to default colour.
+
+**Visual style:** Subtle tint on the knob label or a thin coloured border/outline. Should be noticeable but not distracting. Exact colour to Claude's discretion — suggestion: Mode 1 uses existing green (`Clr::gateOn`), Mode 2 uses existing blue/cyan accent if one exists, otherwise a distinct but muted tint. Must not interfere with the existing disabled/grayed-out states (e.g. LFO grayed during playback).
+
 ### Claude's Discretion
 - Exact names for the new face-button delta atomic signals in GamepadInput.h (e.g., `pendingArpFaceBtn_[4]` or individual atomics per button)
 - Whether to reuse the existing `ButtonState` + `debounce()` architecture for face-button double-press or inline the 300ms check
@@ -113,3 +127,4 @@ Researcher must read REQUIREMENTS.md to understand OPT1-06 and OPT1-07 (not yet 
 
 *Phase: 24-gamepad-option-mode-1*
 *Context gathered: 2026-03-01 via codebase scout + discuss-phase session*
+*Updated: 2026-03-01 — added option mode visual feedback decisions*

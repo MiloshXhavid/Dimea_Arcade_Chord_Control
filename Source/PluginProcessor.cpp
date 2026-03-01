@@ -1730,16 +1730,19 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             lfoXRateOverride_ = lfoXPhaseOverride_ = lfoXLevelOverride_ = -1.0f;
             lfoYRateOverride_ = lfoYPhaseOverride_ = lfoYLevelOverride_ = -1.0f;
 
-            if (stickUpdated)
+            // Use live stick position (not S&H) so the offset is sustained while the
+            // stick is held and returns to the slider base the moment it is released.
+            // Not gated by stickUpdated — runs every block while a gamepad is connected.
+            if (liveGamepad)
             {
+                constexpr float kDeadzone = 0.12f;
+                const float liveX = gamepad_.getLeftStickXLive();
+                const float liveY = gamepad_.getLeftStickYLive();
+
                 if (xMode >= 2 && xMode <= 5)
                 {
-                    // PS4 stick drift: apply centre deadzone before offset computation.
-                    // Values within ±kDeadzone are treated as 0 so the slider settles cleanly.
-                    constexpr float kDeadzone = 0.12f;
-                    const float rawX  = prevFilterX_;
-                    const float deadX = (std::abs(rawX) < kDeadzone) ? 0.0f : rawX;
-                    const float stick = deadX * (xAtten / 100.0f);  // -1..+1 attenuated
+                    const float deadX = (std::abs(liveX) < kDeadzone) ? 0.0f : liveX;
+                    const float stick = deadX * (xAtten / 100.0f);
 
                     switch (xMode)
                     {
@@ -1748,7 +1751,6 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                             const bool syncOn = *apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f;
                             if (syncOn)
                             {
-                                // Sync: existing centre-relative mult approach; no display atomic needed.
                                 const float mult = std::pow(4.0f, stick);
                                 lfoXSubdivMult_.store(mult, std::memory_order_relaxed);
                             }
@@ -1757,7 +1759,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                                 const float base   = apvts.getRawParameterValue(ParamID::lfoXRate)->load();
                                 const float actual = juce::jlimit(0.01f, 20.0f, base + stick * 9.995f);
                                 lfoXRateDisplay_.store(actual, std::memory_order_relaxed);
-                                lfoXRateOverride_ = actual;  // consumed by LFO block next processBlock
+                                lfoXRateOverride_ = actual;
                             }
                             break;
                         }
@@ -1790,10 +1792,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
                 if (yMode >= 2 && yMode <= 5)
                 {
-                    constexpr float kDeadzone = 0.12f;
-                    const float rawY  = prevFilterY_;
-                    const float deadY = (std::abs(rawY) < kDeadzone) ? 0.0f : rawY;
-                    const float stick = deadY * (yAtten / 100.0f);  // -1..+1 attenuated
+                    const float deadY = (std::abs(liveY) < kDeadzone) ? 0.0f : liveY;
+                    const float stick = deadY * (yAtten / 100.0f);
 
                     switch (yMode)
                     {
@@ -1841,7 +1841,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                     }
                 }
 
-                // When not in sync-mode LFO Freq target, reset subdivision multiplier
+                // Reset subdivision multiplier when not in sync-mode LFO Freq target
                 if (xMode != 2) lfoXSubdivMult_.store(1.0f, std::memory_order_relaxed);
                 if (yMode != 2) lfoYSubdivMult_.store(1.0f, std::memory_order_relaxed);
             }
