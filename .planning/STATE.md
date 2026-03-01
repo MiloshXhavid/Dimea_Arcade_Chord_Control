@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Routing + Expression
-status: unknown
-last_updated: "2026-03-01T07:26:23.914Z"
+status: in_progress
+last_updated: "2026-03-01T12:00:00.000Z"
 progress:
   total_phases: 17
-  completed_phases: 15
-  total_plans: 41
-  completed_plans: 40
+  completed_phases: 16
+  total_plans: 44
+  completed_plans: 44
 ---
 
 ---
@@ -70,14 +70,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** XY joystick mapped to harmonic space — per-note trigger gates, scale quantization, gesture looper with trigger quantization, gamepad control — no competitor provides this as a unified instrument.
-**Current focus:** v1.5 — Phase 23: Arpeggiator COMPLETE (both plans done, all 6 ARP requirements verified in DAW)
+**Current focus:** v1.5 — Phase 24: Gamepad Option Mode 1 COMPLETE (all 3 plans done, all 7 OPT1 requirements verified live in DAW)
 
 ## Current Position
 
-Phase: 23 of 25 (Arpeggiator) — COMPLETE (2/2 plans)
-Plan: 23-02 complete — Deploy + DAW smoke test; all 6 ARP requirements verified in Ableton Live
-Status: Phase 23 COMPLETE — all requirements verified in DAW; ready for Phase 24 (Gamepad Option Mode 1)
-Last activity: 2026-03-01 — Phase 23 plan 02 complete (human checkpoint approved)
+Phase: 24 of 25 (Gamepad Option Mode 1) — COMPLETE (3/3 plans)
+Plan: 24-03 complete — Deploy + DAW smoke test; all 7 OPT1 requirements verified with live PS controller in Ableton Live
+Status: Phase 24 COMPLETE — all requirements verified in DAW; ready for Phase 25 (Distribution)
+Last activity: 2026-03-01 — Phase 24 plan 03 complete (human checkpoint approved)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -91,14 +91,14 @@ v1.5 Routing+Expression  [█████     ] In progress
   Phase 21  [██████████]   Left Joystick Targets  COMPLETE 2026-03-01
   Phase 22  [██████████]   LFO Recording          COMPLETE 2026-03-01
   Phase 23  [██████████]   Arpeggiator            COMPLETE 2026-03-01
-  Phase 24  [          ]   Gamepad Option Mode 1  Not started
+  Phase 24  [██████████]   Gamepad Option Mode 1  COMPLETE 2026-03-01
   Phase 25  [          ]   Distribution           Not started
 ```
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 47 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 16 [Phase 17 complete + 18-01 + 18-02 + 18-03 + 19-01 + 19-02 + 20-01 + 20-02 + 20-03 + 21-01 + 21-02 + 22-01 + 22-02 + 22-03 + 23-01 + 23-02])
+- Total plans completed: 50 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 19 [Phase 17 complete + 18-01 + 18-02 + 18-03 + 19-01 + 19-02 + 20-01 + 20-02 + 20-03 + 21-01 + 21-02 + 22-01 + 22-02 + 22-03 + 23-01 + 23-02 + 24-01 + 24-02 + 24-03])
 - Average duration: not tracked per plan
 - Total execution time: not tracked
 
@@ -164,6 +164,10 @@ Key v1.5 design decisions (locked, do not re-open):
 - [Phase 23-01]: arpSyncOn guard mandatory in bar-boundary block — looper-sync mode uses looperJustStarted; bar-boundary fires only on DAW sync path
 - [Phase 23-01]: timeSigNumer defaults to 4 (4/4) — safe fallback when host does not report time signature
 - [Phase 23-01]: long long cast used for bar index (not floor) — consistent with step-locking pattern already in processBlock
+- [Phase 24-01]: Mode 1 face-button double-press uses kDpadDoubleClickMs (300ms) — same constant as D-pad double-click; separate ButtonState trackers per button (btnMode1Circle_ etc.) keep looper detection unchanged
+- [Phase 24-02]: looper consume calls wrapped in `if (optMode != 1)` — Mode 0 and Mode 2 retain full looper face-button control; Mode 1 exclusively dispatches arp signals
+- [Phase 24-02]: lastHighlightMode_ int in PluginEditor.h guards per-mode highlight block to avoid redundant 30Hz repaints; Mode 1 = green tint, Mode 2 = muted blue, Mode 0 = transparent
+- [Phase 24-02]: Mode 1 label changed from "OCTAVE" to "ARP" — arp control is now primary Mode 1 identity; D-pad octave remains available but is secondary
 
 ### Pending Todos
 
@@ -176,5 +180,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 23-02-PLAN.md — Phase 23 Arpeggiator COMPLETE (all 6 ARP requirements verified in Ableton Live MIDI monitor; human checkpoint approved)
-Next step: Phase 24 — Gamepad Option Mode 1
+Stopped at: Completed 24-03-PLAN.md — Phase 24 Gamepad Option Mode 1 COMPLETE (all 7 OPT1 requirements verified with live PS controller in Ableton Live; human checkpoint approved)
+Next step: Phase 25 — Distribution (v1.5 installer, GitHub release, desktop backup)

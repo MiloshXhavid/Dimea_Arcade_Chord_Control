@@ -61,7 +61,7 @@ Full details: Phase Details section below (Phases 12–16).
  (completed 2026-03-01)
 - [x] **Phase 22: LFO Recording** — Arm/Record/Playback state machine in LfoEngine, pre-distortion ring buffer, ARM/CLR buttons with blink and grayout UI, Distort stays live (completed 2026-03-01)
 - [x] **Phase 23: Arpeggiator** — All 6 ARP requirements (ARP-01..ARP-06) verified in Ableton Live MIDI monitor: 4-voice sequencing, 4 rate options, 4 order modes, gate length, bar-boundary launch, step-counter reset (completed 2026-03-01)
-- [ ] **Phase 24: Gamepad Option Mode 1** — Mode-1 face-button dispatch (Circle/Triangle/Square/X), R3 panic removal, face-button looper dispatch gated to mode 0
+- [x] **Phase 24: Gamepad Option Mode 1** — Mode-1 face-button dispatch (Circle/Triangle/Square/X), R3 no-op confirmed, face-button looper dispatch gated to Mode 1; "ARP" label + per-mode control highlight (completed 2026-03-01)
 - [ ] **Phase 25: Distribution** — v1.5 installer, GitHub release, desktop backup
 
 ## Phase Details
@@ -252,9 +252,9 @@ Plans:
   5. Pressing R3 alone no longer sends MIDI Panic — panic is only accessible via the UI Panic button; Option Mode 2 (D-pad Program Change scrolling) continues to work unchanged
 **Plans**: 3 plans
 Plans:
-- [ ] 24-01-PLAN.md — GamepadInput.h/cpp: 4 new atomic signals + Mode 1 face-button detection block with double-click for Triangle/Square
-- [ ] 24-02-PLAN.md — PluginProcessor.cpp: Mode 1 arp dispatch + looper consume gate; PluginEditor.cpp: "ARP" label + per-mode control highlight
-- [ ] 24-03-PLAN.md — Deploy VST3 + DAW smoke test checkpoint (all 7 OPT1 requirements + visual feedback)
+- [x] 24-01-PLAN.md — GamepadInput.h/cpp: 4 new atomic signals + Mode 1 face-button detection block with double-click for Triangle/Square (completed 2026-03-01)
+- [x] 24-02-PLAN.md — PluginProcessor.cpp: Mode 1 arp dispatch + looper consume gate; PluginEditor.cpp: "ARP" label + per-mode control highlight (completed 2026-03-01)
+- [x] 24-03-PLAN.md — Deploy VST3 + DAW smoke test checkpoint (all 7 OPT1 requirements + visual feedback) (completed 2026-03-01)
 
 ### Phase 25: Distribution
 **Goal**: v1.5 is publicly released on GitHub and backed up locally
@@ -286,7 +286,7 @@ Plans:
 | 21. Left Joystick Modulation Expansion | 2/2 | Complete    | 2026-03-01 | - |
 | 22. LFO Recording | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
 | 23. Arpeggiator | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
-| 24. Gamepad Option Mode 1 | v1.5 | 0/3 | Not started | - |
+| 24. Gamepad Option Mode 1 | v1.5 | 3/3 | Complete | 2026-03-01 |
 | 25. Distribution | v1.5 | 0/TBD | Not started | - |
 
 ---

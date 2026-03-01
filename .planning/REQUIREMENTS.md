@@ -103,13 +103,13 @@
 
 ### Gamepad Option Mode 1
 
-- [ ] **OPT1-01**: In Option Mode 1 — Circle toggles Arp on/off; turning on resets looper to beat 0 and starts playback (or arms if DAW sync is active)
-- [ ] **OPT1-02**: In Option Mode 1 — Triangle steps Arp Rate up (1 press = one step up through 1/4 → 1/8 → 1/16 → 1/32); 2 quick presses = one step down
-- [ ] **OPT1-03**: In Option Mode 1 — Square steps Arp Order with the same two-press architecture (Up → Down → Up-Down → Random)
-- [ ] **OPT1-04**: In Option Mode 1 — X button toggles RND Sync (the existing `randomClockSync` parameter)
-- [ ] **OPT1-05**: In any mode — holding a pad button (R1/R2/L1/L2) and pressing R3 toggles Sub Oct for that voice
-- [ ] **OPT1-06**: R3 pressed alone no longer sends MIDI Panic — panic is UI button only
-- [ ] **OPT1-07**: Option Mode 2 (existing D-pad Program Change scrolling) continues working unchanged
+- [x] **OPT1-01**: In Option Mode 1 — Circle toggles Arp on/off; turning on resets looper to beat 0 and starts playback (or arms if DAW sync is active)
+- [x] **OPT1-02**: In Option Mode 1 — Triangle steps Arp Rate up (1 press = one step up through 1/4 → 1/8 → 1/16 → 1/32); 2 quick presses = one step down
+- [x] **OPT1-03**: In Option Mode 1 — Square steps Arp Order with the same two-press architecture (Up → Down → Up-Down → Random)
+- [x] **OPT1-04**: In Option Mode 1 — X button toggles RND Sync (the existing `randomClockSync` parameter)
+- [x] **OPT1-05**: In any mode — holding a pad button (R1/R2/L1/L2) and pressing R3 toggles Sub Oct for that voice
+- [x] **OPT1-06**: R3 pressed alone no longer sends MIDI Panic — panic is UI button only
+- [x] **OPT1-07**: Option Mode 2 (existing D-pad Program Change scrolling) continues working unchanged
 
 ### Bug Fixes
 
@@ -201,13 +201,13 @@
 | ARP-04 | Phase 23 | Complete |
 | ARP-05 | Phase 23 | Complete |
 | ARP-06 | Phase 23 | Complete |
-| OPT1-01 | Phase 24 | Pending |
-| OPT1-02 | Phase 24 | Pending |
-| OPT1-03 | Phase 24 | Pending |
-| OPT1-04 | Phase 24 | Pending |
-| OPT1-05 | Phase 24 | Pending |
-| OPT1-06 | Phase 24 | Pending |
-| OPT1-07 | Phase 24 | Pending |
+| OPT1-01 | Phase 24 | Complete |
+| OPT1-02 | Phase 24 | Complete |
+| OPT1-03 | Phase 24 | Complete |
+| OPT1-04 | Phase 24 | Complete |
+| OPT1-05 | Phase 24 | Complete |
+| OPT1-06 | Phase 24 | Complete |
+| OPT1-07 | Phase 24 | Complete |
 | DIST-03 | Phase 25 | Pending |
 | DIST-04 | Phase 25 | Pending |
 
@@ -217,4 +217,4 @@
 
 ---
 *Requirements defined: 2026-02-26 (v1.4), 2026-02-28 (v1.5)*
-*Last updated: 2026-02-28 — v1.5 roadmap created, all 43 v1.5 requirements mapped to phases 17–25*
+*Last updated: 2026-03-01 — Phase 24 complete: OPT1-01..OPT1-07 all verified*
