@@ -224,7 +224,9 @@ private:
     std::array<juce::ComboBox, 4>                                    randomSubdivBox_;
     std::array<std::unique_ptr<juce::ComboBoxParameterAttachment>, 4> randomSubdivAtt_;
     juce::Slider                                                     randomGateTimeKnob_;
-    std::unique_ptr<juce::SliderParameterAttachment>                  randomGateTimeKnobAtt_;
+    juce::Slider                                                     randomProbabilityKnob_;   // new — attaches to "randomProbability" APVTS param
+    std::unique_ptr<juce::SliderParameterAttachment>                  gateLengthAtt_;
+    std::unique_ptr<juce::SliderParameterAttachment>                  randomProbabilityAtt_;
     juce::Label    randomSubdivLabel_;
     juce::TextButton                                                 randomSyncButton_;
     juce::Slider                                                     randomFreeTempoKnob_;
@@ -342,7 +344,7 @@ private:
     std::unique_ptr<SliderAtt> joyXAttenAtt_, joyYAttenAtt_;
     std::unique_ptr<SliderAtt> transposeAtt_, thirdIntAtt_, fifthIntAtt_, tensionIntAtt_;
     std::unique_ptr<SliderAtt> rootOctAtt_, thirdOctAtt_, fifthOctAtt_, tensionOctAtt_;
-    std::unique_ptr<SliderAtt> randomDensityAtt_, loopLengthAtt_;
+    std::unique_ptr<SliderAtt> randomPopulationAtt_, loopLengthAtt_;
     std::unique_ptr<SliderAtt> filterXAttenAtt_,  filterYAttenAtt_;
     std::unique_ptr<SliderAtt> filterXOffsetAtt_, filterYOffsetAtt_;
     std::unique_ptr<ComboAtt>  scalePresetAtt_;
