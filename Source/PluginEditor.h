@@ -328,6 +328,15 @@ private:
     // Enabled toggle buttons — visible ON/OFF buttons with ButtonAttachment
     juce::TextButton lfoXEnabledBtn_, lfoYEnabledBtn_;
 
+    // ── LFO Recording buttons (Phase 22) ──────────────────────────────────────
+    // One ARM + CLR pair per LFO panel. Not APVTS-backed (transient state).
+    juce::TextButton lfoXArmBtn_,   lfoYArmBtn_;
+    juce::TextButton lfoXClearBtn_, lfoYClearBtn_;
+
+    // Blink counters for ARM button in Armed state — mirrors recBlinkCounter_ pattern.
+    int lfoXArmBlinkCounter_ = 0;
+    int lfoYArmBlinkCounter_ = 0;
+
     // Panel bounds for section drawing — set in resized(), read in paint()
     juce::Rectangle<int> looperPanelBounds_;       // LOOPER section panel
     juce::Rectangle<int> filterModPanelBounds_;    // FILTER MOD section panel
