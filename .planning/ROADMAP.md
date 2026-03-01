@@ -62,7 +62,7 @@ Full details: Phase Details section below (Phases 12–16).
 - [x] **Phase 22: LFO Recording** — Arm/Record/Playback state machine in LfoEngine, pre-distortion ring buffer, ARM/CLR buttons with blink and grayout UI, Distort stays live (completed 2026-03-01)
 - [x] **Phase 23: Arpeggiator** — All 6 ARP requirements (ARP-01..ARP-06) verified in Ableton Live MIDI monitor: 4-voice sequencing, 4 rate options, 4 order modes, gate length, bar-boundary launch, step-counter reset (completed 2026-03-01)
 - [x] **Phase 24: Gamepad Option Mode 1** — Mode-1 face-button dispatch (Circle/Triangle/Square/X), R3 no-op confirmed, face-button looper dispatch gated to Mode 1; "ARP" label + per-mode control highlight (completed 2026-03-01)
-- [ ] **Phase 24.1: LFO Joystick Visual Tracking and Center Offset** — Display atomics + timerCallback slider tracking; base+offset dispatch model; SmoothedValue gate smoothing (pre-distribution fix)
+- [x] **Phase 24.1: LFO Joystick Visual Tracking and Center Offset** — Display atomics + timerCallback slider tracking; base+offset dispatch model; SmoothedValue gate smoothing (pre-distribution fix) (completed 2026-03-01)
 - [ ] **Phase 25: Distribution** — v1.5 installer, GitHub release, desktop backup
 
 ## Phase Details
@@ -303,7 +303,7 @@ Plans:
 | 22. LFO Recording | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
 | 23. Arpeggiator | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
 | 24. Gamepad Option Mode 1 | v1.5 | 3/3 | Complete | 2026-03-01 |
-| 24.1. LFO Joystick Visual Tracking | 1/2 | In Progress|  | - |
+| 24.1. LFO Joystick Visual Tracking | 2/2 | Complete   | 2026-03-01 | - |
 | 25. Distribution | v1.5 | 0/TBD | Not started | - |
 
 ---

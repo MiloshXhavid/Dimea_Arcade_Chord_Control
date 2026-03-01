@@ -72,9 +72,9 @@
 - [x] **LJOY-02**: Left Joystick Y dropdown offers the same set with LFO-Y variants: Filter Cutoff (CC74), Filter Resonance (CC71), LFO-Y Frequency, LFO-Y Phase, LFO-Y Level, Gate Length
 - [x] **LJOY-03**: Left Joystick X dropdown appears before Left Joystick Y in the UI
 - [x] **LJOY-04**: LFO Frequency target is suppressed (stick has no effect) when that LFO's Sync mode is active
-- [ ] **LJOY-05**: When the left joystick is routed to any LFO parameter (Freq/Phase/Level) or Gate Length, the corresponding UI slider visually tracks the joystick position in real time at 30 Hz (via timerCallback display atomic poll)
-- [ ] **LJOY-06**: The LFO slider's current value defines the center/base; joystick modulates above or below it (base + offset model). Releasing the stick to center causes the slider display to return to the user-set base value
-- [ ] **LJOY-07**: Gate Length joystick modulation uses a 50ms SmoothedValue ramp — no zipper noise when moving the joystick during active notes
+- [x] **LJOY-05**: When the left joystick is routed to any LFO parameter (Freq/Phase/Level) or Gate Length, the corresponding UI slider visually tracks the joystick position in real time at 30 Hz (via timerCallback display atomic poll)
+- [x] **LJOY-06**: The LFO slider's current value defines the center/base; joystick modulates above or below it (base + offset model). Releasing the stick to center causes the slider display to return to the user-set base value
+- [x] **LJOY-07**: Gate Length joystick modulation uses a 50ms SmoothedValue ramp — no zipper noise when moving the joystick during active notes
 
 ### LFO Recording
 
@@ -192,9 +192,9 @@
 | LJOY-02 | Phase 21 | Complete |
 | LJOY-03 | Phase 21 | Complete |
 | LJOY-04 | Phase 21 | Complete |
-| LJOY-05 | Phase 24.1 | Pending |
-| LJOY-06 | Phase 24.1 | Pending |
-| LJOY-07 | Phase 24.1 | Pending |
+| LJOY-05 | Phase 24.1 | Complete |
+| LJOY-06 | Phase 24.1 | Complete |
+| LJOY-07 | Phase 24.1 | Complete |
 | LFOREC-01 | Phase 22 | Complete |
 | LFOREC-02 | Phase 22 | Complete |
 | LFOREC-03 | Phase 22 | Complete |

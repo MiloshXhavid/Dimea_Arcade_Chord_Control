@@ -74,10 +74,10 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 24.1 (LFO Joystick Visual Tracking and Center Offset) — In Progress (1/2 plans)
-Plan: 24.1-01 complete — PluginProcessor backend refactor: override floats, display atomics, SmoothedValue, base+offset dispatch
-Status: 24.1-02 pending — PluginEditor timerCallback poll + build + deploy + human verify
-Last activity: 2026-03-01 — Phase 24.1 plan 01 complete (build verified, no compiler errors)
+Phase: 24.1 (LFO Joystick Visual Tracking and Center Offset) — In Progress (2/2 plans, checkpoint pending)
+Plan: 24.1-02 tasks 1+2 complete — timerCallback display atomic poll block verified, Release VST3 built and deployed
+Status: 24.1-02 CHECKPOINT — awaiting human verify with PS controller in Ableton Live
+Last activity: 2026-03-01 — Phase 24.1 plan 02 tasks 1+2 complete (timerCallback block + build + deploy)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -173,6 +173,9 @@ Key v1.5 design decisions (locked, do not re-open):
 - [Phase 24-02]: lastHighlightMode_ int in PluginEditor.h guards per-mode highlight block to avoid redundant 30Hz repaints; Mode 1 = green tint, Mode 2 = muted blue, Mode 0 = transparent
 - [Phase 24-02]: Mode 1 label changed from "OCTAVE" to "ARP" — arp control is now primary Mode 1 identity; D-pad octave remains available but is secondary
 - [Phase 08-02]: All 6 post-v1.0 patches (PATCH-01 through PATCH-06) verified via loopMIDI + MIDI-OX; 08-VALIDATION.md signed off 2026-03-01
+- [Phase 24.1-02]: Display poll block uses its own {} scope with fresh getLfoXRecState() calls — avoids xPlayback/yPlayback scope dependency on outer grayout block
+- [Phase 24.1-02]: Drag guards (lfoXRateDragging_ etc.) prevent setValue from fighting user's manual drag; each slider's case is independently guarded
+- [Phase 24.1-02]: Sync mode guard in case 2: no setValue when lfoXSync/lfoYSync is true — Rate slider is replaced by subdivision dropdown in sync mode
 
 ### Pending Todos
 
@@ -185,5 +188,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 08-02-PLAN.md — all 6 patches manually verified, 08-VALIDATION.md signed off, Phase 08 complete
-Next step: Phase 24.1 Plan 02 — timerCallback display poll, build, deploy, human verify with PS controller
+Stopped at: 24.1-02 checkpoint:human-verify — tasks 1+2 complete, VST3 deployed, awaiting PS controller test in Ableton Live
+Next step: Human verifies LJOY-05/06/07 with PS controller; after approval Phase 24.1 is complete
