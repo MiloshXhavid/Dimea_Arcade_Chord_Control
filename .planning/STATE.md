@@ -57,14 +57,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** XY joystick mapped to harmonic space — per-note trigger gates, scale quantization, gesture looper with trigger quantization, gamepad control — no competitor provides this as a unified instrument.
-**Current focus:** v1.5 — Phase 23: Arpeggiator (plan 01 COMPLETE)
+**Current focus:** v1.5 — Phase 23: Arpeggiator COMPLETE (both plans done, all 6 ARP requirements verified in DAW)
 
 ## Current Position
 
-Phase: 23 of 25 (Arpeggiator) — plan 01 complete (1/1 plans)
-Plan: 23-01 complete — ARP-05 bar-boundary arm release; all 6 ARP requirements satisfied
-Status: Phase 23 COMPLETE — bar-boundary release added to processBlock; plugin builds, VST3 produced; ready for DAW smoke test
-Last activity: 2026-03-01 — Phase 23 plan 01 complete
+Phase: 23 of 25 (Arpeggiator) — COMPLETE (2/2 plans)
+Plan: 23-02 complete — Deploy + DAW smoke test; all 6 ARP requirements verified in Ableton Live
+Status: Phase 23 COMPLETE — all requirements verified in DAW; ready for Phase 24 (Gamepad Option Mode 1)
+Last activity: 2026-03-01 — Phase 23 plan 02 complete (human checkpoint approved)
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -85,7 +85,7 @@ v1.5 Routing+Expression  [█████     ] In progress
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 46 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 15 [Phase 17 complete + 18-01 + 18-02 + 18-03 + 19-01 + 19-02 + 20-01 + 20-02 + 20-03 + 21-01 + 21-02 + 22-01 + 22-02 + 22-03 + 23-01])
+- Total plans completed: 47 (v1.0: 17, v1.3: 11, v1.4: 9, v1.5: 16 [Phase 17 complete + 18-01 + 18-02 + 18-03 + 19-01 + 19-02 + 20-01 + 20-02 + 20-03 + 21-01 + 21-02 + 22-01 + 22-02 + 22-03 + 23-01 + 23-02])
 - Average duration: not tracked per plan
 - Total execution time: not tracked
 
@@ -163,5 +163,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 23-01-PLAN.md — Phase 23 Arpeggiator COMPLETE (ARP-05 bar-boundary arm release; 0 errors build; all 6 ARP requirements satisfied)
+Stopped at: Completed 23-02-PLAN.md — Phase 23 Arpeggiator COMPLETE (all 6 ARP requirements verified in Ableton Live MIDI monitor; human checkpoint approved)
 Next step: Phase 24 — Gamepad Option Mode 1

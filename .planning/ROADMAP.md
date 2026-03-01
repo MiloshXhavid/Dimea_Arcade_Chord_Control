@@ -60,7 +60,7 @@ Full details: Phase Details section below (Phases 12–16).
 - [x] **Phase 21: Left Joystick Modulation Expansion** — Extended filterXMode / filterYMode choice lists, LFO freq/shape/level + arp gate length targets, pending-atomic dispatch
  (completed 2026-03-01)
 - [x] **Phase 22: LFO Recording** — Arm/Record/Playback state machine in LfoEngine, pre-distortion ring buffer, ARM/CLR buttons with blink and grayout UI, Distort stays live (completed 2026-03-01)
-- [ ] **Phase 23: Arpeggiator** — ArpEngine stepping through 4-voice chord, Rate/Order APVTS params, ppqPosition scheduling, bar-boundary DAW sync, step-reset on off
+- [x] **Phase 23: Arpeggiator** — All 6 ARP requirements (ARP-01..ARP-06) verified in Ableton Live MIDI monitor: 4-voice sequencing, 4 rate options, 4 order modes, gate length, bar-boundary launch, step-counter reset (completed 2026-03-01)
 - [ ] **Phase 24: Gamepad Option Mode 1** — Mode-1 face-button dispatch (Circle/Triangle/Square/X), R3 panic removal, face-button looper dispatch gated to mode 0
 - [ ] **Phase 25: Distribution** — v1.5 installer, GitHub release, desktop backup
 
@@ -237,8 +237,8 @@ Plans:
   5. Arp note durations follow the unified Gate Length parameter — setting Gate Length to 50% causes each arp note to hold for half its subdivision slot
 **Plans**: 2 plans
 Plans:
-- [ ] 23-01-PLAN.md — PluginProcessor.cpp: timeSigNumer extraction + bar-boundary arpWaitingForPlay_ release; build verification (ARP-05 fix)
-- [ ] 23-02-PLAN.md — Deploy VST3 + DAW smoke test checkpoint (all 6 ARP requirements)
+- [x] 23-01-PLAN.md — PluginProcessor.cpp: timeSigNumer extraction + bar-boundary arpWaitingForPlay_ release; build verification (ARP-05 fix) (completed 2026-03-01)
+- [x] 23-02-PLAN.md — Deploy VST3 + DAW smoke test checkpoint (all 6 ARP requirements) (completed 2026-03-01)
 
 ### Phase 24: Gamepad Option Mode 1
 **Goal**: Option Mode 1 on the gamepad provides one-handed arp and random trigger control during live performance — Circle toggles arp, Triangle steps arp rate, Square steps arp order, X toggles RND Sync — and R3 alone no longer triggers MIDI Panic
@@ -281,7 +281,7 @@ Plans:
 | 20. Random Trigger System Extensions | v1.5 | 3/3 | Complete | 2026-03-01 |
 | 21. Left Joystick Modulation Expansion | 2/2 | Complete    | 2026-03-01 | - |
 | 22. LFO Recording | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
-| 23. Arpeggiator | 1/2 | In Progress|  | - |
+| 23. Arpeggiator | v1.5 | 2/2 | Complete | 2026-03-01 |
 | 24. Gamepad Option Mode 1 | v1.5 | 0/TBD | Not started | - |
 | 25. Distribution | v1.5 | 0/TBD | Not started | - |
 
