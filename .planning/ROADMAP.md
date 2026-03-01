@@ -250,7 +250,11 @@ Plans:
   3. In Option Mode 1, pressing Square steps Arp Order with the same two-press architecture; pressing X toggles RND Sync — the RND Sync state in the UI reflects the change
   4. Holding any pad button (R1/R2/L1/L2) and pressing R3 toggles Sub Oct for that voice in any mode — the Sub Oct toggle in the UI updates visually
   5. Pressing R3 alone no longer sends MIDI Panic — panic is only accessible via the UI Panic button; Option Mode 2 (D-pad Program Change scrolling) continues to work unchanged
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 24-01-PLAN.md — GamepadInput.h/cpp: 4 new atomic signals + Mode 1 face-button detection block with double-click for Triangle/Square
+- [ ] 24-02-PLAN.md — PluginProcessor.cpp: Mode 1 arp dispatch + looper consume gate; PluginEditor.cpp: "ARP" label + per-mode control highlight
+- [ ] 24-03-PLAN.md — Deploy VST3 + DAW smoke test checkpoint (all 7 OPT1 requirements + visual feedback)
 
 ### Phase 25: Distribution
 **Goal**: v1.5 is publicly released on GitHub and backed up locally
@@ -282,7 +286,7 @@ Plans:
 | 21. Left Joystick Modulation Expansion | 2/2 | Complete    | 2026-03-01 | - |
 | 22. LFO Recording | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
 | 23. Arpeggiator | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
-| 24. Gamepad Option Mode 1 | v1.5 | 0/TBD | Not started | - |
+| 24. Gamepad Option Mode 1 | v1.5 | 0/3 | Not started | - |
 | 25. Distribution | v1.5 | 0/TBD | Not started | - |
 
 ---
