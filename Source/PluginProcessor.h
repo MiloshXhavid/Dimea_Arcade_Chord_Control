@@ -186,6 +186,18 @@ public:
     std::atomic<float> lfoXSubdivMult_ { 1.0f };
     std::atomic<float> lfoYSubdivMult_ { 1.0f };
 
+    // LFO/Gate joystick display values — written by audio thread (dispatch block),
+    // read by message thread (timerCallback) to update slider visuals via setValue(dontSendNotification).
+    // These hold base + joystick offset. APVTS is never written by the dispatch block.
+    // One-block latency (~6ms at 256/44.1k) — inaudible.
+    std::atomic<float> lfoXRateDisplay_  { 0.01f };
+    std::atomic<float> lfoXPhaseDisplay_ { 0.0f  };
+    std::atomic<float> lfoXLevelDisplay_ { 0.0f  };
+    std::atomic<float> lfoYRateDisplay_  { 0.01f };
+    std::atomic<float> lfoYPhaseDisplay_ { 0.0f  };
+    std::atomic<float> lfoYLevelDisplay_ { 0.0f  };
+    std::atomic<float> gateLengthDisplay_{ 0.5f  };
+
     // ── APVTS ─────────────────────────────────────────────────────────────────
     juce::AudioProcessorValueTreeState apvts;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -236,6 +248,23 @@ private:
     float prevFilterY_  = -99.0f;       // audio thread only — raw joystick Y, -99 = uninitialised
     float prevBaseX_    = -1.0f;        // last xOffset used in a CC send; -1 = first run
     float prevBaseY_    = -1.0f;
+
+    // LFO override floats — audio-thread only (no synchronization needed).
+    // Set in the dispatch block each block when joystick mode matches.
+    // Reset to -1.0f unconditionally at top of dispatch block.
+    // Consumed by LFO params block (next call) using >= 0.0f sentinel.
+    // -1.0f = inactive: LFO params block reads APVTS directly.
+    float lfoXRateOverride_  = -1.0f;
+    float lfoXPhaseOverride_ = -1.0f;
+    float lfoXLevelOverride_ = -1.0f;
+    float lfoYRateOverride_  = -1.0f;
+    float lfoYPhaseOverride_ = -1.0f;
+    float lfoYLevelOverride_ = -1.0f;
+
+    // Gate length smoother — eliminates zipper noise when joystick modulates gate %.
+    // Prepared in prepareToPlay(); target set each processBlock from dispatch atomic or APVTS.
+    // juce_dsp excluded per requirements; SmoothedValue is in juce_core.
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedGateLength_;
 
     // ── CC dedup: last emitted integer values for CC74 and CC71 ──────────────
     // -2 = on-load sentinel: first filter activation initialises tracking silently
