@@ -626,8 +626,14 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             xp.ppqPosition  = ppqPos;
             xp.isDawPlaying = isDawPlaying;
             xp.rateHz       = *apvts.getRawParameterValue(ParamID::lfoXRate);
-            xp.subdivBeats  = kLfoSubdivBeats[
-                juce::jlimit(0, 5, (int)*apvts.getRawParameterValue(ParamID::lfoXSubdiv))];
+            {
+                const bool xSyncOn  = *apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f;
+                const int  xCurMode = (int)apvts.getRawParameterValue("filterXMode")->load();
+                xp.subdivBeats = kLfoSubdivBeats[
+                    juce::jlimit(0, 5, (int)*apvts.getRawParameterValue(ParamID::lfoXSubdiv))];
+                if (xSyncOn && xCurMode == 2)
+                    xp.subdivBeats *= lfoXSubdivMult_.load(std::memory_order_relaxed);
+            }
             xp.maxCycleBeats = 16.0;
             xp.waveform     = static_cast<Waveform>(
                 (int)*apvts.getRawParameterValue(ParamID::lfoXWaveform));
@@ -648,8 +654,14 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             yp.ppqPosition  = ppqPos;
             yp.isDawPlaying = isDawPlaying;
             yp.rateHz       = *apvts.getRawParameterValue(ParamID::lfoYRate);
-            yp.subdivBeats  = kLfoSubdivBeats[
-                juce::jlimit(0, 5, (int)*apvts.getRawParameterValue(ParamID::lfoYSubdiv))];
+            {
+                const bool ySyncOn  = *apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f;
+                const int  yCurMode = (int)apvts.getRawParameterValue("filterYMode")->load();
+                yp.subdivBeats = kLfoSubdivBeats[
+                    juce::jlimit(0, 5, (int)*apvts.getRawParameterValue(ParamID::lfoYSubdiv))];
+                if (ySyncOn && yCurMode == 2)
+                    yp.subdivBeats *= lfoYSubdivMult_.load(std::memory_order_relaxed);
+            }
             yp.maxCycleBeats = 16.0;
             yp.waveform     = static_cast<Waveform>(
                 (int)*apvts.getRawParameterValue(ParamID::lfoYWaveform));
@@ -1473,8 +1485,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
             const int xMode  = (int)apvts.getRawParameterValue("filterXMode")->load();
             const int yMode  = (int)apvts.getRawParameterValue("filterYMode")->load();
-            const int ccXnum = (xMode == 1) ? 12 : (xMode == 2) ? 1 : 74;
-            const int ccYnum = (yMode == 1) ? 76 : 71;
+            const int ccXnum = (xMode == 1) ? 12 : 74;  // 0=CC74, 1=CC12; modes 2-5 skip CC emit
+            const int ccYnum = (yMode == 1) ? 76 : 71;  // 0=CC71, 1=CC76; modes 2-5 skip CC emit
 
             if (xMode != prevXMode_) { prevCcCut_.store(-1, std::memory_order_relaxed); prevXMode_ = xMode; }
             if (yMode != prevYMode_) { prevCcRes_.store(-1, std::memory_order_relaxed); prevYMode_ = yMode; }
@@ -1521,6 +1533,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                 const int ccCut = juce::jlimit(0, 127, (int)std::roundf(xOffset + prevFilterX_ * 63.5f * (xAtten / 100.0f)));
                 const int ccRes = juce::jlimit(0, 127, (int)std::roundf(yOffset + prevFilterY_ * 63.5f * (yAtten / 100.0f)));
 
+                if (xMode <= 1)  // CC targets only
                 {
                     const int prev = prevCcCut_.load(std::memory_order_relaxed);
                     if (prev == -2)
@@ -1531,6 +1544,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         prevCcCut_.store(ccCut, std::memory_order_relaxed);
                     }
                 }
+                if (yMode <= 1)  // CC targets only
                 {
                     const int prev = prevCcRes_.load(std::memory_order_relaxed);
                     if (prev == -2)
@@ -1543,6 +1557,94 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                 }
                 filterCutDisplay_.store(static_cast<float>(ccCut), std::memory_order_relaxed);
                 filterResDisplay_.store(static_cast<float>(ccRes), std::memory_order_relaxed);
+            }
+
+            // ── LFO / Gate Length dispatch (indices 2–5) ──────────────────────────
+            if (stickUpdated)
+            {
+                auto writeParam = [&](const juce::String& id, float val)
+                {
+                    if (auto* raw = apvts.getRawParameterValue(id))
+                        raw->store(val, std::memory_order_relaxed);
+                };
+
+                if (xMode >= 2 && xMode <= 5)
+                {
+                    const float stickVal = prevFilterX_;         // -1..+1, already updated above
+                    const float atten    = xAtten / 100.0f;      // 0..1
+                    const float norm     = (stickVal * atten + 1.0f) * 0.5f;  // 0..1
+
+                    switch (xMode)
+                    {
+                        case 2: // LFO-X Freq
+                        {
+                            const bool syncOn = *apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f;
+                            if (syncOn)
+                            {
+                                // Subdivision scaling: stick -1 → 0.25x, center → 1.0x, +1 → 4.0x
+                                const float mult = std::pow(4.0f, stickVal * atten);
+                                lfoXSubdivMult_.store(mult, std::memory_order_relaxed);
+                            }
+                            else
+                            {
+                                // Direct Hz: stick -1..+1 * atten maps to 0.01..20 Hz
+                                const float hz = 0.01f + norm * (20.0f - 0.01f);
+                                writeParam(ParamID::lfoXRate, hz);
+                            }
+                            break;
+                        }
+                        case 3: // LFO-X Phase (0..360 degrees)
+                            writeParam(ParamID::lfoXPhase, norm * 360.0f);
+                            break;
+                        case 4: // LFO-X Level (0..1)
+                            writeParam(ParamID::lfoXLevel, norm);
+                            break;
+                        case 5: // Gate Length (0..1)
+                            writeParam(ParamID::gateLength, norm);
+                            break;
+                        default: break;
+                    }
+                }
+
+                if (yMode >= 2 && yMode <= 5)
+                {
+                    const float stickVal = prevFilterY_;         // -1..+1
+                    const float atten    = yAtten / 100.0f;      // 0..1
+                    const float norm     = (stickVal * atten + 1.0f) * 0.5f;  // 0..1
+
+                    switch (yMode)
+                    {
+                        case 2: // LFO-Y Freq
+                        {
+                            const bool syncOn = *apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f;
+                            if (syncOn)
+                            {
+                                const float mult = std::pow(4.0f, stickVal * atten);
+                                lfoYSubdivMult_.store(mult, std::memory_order_relaxed);
+                            }
+                            else
+                            {
+                                const float hz = 0.01f + norm * (20.0f - 0.01f);
+                                writeParam(ParamID::lfoYRate, hz);
+                            }
+                            break;
+                        }
+                        case 3: // LFO-Y Phase (0..360 degrees)
+                            writeParam(ParamID::lfoYPhase, norm * 360.0f);
+                            break;
+                        case 4: // LFO-Y Level (0..1)
+                            writeParam(ParamID::lfoYLevel, norm);
+                            break;
+                        case 5: // Gate Length (0..1)
+                            writeParam(ParamID::gateLength, norm);
+                            break;
+                        default: break;
+                    }
+                }
+
+                // When switching away from sync-mode LFO Freq target, reset subdivision multiplier
+                if (xMode != 2) lfoXSubdivMult_.store(1.0f, std::memory_order_relaxed);
+                if (yMode != 2) lfoYSubdivMult_.store(1.0f, std::memory_order_relaxed);
             }
         }
     }
