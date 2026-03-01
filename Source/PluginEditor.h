@@ -337,6 +337,11 @@ private:
     int lfoXArmBlinkCounter_ = 0;
     int lfoYArmBlinkCounter_ = 0;
 
+    // Previous LFO enabled state — used to detect enabled→disabled transitions
+    // so timerCallback() can call clearRecording() and snap back to Unarmed.
+    bool prevLfoXOn_ = true;
+    bool prevLfoYOn_ = true;
+
     // Panel bounds for section drawing — set in resized(), read in paint()
     juce::Rectangle<int> looperPanelBounds_;       // LOOPER section panel
     juce::Rectangle<int> filterModPanelBounds_;    // FILTER MOD section panel

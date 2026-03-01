@@ -2696,8 +2696,13 @@ void PluginEditor::timerCallback()
             lfoXArmBtn_.setToggleState(true, juce::dontSendNotification);
         }
 
-        // ARM button enabled only when LFO X is ON
+        // ARM button enabled only when LFO X is ON.
+        // If LFO X just went enabled→disabled while Armed/Recording/Playback,
+        // call clearRecording() so state snaps back to Unarmed immediately.
         const bool lfoXOn = (*proc_.apvts.getRawParameterValue("lfoXEnabled") > 0.5f);
+        if (prevLfoXOn_ && !lfoXOn)
+            proc_.clearLfoXRecording();
+        prevLfoXOn_ = lfoXOn;
         lfoXArmBtn_.setEnabled(lfoXOn);
 
         // Control grayout during Playback.
@@ -2735,7 +2740,12 @@ void PluginEditor::timerCallback()
             lfoYArmBtn_.setToggleState(true, juce::dontSendNotification);
         }
 
+        // If LFO Y just went enabled→disabled while Armed/Recording/Playback,
+        // call clearRecording() so state snaps back to Unarmed immediately.
         const bool lfoYOn = (*proc_.apvts.getRawParameterValue("lfoYEnabled") > 0.5f);
+        if (prevLfoYOn_ && !lfoYOn)
+            proc_.clearLfoYRecording();
+        prevLfoYOn_ = lfoYOn;
         lfoYArmBtn_.setEnabled(lfoYOn);
 
         const bool yPlayback = (yState == LfoRecState::Playback);
