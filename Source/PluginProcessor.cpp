@@ -30,12 +30,13 @@ namespace ParamID
     static const juce::String triggerSource1   = "triggerSource1";
     static const juce::String triggerSource2   = "triggerSource2";
     static const juce::String triggerSource3   = "triggerSource3";
-    static const juce::String randomDensity    = "randomDensity";
     static const juce::String randomSubdiv0    = "randomSubdiv0";
     static const juce::String randomSubdiv1    = "randomSubdiv1";
     static const juce::String randomSubdiv2    = "randomSubdiv2";
     static const juce::String randomSubdiv3    = "randomSubdiv3";
-    static const juce::String randomGateTime   = "randomGateTime";
+    static const juce::String randomPopulation  = "randomPopulation";
+    static const juce::String randomProbability = "randomProbability";
+    static const juce::String gateLength        = "gateLength";
 
     // Filter
     static const juce::String filterXAtten     = "filterXAtten";
@@ -169,14 +170,16 @@ PluginProcessor::createParameterLayout()
     }
 
     // ── Trigger ───────────────────────────────────────────────────────────────
-    juce::StringArray trigSrcNames { "TouchPlate", "Joystick", "Random" };
+    juce::StringArray trigSrcNames { "TouchPlate", "Joystick", "Random Free", "Random Hold" };
     addChoice(ParamID::triggerSource0, "Trigger Source Root",    trigSrcNames, 0);
     addChoice(ParamID::triggerSource1, "Trigger Source Third",   trigSrcNames, 0);
     addChoice(ParamID::triggerSource2, "Trigger Source Fifth",   trigSrcNames, 0);
     addChoice(ParamID::triggerSource3, "Trigger Source Tension", trigSrcNames, 0);
-    addFloat (ParamID::randomDensity,  "Random Density",   1.0f, 8.0f, 4.0f);
+    addFloat("randomPopulation",  "Random Population",  1.0f, 64.0f, 8.0f);
+    addFloat("randomProbability", "Random Probability", 0.0f, 1.0f,  1.0f);
+    addFloat("gateLength",        "Gate Length",        0.0f, 1.0f,  0.5f);
     {
-        const juce::StringArray subdivChoices { "1/4", "1/8", "1/16", "1/32" };
+        const juce::StringArray subdivChoices { "1/4", "1/8", "1/16", "1/32", "1/64" };
         layout.add(std::make_unique<juce::AudioParameterChoice>(
             "randomSubdiv0", "Random Subdiv Root",    subdivChoices, 1));
         layout.add(std::make_unique<juce::AudioParameterChoice>(
@@ -186,7 +189,6 @@ PluginProcessor::createParameterLayout()
         layout.add(std::make_unique<juce::AudioParameterChoice>(
             "randomSubdiv3", "Random Subdiv Tension", subdivChoices, 1));
     }
-    addFloat("randomGateTime", "Random Gate Time", 0.0f, 1.0f, 0.5f);
 
     // Random clock mode
     layout.add(std::make_unique<juce::AudioParameterBool>(
@@ -240,9 +242,7 @@ PluginProcessor::createParameterLayout()
               { "1/4", "1/8T", "1/8", "1/16T", "1/16", "1/32" }, 2);  // default: 1/8
     addChoice(ParamID::arpOrder, "Arp Order",
               { "Up", "Down", "Up+Down", "Down+Up", "Outer-In", "Inner-Out", "Random" }, 0);
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "arpGateTime", "Arp Gate Time",
-        juce::NormalisableRange<float>(5.0f, 100.0f, 1.0f), 75.0f));  // percentage 5-100%
+    // arpGateTime removed in Phase 20; unified gateLength param (0.0–1.0) registered in Trigger section above
 
     // ── Filter CC live display (read-only from DAW perspective) ──────────────
     // Updated every timer tick from audio-thread atomics so DAW can see stick movement.
@@ -1236,8 +1236,9 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         const int orderIdx = juce::jlimit(0, 6,
             static_cast<int>(*apvts.getRawParameterValue(ParamID::arpOrder)));
 
-        const double gateRatio = juce::jlimit(0.05, 1.0,
-            static_cast<double>(apvts.getRawParameterValue("arpGateTime")->load()) / 100.0);
+        const double gateRatio = apvts.getRawParameterValue("gateLength")->load();
+        // Manual mode (gateRatio == 0.0): gateBeats = 0.0, arpNoteOffRemaining_ stays 0
+        // → no gate-time note-off; step boundary provides implicit note-off via the cut-at-next-step path.
         const double gateBeats = subdivBeats * gateRatio;
 
         const double beatsThisBlock = lp.bpm * static_cast<double>(blockSize)
