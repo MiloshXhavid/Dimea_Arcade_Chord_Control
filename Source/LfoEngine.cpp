@@ -216,7 +216,15 @@ float LfoEngine::evaluateWaveform(Waveform w, float phi)
 
 void LfoEngine::arm()
 {
-    // Unarmed→Armed or Playback→Armed (re-arm overwrites on next record cycle).
+    // If already Armed, cancel arming (Armed->Unarmed toggle).
+    // This lets players undo an accidental ARM press before recording starts.
+    // Use CAS to avoid clobbering a concurrent Recording->Playback transition.
+    int expected = static_cast<int>(LfoRecState::Armed);
+    if (recState_.compare_exchange_strong(expected, static_cast<int>(LfoRecState::Unarmed),
+                                          std::memory_order_relaxed, std::memory_order_relaxed))
+        return;
+
+    // Unarmed->Armed or Playback->Armed (re-arm overwrites on next record cycle).
     // Called from message thread via PluginProcessor passthrough.
     recState_.store(static_cast<int>(LfoRecState::Armed), std::memory_order_relaxed);
 }
