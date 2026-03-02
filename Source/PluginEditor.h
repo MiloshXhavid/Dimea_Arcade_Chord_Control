@@ -500,6 +500,14 @@ private:
     bool lfoYRateDragging_  = false;
     bool lfoYPhaseDragging_ = false;
     bool lfoYLevelDragging_ = false;
+
+    // Anchor values for LFO fader mod indicator (NaN = not currently modulated)
+    double lfoXRateAnchor_  = std::numeric_limits<double>::quiet_NaN();
+    double lfoXPhaseAnchor_ = std::numeric_limits<double>::quiet_NaN();
+    double lfoXLevelAnchor_ = std::numeric_limits<double>::quiet_NaN();
+    double lfoYRateAnchor_  = std::numeric_limits<double>::quiet_NaN();
+    double lfoYPhaseAnchor_ = std::numeric_limits<double>::quiet_NaN();
+    double lfoYLevelAnchor_ = std::numeric_limits<double>::quiet_NaN();
     bool gateDragging_           = false;
     bool filterXOffsetDragging_  = false;
     bool filterYOffsetDragging_  = false;

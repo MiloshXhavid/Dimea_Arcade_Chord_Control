@@ -286,33 +286,28 @@ void PixelLookAndFeel::drawLinearSlider(juce::Graphics& g,
     g.setColour(slider.findColour(juce::Slider::trackColourId));
     g.fillRect(juce::Rectangle<float>(trackL, trackY, sliderPos - trackL, trackH));
 
-    // Modulation delta indicator: starts at the thumb, extends toward the stick direction.
-    // "modDelta" property is set by timerCallback only on the one slider being driven.
-    const double modDelta = (double)slider.getProperties().getWithDefault("modDelta", 0.0);
-    if (modDelta != 0.0)
+    // Modulation anchor indicator: fills from anchor (pre-modulation position) to current thumb.
+    // Grows as fader moves away from anchor, shrinks back as it returns.
+    // "modAnchor" property is set by timerCallback only on the active slider.
+    const auto anchorVar = slider.getProperties()["modAnchor"];
+    if (!anchorVar.isVoid())
     {
-        const juce::Colour posClr(0xFFE03030);   // red  — positive / rightward
-        const juce::Colour negClr(0xFF3060FF);   // blue — negative / leftward
-        // Scale: ±1 stick → half the track width indicator
-        const float maxW  = (float)width * 0.5f;
-        const float deltaW = juce::jlimit(-maxW, maxW, (float)(modDelta * maxW));
-        if (deltaW > 0.0f)
+        const double anchorVal  = (double)anchorVar;
+        const float  anchorProp = (float)slider.valueToProportionOfLength(anchorVal);
+        const float  anchorPix  = trackL + anchorProp * (float)width;
+
+        const juce::Colour posClr(0xFFE03030);   // red  — fader moved right of anchor
+        const juce::Colour negClr(0xFF3060FF);   // blue — fader moved left  of anchor
+
+        if (sliderPos > anchorPix + 1.0f)
         {
-            const float capped = juce::jmin(deltaW, trackR - sliderPos);
-            if (capped > 0.0f)
-            {
-                g.setColour(posClr.withAlpha(0.75f));
-                g.fillRect(juce::Rectangle<float>(sliderPos, trackY, capped, trackH));
-            }
+            g.setColour(posClr.withAlpha(0.75f));
+            g.fillRect(juce::Rectangle<float>(anchorPix, trackY, sliderPos - anchorPix, trackH));
         }
-        else
+        else if (sliderPos < anchorPix - 1.0f)
         {
-            const float capped = juce::jmin(-deltaW, sliderPos - trackL);
-            if (capped > 0.0f)
-            {
-                g.setColour(negClr.withAlpha(0.75f));
-                g.fillRect(juce::Rectangle<float>(sliderPos - capped, trackY, capped, trackH));
-            }
+            g.setColour(negClr.withAlpha(0.75f));
+            g.fillRect(juce::Rectangle<float>(sliderPos, trackY, anchorPix - sliderPos, trackH));
         }
     }
 
@@ -887,6 +882,33 @@ void JoystickPad::timerCallback()
     {
         if (proc_.voiceTriggerFlash_[v].exchange(0, std::memory_order_relaxed) > 0)
             spawnBurst(cx, cy, kVoiceClr[v], 20);
+    }
+
+    // ── Continuous hold-glow: emit soft particles while a gate is open ────────
+    // Gentler than the trigger burst: fewer, slower, smaller, longer lifetime.
+    // Gives a living ambient glow as long as the note is held.
+    {
+        static juce::Random rng;
+        for (int v = 0; v < 4; ++v)
+        {
+            if (!proc_.isGateOpen(v)) continue;
+            for (int i = 0; i < 2; ++i)
+            {
+                if (particles_.size() >= 250) break;
+                JoyParticle p;
+                p.x     = cx + rng.nextFloat() * 4.0f - 2.0f;
+                p.y     = cy + rng.nextFloat() * 4.0f - 2.0f;
+                const float a = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+                const float s = rng.nextFloat() * 0.5f + 0.25f;
+                p.vx    = std::cos(a) * s;
+                p.vy    = std::sin(a) * s;
+                p.life  = 1.0f;
+                p.decay = 1.0f / (0.6f * 60.0f);
+                p.size  = rng.nextFloat() * 0.9f + 0.5f;
+                p.color = kVoiceClr[v];
+                particles_.push_back(p);
+            }
+        }
     }
 
     repaint();
@@ -2292,7 +2314,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     if (auto* param = p.apvts.getParameter("lfoXRate"))
         lfoXRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(*param, lfoXRateSlider_, nullptr);
     lfoXRateSlider_.onDragStart = [this] { lfoXRateDragging_ = true;  };
-    lfoXRateSlider_.onDragEnd   = [this] { lfoXRateDragging_ = false; };
+    lfoXRateSlider_.onDragEnd   = [this] { lfoXRateDragging_ = false; lfoXRateAnchor_  = lfoXRateSlider_.getValue(); };
 
     // Phase slider
     lfoXPhaseSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -2304,7 +2326,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(lfoXPhaseSlider_);
     lfoXPhaseAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoXPhase", lfoXPhaseSlider_);
     lfoXPhaseSlider_.onDragStart = [this] { lfoXPhaseDragging_ = true;  };
-    lfoXPhaseSlider_.onDragEnd   = [this] { lfoXPhaseDragging_ = false; };
+    lfoXPhaseSlider_.onDragEnd   = [this] { lfoXPhaseDragging_ = false; lfoXPhaseAnchor_ = lfoXPhaseSlider_.getValue(); };
 
     // Level slider
     lfoXLevelSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -2316,7 +2338,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(lfoXLevelSlider_);
     lfoXLevelAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoXLevel", lfoXLevelSlider_);
     lfoXLevelSlider_.onDragStart = [this] { lfoXLevelDragging_ = true;  };
-    lfoXLevelSlider_.onDragEnd   = [this] { lfoXLevelDragging_ = false; };
+    lfoXLevelSlider_.onDragEnd   = [this] { lfoXLevelDragging_ = false; lfoXLevelAnchor_ = lfoXLevelSlider_.getValue(); };
 
     // Distortion slider
     lfoXDistSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -2417,7 +2439,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     if (auto* param = p.apvts.getParameter("lfoYRate"))
         lfoYRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(*param, lfoYRateSlider_, nullptr);
     lfoYRateSlider_.onDragStart = [this] { lfoYRateDragging_ = true;  };
-    lfoYRateSlider_.onDragEnd   = [this] { lfoYRateDragging_ = false; };
+    lfoYRateSlider_.onDragEnd   = [this] { lfoYRateDragging_ = false; lfoYRateAnchor_  = lfoYRateSlider_.getValue(); };
 
     // Phase slider
     lfoYPhaseSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -2429,7 +2451,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(lfoYPhaseSlider_);
     lfoYPhaseAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoYPhase", lfoYPhaseSlider_);
     lfoYPhaseSlider_.onDragStart = [this] { lfoYPhaseDragging_ = true;  };
-    lfoYPhaseSlider_.onDragEnd   = [this] { lfoYPhaseDragging_ = false; };
+    lfoYPhaseSlider_.onDragEnd   = [this] { lfoYPhaseDragging_ = false; lfoYPhaseAnchor_ = lfoYPhaseSlider_.getValue(); };
 
     // Level slider
     lfoYLevelSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -2441,7 +2463,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(lfoYLevelSlider_);
     lfoYLevelAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoYLevel", lfoYLevelSlider_);
     lfoYLevelSlider_.onDragStart = [this] { lfoYLevelDragging_ = true;  };
-    lfoYLevelSlider_.onDragEnd   = [this] { lfoYLevelDragging_ = false; };
+    lfoYLevelSlider_.onDragEnd   = [this] { lfoYLevelDragging_ = false; lfoYLevelAnchor_ = lfoYLevelSlider_.getValue(); };
 
     // Distortion slider
     lfoYDistSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -3918,42 +3940,42 @@ void PluginEditor::timerCallback()
             }
         }
 
-        // ── LFO fader delta indicator from live left stick ────────────────────
-        // Shows a directional bar starting at the slider thumb, extending toward
-        // where the stick is pushing. Only the single active slider is lit.
+        // ── LFO fader anchor indicator from live left stick ───────────────────
+        // Fills from the anchor position (the fader value at first stick engagement,
+        // or the last manually dragged position) to the current thumb.
+        // Anchor is fixed — it does NOT chase the fader.
+        // On stick release the fill hides but the anchor is preserved so the fill
+        // reappears from the same reference point on next engagement.
+        // The anchor is re-chosen by dragging the fader (onDragEnd updates it).
         {
             const float lx = proc_.leftStickXDisplay_.load(std::memory_order_relaxed);
             const float ly = proc_.leftStickYDisplay_.load(std::memory_order_relaxed);
             constexpr float kThresh = 0.05f;
 
-            // Clear delta property and restore neutral colour on every slider each tick.
-            // setColour triggers repaint, so the indicator disappears immediately on release.
-            auto clearMod = [](juce::Slider& s) {
-                s.getProperties().remove("modDelta");
-                s.setColour(juce::Slider::trackColourId, Clr::accent);
-            };
-            clearMod(lfoXRateSlider_);
-            clearMod(lfoXPhaseSlider_);
-            clearMod(lfoXLevelSlider_);
-            clearMod(lfoYRateSlider_);
-            clearMod(lfoYPhaseSlider_);
-            clearMod(lfoYLevelSlider_);
-
-            // Apply delta indicator only to the one slider being driven.
-            auto setMod = [kThresh](juce::Slider& s, float delta) {
-                if (std::abs(delta) > kThresh) {
-                    s.getProperties().set("modDelta", (double)delta);
+            auto updateMod = [kThresh](juce::Slider& s, float delta, double& anchor) {
+                if (std::abs(delta) > kThresh)
+                {
+                    // First engagement: snap anchor to current value (no fill yet this tick)
+                    if (std::isnan(anchor))
+                        anchor = s.getValue();
+                    // Show fill from static anchor to current thumb
+                    s.getProperties().set("modAnchor", anchor);
+                    s.repaint();
+                }
+                else
+                {
+                    // Stick released: hide fill, keep anchor for next engagement
+                    s.getProperties().remove("modAnchor");
                     s.repaint();
                 }
             };
-            // X axis → LFO-X panel (modes 2-4)
-            if      (xMode == 2) setMod(lfoXRateSlider_,  lx);
-            else if (xMode == 3) setMod(lfoXPhaseSlider_, lx);
-            else if (xMode == 4) setMod(lfoXLevelSlider_, lx);
-            // Y axis → LFO-Y panel (modes 2-4)
-            if      (yMode == 2) setMod(lfoYRateSlider_,  ly);
-            else if (yMode == 3) setMod(lfoYPhaseSlider_, ly);
-            else if (yMode == 4) setMod(lfoYLevelSlider_, ly);
+
+            updateMod(lfoXRateSlider_,  xMode == 2 ? lx : 0.0f, lfoXRateAnchor_);
+            updateMod(lfoXPhaseSlider_, xMode == 3 ? lx : 0.0f, lfoXPhaseAnchor_);
+            updateMod(lfoXLevelSlider_, xMode == 4 ? lx : 0.0f, lfoXLevelAnchor_);
+            updateMod(lfoYRateSlider_,  yMode == 2 ? ly : 0.0f, lfoYRateAnchor_);
+            updateMod(lfoYPhaseSlider_, yMode == 3 ? ly : 0.0f, lfoYPhaseAnchor_);
+            updateMod(lfoYLevelSlider_, yMode == 4 ? ly : 0.0f, lfoYLevelAnchor_);
         }
     }
 
