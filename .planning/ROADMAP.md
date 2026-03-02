@@ -320,7 +320,9 @@ Plans:
   1. The random trigger subdivision selector for each voice shows 1/1T, 1/2T, 1/4T, 1/8T, 1/16T, 1/32T alongside the existing straight subdivisions — all 12 options save and reload correctly with a preset
   2. The quantize subdivision selector shows the same 6 triplet options alongside existing straight subdivisions — quantize snapping at 1/8T produces gate events that land on the correct triplet grid when verified in a DAW piano roll
   3. Selecting a triplet subdivision in Random Free mode with RND SYNC ON produces gate onsets spaced at exactly 2/3 of the equivalent straight note duration — confirmed against the DAW MIDI event timestamps
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 27-01-PLAN.md — Backend enum/APVTS/dispatch extension + UI ComboBox update + human timing verification
 
 ### Phase 28: Random Free Redesign
 **Goal**: Random Free trigger behavior is unambiguously determined by two controls — RND SYNC and DAW Sync — so that musicians get truly stochastic timing when SYNC is off, internal-clock grid when SYNC is on, and DAW grid when DAW Sync is active
@@ -362,7 +364,7 @@ Plans:
 | 12–16 | v1.4 | 9/9 | Complete | 2026-02-26 |
 | 17–25 | v1.5 | 25/25 | Complete | 2026-03-02 |
 | 26. Defaults and Bug Fix | v1.6 | Complete    | 2026-03-02 | 2026-03-02 |
-| 27. Triplet Subdivisions | v1.6 | 0/? | Not started | - |
+| 27. Triplet Subdivisions | v1.6 | 0/1 | In progress | - |
 | 28. Random Free Redesign | v1.6 | 0/? | Not started | - |
 | 29. Looper Perimeter Bar | v1.6 | 0/? | Not started | - |
 | 30. Distribution | v1.6 | 0/? | Not started | - |
