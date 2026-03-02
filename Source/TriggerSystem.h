@@ -7,7 +7,13 @@
 enum class TriggerSource { TouchPlate = 0, Joystick = 1, RandomFree = 2, RandomHold = 3 };
 
 // Random subdivision options (beats per bar, denominator)
-enum class RandomSubdiv { QuadWhole = 0, DblWhole = 1, Whole = 2, Half = 3, Quarter = 4, Eighth = 5, Sixteenth = 6, ThirtySecond = 7, SixtyFourth = 8 };
+enum class RandomSubdiv {
+    // Straight (indices 0–8)
+    QuadWhole = 0, DblWhole = 1, Whole = 2, Half = 3,
+    Quarter = 4, Eighth = 5, Sixteenth = 6, ThirtySecond = 7, SixtyFourth = 8,
+    // Triplets (indices 9–14)
+    WholeT = 9, HalfT = 10, QuarterT = 11, EighthT = 12, SixteenthT = 13, ThirtySecondT = 14
+};
 
 // ─── TriggerSystem ────────────────────────────────────────────────────────────
 // Manages gate state for 4 voices.

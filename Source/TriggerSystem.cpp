@@ -38,15 +38,21 @@ void TriggerSystem::triggerAllNotes()
 // Subdivision helper lambdas (file-scope statics, computed once)
 static auto subdivBeatsFor = [](RandomSubdiv s) -> double {
     switch (s) {
-        case RandomSubdiv::QuadWhole:    return 16.0;
-        case RandomSubdiv::DblWhole:     return 8.0;
-        case RandomSubdiv::Whole:        return 4.0;
-        case RandomSubdiv::Half:         return 2.0;
-        case RandomSubdiv::Quarter:      return 1.0;
-        case RandomSubdiv::Eighth:       return 0.5;
-        case RandomSubdiv::Sixteenth:    return 0.25;
-        case RandomSubdiv::ThirtySecond: return 0.125;
-        case RandomSubdiv::SixtyFourth:  return 0.0625;
+        case RandomSubdiv::QuadWhole:        return 16.0;
+        case RandomSubdiv::DblWhole:         return 8.0;
+        case RandomSubdiv::Whole:            return 4.0;
+        case RandomSubdiv::Half:             return 2.0;
+        case RandomSubdiv::Quarter:          return 1.0;
+        case RandomSubdiv::Eighth:           return 0.5;
+        case RandomSubdiv::Sixteenth:        return 0.25;
+        case RandomSubdiv::ThirtySecond:     return 0.125;
+        case RandomSubdiv::SixtyFourth:      return 0.0625;
+        case RandomSubdiv::WholeT:           return 8.0/3.0;   // 1/1T  = 4 beats × 2/3
+        case RandomSubdiv::HalfT:            return 4.0/3.0;   // 1/2T  = 2 beats × 2/3
+        case RandomSubdiv::QuarterT:         return 2.0/3.0;   // 1/4T  = 1 beat  × 2/3
+        case RandomSubdiv::EighthT:          return 1.0/3.0;   // 1/8T  = 0.5 × 2/3
+        case RandomSubdiv::SixteenthT:       return 1.0/6.0;   // 1/16T = 0.25 × 2/3
+        case RandomSubdiv::ThirtySecondT:    return 1.0/12.0;  // 1/32T = 0.125 × 2/3
     }
     return 1.0;
 };
@@ -55,15 +61,21 @@ static float hitsPerBarToProbability(float population, RandomSubdiv subdiv)
 {
     float subdivsPerBar;
     switch (subdiv) {
-        case RandomSubdiv::QuadWhole:    subdivsPerBar = 0.25f; break;
-        case RandomSubdiv::DblWhole:     subdivsPerBar = 0.5f;  break;
-        case RandomSubdiv::Whole:        subdivsPerBar = 1.0f;  break;
-        case RandomSubdiv::Half:         subdivsPerBar = 2.0f;  break;
-        case RandomSubdiv::Quarter:      subdivsPerBar = 4.0f;  break;
-        case RandomSubdiv::Eighth:       subdivsPerBar = 8.0f;  break;
-        case RandomSubdiv::Sixteenth:    subdivsPerBar = 16.0f; break;
-        case RandomSubdiv::ThirtySecond: subdivsPerBar = 32.0f; break;
-        default:                         subdivsPerBar = 64.0f; break;  // SixtyFourth
+        case RandomSubdiv::QuadWhole:        subdivsPerBar = 0.25f; break;
+        case RandomSubdiv::DblWhole:         subdivsPerBar = 0.5f;  break;
+        case RandomSubdiv::Whole:            subdivsPerBar = 1.0f;  break;
+        case RandomSubdiv::Half:             subdivsPerBar = 2.0f;  break;
+        case RandomSubdiv::Quarter:          subdivsPerBar = 4.0f;  break;
+        case RandomSubdiv::Eighth:           subdivsPerBar = 8.0f;  break;
+        case RandomSubdiv::Sixteenth:        subdivsPerBar = 16.0f; break;
+        case RandomSubdiv::ThirtySecond:     subdivsPerBar = 32.0f; break;
+        case RandomSubdiv::WholeT:           subdivsPerBar = 1.5f;  break;  // 4 / (8/3)
+        case RandomSubdiv::HalfT:            subdivsPerBar = 3.0f;  break;  // 4 / (4/3)
+        case RandomSubdiv::QuarterT:         subdivsPerBar = 6.0f;  break;  // 4 / (2/3)
+        case RandomSubdiv::EighthT:          subdivsPerBar = 12.0f; break;  // 4 / (1/3)
+        case RandomSubdiv::SixteenthT:       subdivsPerBar = 24.0f; break;  // 4 / (1/6)
+        case RandomSubdiv::ThirtySecondT:    subdivsPerBar = 48.0f; break;  // 4 / (1/12)
+        default:                             subdivsPerBar = 64.0f; break;  // SixtyFourth
     }
     return juce::jlimit(0.0f, 1.0f, population / subdivsPerBar);
 }

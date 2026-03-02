@@ -194,7 +194,7 @@ private:
 
     // Config: read on audio thread, written from PluginProcessor (APVTS-driven)
     std::atomic<int> quantizeMode_   { 0 };  // 0=Off, 1=Live, 2=Post
-    std::atomic<int> quantizeSubdiv_ { 1 };  // 0=1/4, 1=1/8, 2=1/16, 3=1/32
+    std::atomic<int> quantizeSubdiv_ { 1 };  // 0=1/4, 1=1/8, 2=1/16, 3=1/32, 4=1/1T, 5=1/2T, 6=1/4T, 7=1/8T, 8=1/16T, 9=1/32T
 
     // Per-voice last note-on beats (audio-thread-only — no atomic needed)
     double lastSnappedOnBeat_[4] = { 0.0, 0.0, 0.0, 0.0 };
@@ -248,6 +248,6 @@ static_assert(sizeof(float) == 4, "float must be 4 bytes for atomic lock-free gu
 // Result is always in [0, loopLen) via std::fmod.
 double snapToGrid(double beatPos, double gridSize, double loopLen) noexcept;
 
-// Converts quantizeSubdiv APVTS index (0..3) to beat-unit grid size.
-// 0=1/4(1.0), 1=1/8(0.5), 2=1/16(0.25), 3=1/32(0.125). Default fallback: 0.5.
+// Converts quantizeSubdiv APVTS index (0..9) to beat-unit grid size.
+// 0=1/4(1.0), 1=1/8(0.5), 2=1/16(0.25), 3=1/32(0.125), 4=1/1T(8/3), 5=1/2T(4/3), 6=1/4T(2/3), 7=1/8T(1/3), 8=1/16T(1/6), 9=1/32T(1/12). Default fallback: 0.5.
 double quantizeSubdivToGridSize(int subdivIdx) noexcept;

@@ -179,7 +179,10 @@ PluginProcessor::createParameterLayout()
     addFloat("randomProbability", "Random Probability", 0.0f, 1.0f,  1.0f);
     addFloat("gateLength",        "Gate Length",        0.0f, 1.0f,  0.5f);
     {
-        const juce::StringArray subdivChoices { "4/1", "2/1", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" };
+        const juce::StringArray subdivChoices {
+            "4/1", "2/1", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64",  // 0–8 straight
+            "1/1T", "1/2T", "1/4T", "1/8T", "1/16T", "1/32T"                   // 9–14 triplet
+        };
         layout.add(std::make_unique<juce::AudioParameterChoice>(
             "randomSubdiv0", "Random Subdiv Root",    subdivChoices, 5));  // default = 1/8
         layout.add(std::make_unique<juce::AudioParameterChoice>(
@@ -253,7 +256,13 @@ PluginProcessor::createParameterLayout()
 
     // ── Quantize ──────────────────────────────────────────────────────────────
     addInt(ParamID::quantizeMode,   "Quantize Mode",   0, 2, 0);  // 0=Off, 1=Live, 2=Post (default Off)
-    addInt(ParamID::quantizeSubdiv, "Quantize Subdiv", 0, 3, 1);  // 0=1/4, 1=1/8, 2=1/16, 3=1/32 (default 1/8)
+    {
+        const juce::StringArray qSubdivChoices {
+            "1/4", "1/8", "1/16", "1/32",                          // 0–3 straight (same index mapping — preserves old presets)
+            "1/1T", "1/2T", "1/4T", "1/8T", "1/16T", "1/32T"     // 4–9 triplets
+        };
+        addChoice(ParamID::quantizeSubdiv, "Quantize Subdiv", qSubdivChoices, 1);  // default 1 = 1/8
+    }
 
     // ── LFO ───────────────────────────────────────────────────────────────────
     addBool(ParamID::lfoXEnabled, "LFO X Enabled", false);
