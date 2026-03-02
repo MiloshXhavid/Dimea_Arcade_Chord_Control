@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.5 Routing + Expression (Shipped: 2026-03-02)
+
+**Phases completed:** 15 phases, 35 plans, 4 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.4 LFO + Clock (Shipped: 2026-02-26)
 
 **Phases completed:** Phases 12–16 (5 phases)

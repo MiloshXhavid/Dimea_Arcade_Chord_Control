@@ -8,14 +8,13 @@ ChordJoystick is a paid JUCE VST3 MIDI generator plugin for Windows that sends 4
 
 An XY joystick mapped to harmonic space — combined with per-note trigger gates, scale quantization, a gesture looper with trigger quantization, and gamepad control — that no existing MIDI tool provides as a unified instrument.
 
-## Current State (v1.4)
+## Current State (v1.5)
 
-- **Shipped:** 2026-02-26
-- **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/latest
-- **Codebase:** ~5,500+ C++ LOC, 19 source files + Catch2 test suite
+- **Shipped:** 2026-03-02
+- **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/tag/v1.5 (pre-release)
+- **Codebase:** ~7,000+ C++ LOC, 20+ source files + Catch2 test suite
 - **Build:** JUCE 8.0.4 + CMake FetchContent + SDL2 2.30.9 static, VS 18 2026, Release
-- **Tests:** Catch2 — TC 12 quantize 233/233 assertions pass; 5 pre-existing `hasContent()` failures (not regressions)
-- **Installer:** `installer/Output/DimaChordJoystickMK2-Setup.exe` (Inno Setup 6, AppVersion=1.4)
+- **Installer:** `installer/Output/DIMEA-ChordJoystickMK2-v1.5-Setup.exe` (Inno Setup 6, static CRT, no MSVC redist required)
 - **Known limitation:** COPY_PLUGIN_AFTER_BUILD requires elevation — use `fix-install.ps1` manually after rebuild
 
 ## Requirements
@@ -62,17 +61,22 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - ✓ Gamepad Option mode: D-pad Up/Down scrolls Program Changes, OPTION indicator — v1.4
 - ✓ GitHub v1.4 release + desktop backup — v1.4
 
-### Active — v1.5
+### Validated — v1.5
 
-- [ ] Single Channel routing mode — all 4 voices → one MIDI channel, no note collisions
-- [ ] Per-voice Sub Octave — fires parallel note 1 oct lower; Hold/SubOct split button on pad UI
-- [ ] Left Joystick X/Y target expansion — add LFO freq/shape/level/arp gate len as modulation targets
-- [ ] LFO recording — arm, record 1 cycle, playback; Distort stays live; Clear button
-- [ ] Option Mode 1 Arp control — Circle=Arp on/off, Triangle=Rate, Square=Order, X=RND Sync
-- [ ] R3 + held pad (any mode) = toggle Sub Oct for that voice
-- [ ] Remove panic from right joystick (R3 standalone)
-- [ ] Bug fix: Looper wrong start position after record cycle
-- [ ] Bug fix: Crash on PS4 BT reconnect
+- ✓ Single Channel routing mode — all 4 voices → one MIDI channel, no note collisions — v1.5
+- ✓ Per-voice Sub Octave — fires parallel note 1 oct lower; Hold/SubOct split button on pad UI — v1.5
+- ✓ Left Joystick X/Y target expansion — LFO freq/phase/level + gate length as modulation targets — v1.5
+- ✓ LFO recording — arm, record 1 cycle, playback; Distort stays live; Clear button — v1.5
+- ✓ Arpeggiator — 6 modes, 4 rates, gate length, bar-boundary launch — v1.5
+- ✓ Random trigger extensions — Free/Hold modes, Population + Probability knobs, 1/64 subdiv — v1.5
+- ✓ Option Mode 1 — Circle=Arp, Triangle=Rate, Square=Order, X=RND Sync; R3+pad=Sub Oct — v1.5
+- ✓ LFO joystick visual tracking — sliders track joystick at 30 Hz, base+offset model — v1.5
+- ✓ Bug fix: Looper anchor drift after record cycle — v1.5
+- ✓ Bug fix: PS4 BT reconnect crash — v1.5
+
+### Active — v1.6
+
+(Define with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -134,4 +138,4 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - Bug fixes: looper start position after rec cycle; PS4 BT reconnect crash
 
 ---
-*Last updated: 2026-02-28 — v1.5 milestone started*
+*Last updated: 2026-03-02 — v1.5 milestone complete*
