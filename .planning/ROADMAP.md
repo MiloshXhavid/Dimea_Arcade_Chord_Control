@@ -62,7 +62,7 @@ Full details: Phase Details section below (Phases 12–16).
 - [x] **Phase 22: LFO Recording** — Arm/Record/Playback state machine in LfoEngine, pre-distortion ring buffer, ARM/CLR buttons with blink and grayout UI, Distort stays live (completed 2026-03-01)
 - [x] **Phase 23: Arpeggiator** — All 6 ARP requirements (ARP-01..ARP-06) verified in Ableton Live MIDI monitor: 4-voice sequencing, 4 rate options, 4 order modes, gate length, bar-boundary launch, step-counter reset (completed 2026-03-01)
 - [x] **Phase 24: Gamepad Option Mode 1** — Mode-1 face-button dispatch (Circle/Triangle/Square/X), R3 no-op confirmed, face-button looper dispatch gated to Mode 1; "ARP" label + per-mode control highlight (completed 2026-03-01)
-- [x] **Phase 24.1: LFO Joystick Visual Tracking and Center Offset** — Display atomics + timerCallback slider tracking; base+offset dispatch model; SmoothedValue gate smoothing (pre-distribution fix) (completed 2026-03-01)
+- [x] **Phase 24.1: LFO Joystick Visual Tracking and Center Offset** — Display atomics + timerCallback slider tracking; base+offset dispatch model; SmoothedValue gate smoothing (pre-distribution fix) (completed 2026-03-01)
 - [ ] **Phase 25: Distribution** — v1.5 installer, GitHub release, desktop backup
 
 ## Phase Details
@@ -280,7 +280,10 @@ Plans:
   1. A GitHub release tagged `v1.5` exists with the installer binary attached and release notes describing the new routing, sub octave, arp, LFO recording, and bug fix features
   2. A full copy of the built plugin and installer is present on the Desktop backup location — confirmed by directory listing
   3. The installer runs successfully on a clean machine without pre-installed MSVC redistributables (static CRT confirmed)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 25-01-PLAN.md — Update .iss for v1.5 (DIMEA branding, [Messages] section, remove LicenseFile), clean Release build, recompile installer, smoke test checkpoint
+- [ ] 25-02-PLAN.md — Create v1.5 git tag, push to plugin remote, create GitHub pre-release, desktop backup
 
 ## Progress
 
@@ -304,7 +307,7 @@ Plans:
 | 23. Arpeggiator | v1.5 | Complete    | 2026-03-01 | 2026-03-01 |
 | 24. Gamepad Option Mode 1 | v1.5 | 3/3 | Complete | 2026-03-01 |
 | 24.1. LFO Joystick Visual Tracking | 2/2 | Complete | 2026-03-02 | 2026-03-02 |
-| 25. Distribution | v1.5 | 0/TBD | Not started | - |
+| 25. Distribution | v1.5 | 0/2 | Not started | - |
 
 ---
 *v1.0 shipped 2026-02-23 — 7 phases, 17 plans*
