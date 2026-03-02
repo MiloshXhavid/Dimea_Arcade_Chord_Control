@@ -308,7 +308,9 @@ Plans:
   2. Loading the plugin with no saved state defaults the scale preset dropdown to Natural Minor — the scale keyboard reflects the Natural Minor pattern immediately on load
   3. In Single Channel mode, pressing two pads that produce the same MIDI pitch simultaneously and then releasing both results in exactly one note-off with no stuck note — verified in DAW MIDI monitor across all 5 note-off paths (live, looper, looper sub-octave, live sub-octave, arp choke)
   4. All existing preset files (v1.5 and earlier) load without regression — octave and scale defaults only apply when no saved value is present
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — PluginProcessor.cpp: fifthOctave default 3→4, scalePreset default 0→1, remove all 13 else noteCount_ = 0 clamp branches, build + smoke test checkpoint
 
 ### Phase 27: Triplet Subdivisions
 **Goal**: Players can select triplet rhythms (1/1T through 1/32T) in both the random trigger and quantize subdivision selectors, enabling triplet-feel gate patterns and quantize snapping without any workarounds
@@ -359,7 +361,7 @@ Plans:
 | 09–11 | v1.3 | 11/11 | Complete | 2026-02-25 |
 | 12–16 | v1.4 | 9/9 | Complete | 2026-02-26 |
 | 17–25 | v1.5 | 25/25 | Complete | 2026-03-02 |
-| 26. Defaults and Bug Fix | v1.6 | 0/? | Not started | - |
+| 26. Defaults and Bug Fix | v1.6 | 0/1 | Not started | - |
 | 27. Triplet Subdivisions | v1.6 | 0/? | Not started | - |
 | 28. Random Free Redesign | v1.6 | 0/? | Not started | - |
 | 29. Looper Perimeter Bar | v1.6 | 0/? | Not started | - |
