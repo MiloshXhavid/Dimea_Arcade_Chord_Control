@@ -180,17 +180,23 @@ PluginProcessor::createParameterLayout()
     addFloat("gateLength",        "Gate Length",        0.0f, 1.0f,  0.5f);
     {
         const juce::StringArray subdivChoices {
-            "4/1", "2/1", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64",  // 0–8 straight
-            "1/1T", "1/2T", "1/4T", "1/8T", "1/16T", "1/32T"                   // 9–14 triplet
+            "4/1", "2/1",
+            "1/1", "1/1T",
+            "1/2", "1/2T",
+            "1/4", "1/4T",
+            "1/8", "1/8T",
+            "1/16", "1/16T",
+            "1/32", "1/32T",
+            "1/64"
         };
         layout.add(std::make_unique<juce::AudioParameterChoice>(
-            "randomSubdiv0", "Random Subdiv Root",    subdivChoices, 5));  // default = 1/8
+            "randomSubdiv0", "Random Subdiv Root",    subdivChoices, 8));  // default = 1/8 (index 8)
         layout.add(std::make_unique<juce::AudioParameterChoice>(
-            "randomSubdiv1", "Random Subdiv Third",   subdivChoices, 5));
+            "randomSubdiv1", "Random Subdiv Third",   subdivChoices, 8));
         layout.add(std::make_unique<juce::AudioParameterChoice>(
-            "randomSubdiv2", "Random Subdiv Fifth",   subdivChoices, 5));
+            "randomSubdiv2", "Random Subdiv Fifth",   subdivChoices, 8));
         layout.add(std::make_unique<juce::AudioParameterChoice>(
-            "randomSubdiv3", "Random Subdiv Tension", subdivChoices, 5));
+            "randomSubdiv3", "Random Subdiv Tension", subdivChoices, 8));
     }
 
     // Random clock mode
@@ -258,10 +264,13 @@ PluginProcessor::createParameterLayout()
     addInt(ParamID::quantizeMode,   "Quantize Mode",   0, 2, 0);  // 0=Off, 1=Live, 2=Post (default Off)
     {
         const juce::StringArray qSubdivChoices {
-            "1/4", "1/8", "1/16", "1/32",                          // 0–3 straight (same index mapping — preserves old presets)
-            "1/1T", "1/2T", "1/4T", "1/8T", "1/16T", "1/32T"     // 4–9 triplets
+            "1/1T", "1/2T",    // 0–1: slower than 1/4
+            "1/4",  "1/4T",    // 2–3
+            "1/8",  "1/8T",    // 4–5
+            "1/16", "1/16T",   // 6–7
+            "1/32", "1/32T"    // 8–9
         };
-        addChoice(ParamID::quantizeSubdiv, "Quantize Subdiv", qSubdivChoices, 1);  // default 1 = 1/8
+        addChoice(ParamID::quantizeSubdiv, "Quantize Subdiv", qSubdivChoices, 4);  // default 4 = 1/8
     }
 
     // ── LFO ───────────────────────────────────────────────────────────────────
