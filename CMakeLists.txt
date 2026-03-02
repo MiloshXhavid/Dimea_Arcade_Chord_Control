@@ -152,3 +152,13 @@ target_link_libraries(ChordJoystick PRIVATE
     juce::juce_gui_extra
     SDL2-static
 )
+
+# After every successful build: wipe Reaper's VST cache so it always does a
+# full fresh rescan on next Reaper startup. Without this, Reaper uses the
+# cached checksum and never reloads the updated plugin factory info.
+set(REAPER_VST_CACHE
+    "C:/Users/Milosh Xhavid/AppData/Roaming/REAPER/reaper-vstplugins64.ini")
+add_custom_command(TARGET ChordJoystick_VST3 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rm -f "${REAPER_VST_CACHE}"
+    COMMENT "Cleared Reaper VST cache — restart Reaper to load the new build"
+    VERBATIM)
