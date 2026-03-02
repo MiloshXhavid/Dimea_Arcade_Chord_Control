@@ -124,6 +124,44 @@
 - [x] **DIST-03**: GitHub v1.5 release created with built installer binary and release notes
 - [x] **DIST-04**: Full plugin copy backed up to Desktop
 
+## v1.6 Requirements
+
+**Defined:** 2026-03-02
+**Design decisions:**
+- noteCount_ `else = 0` clamp is the confirmed root cause of stuck notes; fix applies to all 5 note-off paths
+- Random Free with RND SYNC OFF fires Poisson/random intervals — no subdivision grid at all
+- Triplet subdivisions added to both random trigger and quantize selectors (not LFO sync — deferred)
+- Default octave values confirmed against UI display (exact APVTS param values resolved during Phase 26 planning)
+
+### Defaults
+
+- [ ] **DEF-01**: Third octave knob displays "4" by default on fresh install / preset clear
+- [ ] **DEF-02**: Fifth octave knob displays "4" by default on fresh install / preset clear
+- [ ] **DEF-03**: Tension octave knob displays "3" by default on fresh install / preset clear
+- [ ] **DEF-04**: Scale preset defaults to Natural Minor on fresh install / preset clear
+
+### Bug Fix
+
+- [ ] **BUG-03**: Remove `else noteCount_[ch][pitch] = 0` defensive clamp from all 5 note-off paths in PluginProcessor (live note-off, looper note-off, looper sub-octave off, live sub-octave off, arp choke) — eliminates stuck notes when any two voices produce the same pitch in Single Channel mode
+
+### Triplet Subdivisions
+
+- [ ] **TRIP-01**: Random trigger subdivision selector (`randomSubdiv` APVTS parameter) includes 1/1T, 1/2T, 1/4T, 1/8T, 1/16T, 1/32T alongside existing straight subdivisions — all subdivisions save/load with preset
+- [ ] **TRIP-02**: Quantize trigger subdivision selector (`quantizeSubdiv` APVTS parameter) includes the same 6 triplet options alongside existing straight subdivisions
+
+### Random Trigger Behavior
+
+- [ ] **RND-08**: Random Free + RND SYNC OFF → gates fire at truly random intervals with no tempo grid alignment (Poisson distribution or equivalent random interval)
+- [ ] **RND-09**: Random Free + RND SYNC ON + DAW Sync OFF → gates subdivided to internal free-tempo clock (existing `randomFreeTempo` BPM clock)
+- [ ] **RND-10**: Random Free + DAW Sync ON → gates subdivided to DAW beat grid (existing behavior, clarified/verified)
+
+### Looper Visualization
+
+- [ ] **LOOP-01**: Remove existing linear looper progress bar (the strip rendered below Rec gates in the Looper section)
+- [ ] **LOOP-02**: A rectangular perimeter progress bar travels clockwise around the outer edge of the Looper section box — one full circuit = one loop cycle, updates at 30 Hz via existing timerCallback
+- [ ] **LOOP-03**: Bar origin/terminus is at the Looper section label (top-left corner area) — travels right along top → down right edge → left along bottom → up left edge → back to origin
+- [ ] **LOOP-04**: The floating "LOOPER" section label remains fully visible at all times — the bar passes alongside or behind it, never obscuring it
+
 ## Future Requirements (v2+)
 
 ### LFO Extensions
@@ -220,7 +258,8 @@
 **Coverage:**
 - v1.4 requirements: 21 total — mapped to phases: 21 (Phase 12: 8, Phase 13: 5, Phase 14: 3, Phase 15: 2, Phase 16: 3) — unmapped: 0 ✓
 - v1.5 requirements: 46 total — mapped to phases: 46 (Phase 17: 2, Phase 18: 5, Phase 19: 4, Phase 20: 7, Phase 21: 4, Phase 22: 6, Phase 23: 6, Phase 24: 7, Phase 24.1: 3, Phase 25: 2) — unmapped: 0 ✓
+- v1.6 requirements: 14 total — mapped to phases: 0 (roadmap pending) — unmapped: 14
 
 ---
-*Requirements defined: 2026-02-26 (v1.4), 2026-02-28 (v1.5)*
-*Last updated: 2026-03-01 — Phase 24.1: LJOY-05, LJOY-06, LJOY-07 minted*
+*Requirements defined: 2026-02-26 (v1.4), 2026-02-28 (v1.5), 2026-03-02 (v1.6)*
+*Last updated: 2026-03-02 — v1.6: DEF-01..04, BUG-03, TRIP-01..02, RND-08..10, LOOP-01..04 minted*
