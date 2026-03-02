@@ -141,7 +141,7 @@ PluginProcessor::createParameterLayout()
     addInt  (ParamID::tensionInterval, "Tension Interval",  0, 12, 11);
     addInt  (ParamID::rootOctave,      "Root Octave",       0, 12,  2);
     addInt  (ParamID::thirdOctave,     "Third Octave",      0, 12,  4);
-    addInt  (ParamID::fifthOctave,     "Fifth Octave",      0, 12,  3);
+    addInt  (ParamID::fifthOctave,     "Fifth Octave",      0, 12,  4);
     addInt  (ParamID::tensionOctave,   "Tension Octave",    0, 12,  3);
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         ParamID::joystickXAtten, "Joy X Attenuator",
@@ -157,7 +157,7 @@ PluginProcessor::createParameterLayout()
         for (int i = 0; i < (int)ScalePreset::COUNT; ++i)
             scaleNames.add(ScaleQuantizer::getScaleName(static_cast<ScalePreset>(i)));
 
-        addChoice(ParamID::scalePreset, "Scale Preset", scaleNames, 0);
+        addChoice(ParamID::scalePreset, "Scale Preset", scaleNames, 1);
     }
     addBool(ParamID::useCustomScale, "Use Custom Scale", false);
     for (int i = 0; i < 12; ++i)
