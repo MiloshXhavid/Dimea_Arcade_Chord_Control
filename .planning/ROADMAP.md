@@ -371,5 +371,5 @@ Plans:
 | 26. Defaults and Bug Fix | v1.6 | Complete    | 2026-03-02 | 2026-03-02 |
 | 27. Triplet Subdivisions | v1.6 | Complete    | 2026-03-03 | - |
 | 28. Random Free Redesign | v1.6 | 1/1 | Complete | 2026-03-03 |
-| 29. Looper Perimeter Bar | v1.6 | 1/1 | Complete | 2026-03-03 |
+| 29. Looper Perimeter Bar | v1.6 | Complete    | 2026-03-03 | 2026-03-03 |
 | 30. Distribution | v1.6 | 0/? | Not started | - |
