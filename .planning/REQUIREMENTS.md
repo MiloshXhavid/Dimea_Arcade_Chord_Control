@@ -151,9 +151,9 @@
 
 ### Random Trigger Behavior
 
-- [ ] **RND-08**: Random Free + RND SYNC OFF → gates fire at truly random intervals with no tempo grid alignment (Poisson distribution or equivalent random interval)
-- [ ] **RND-09**: Random Free + RND SYNC ON + DAW Sync OFF → gates subdivided to internal free-tempo clock (existing `randomFreeTempo` BPM clock)
-- [ ] **RND-10**: Random Free + DAW Sync ON → gates subdivided to DAW beat grid (existing behavior, clarified/verified)
+- [x] **RND-08**: Random Free + RND SYNC OFF → gates fire at truly random intervals with no tempo grid alignment (Poisson distribution or equivalent random interval)
+- [x] **RND-09**: Random Free + RND SYNC ON + DAW Sync OFF → gates subdivided to internal free-tempo clock (existing `randomFreeTempo` BPM clock)
+- [x] **RND-10**: Random Free + DAW Sync ON → gates subdivided to DAW beat grid (existing behavior, clarified/verified)
 
 ### Looper Visualization
 
@@ -270,9 +270,9 @@
 | BUG-03 | Phase 26 | Complete |
 | TRIP-01 | Phase 27 | Pending |
 | TRIP-02 | Phase 27 | Pending |
-| RND-08 | Phase 28 | Pending |
-| RND-09 | Phase 28 | Pending |
-| RND-10 | Phase 28 | Pending |
+| RND-08 | Phase 28 | Complete |
+| RND-09 | Phase 28 | Complete |
+| RND-10 | Phase 28 | Complete |
 | LOOP-01 | Phase 29 | Pending |
 | LOOP-02 | Phase 29 | Pending |
 | LOOP-03 | Phase 29 | Pending |

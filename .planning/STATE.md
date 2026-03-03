@@ -44,21 +44,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** XY joystick mapped to harmonic space — per-note trigger gates, scale quantization, gesture looper with trigger quantization, gamepad control — no competitor provides this as a unified instrument.
-**Current focus:** v1.6 — Phase 27 complete, ready for Phase 28 or 29
+**Current focus:** v1.6 — Phase 28 complete, ready for Phase 29
 
 ## Current Position
 
-Phase: 27 (complete — 1/1 plans done)
+Phase: 28 (complete — 1/1 plans done)
 Plan: 01 (complete)
-Status: Phase 27 complete — advancing to Phase 28 or 29
-Last activity: 2026-03-03 — Phase 27 plan 01 executed: triplet subdivisions added + reordered to interleaved tempo order
+Status: Phase 28 complete — advancing to Phase 29
+Last activity: 2026-03-03 — Phase 28 plan 01 executed: Poisson clock + burst semantics for RandomFree/RandomHold
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
 v1.3 Polish [██████████] SHIPPED 2026-02-25
 v1.4 LFO    [██████████] SHIPPED 2026-02-26
 v1.5 Routing+Expression [██████████] SHIPPED 2026-03-02
-v1.6 Triplets & Fixes   [████      ] 2/5 phases complete
+v1.6 Triplets & Fixes   [██████    ] 3/5 phases complete
 ```
 
 ## Accumulated Context
@@ -74,7 +74,7 @@ v1.6 Triplets & Fixes   [████      ] 2/5 phases complete
 |-------|------|--------------|--------|
 | 26 | Defaults and Bug Fix | DEF-01..04, BUG-03 | Complete |
 | 27 | Triplet Subdivisions | TRIP-01, TRIP-02 | Complete |
-| 28 | Random Free Redesign | RND-08, RND-09, RND-10 | Not started |
+| 28 | Random Free Redesign | RND-08, RND-09, RND-10 | Complete |
 | 29 | Looper Perimeter Bar | LOOP-01..04 | Not started |
 | 30 | Distribution | DIST-05, DIST-06 | Not started |
 
@@ -93,7 +93,10 @@ Key v1.6 design decisions (locked):
 - Looper perimeter bar: clockwise, starts/ends at label top-left, 30 Hz via existing timerCallback
 - DIST-05 and DIST-06 minted for v1.6 distribution phase (continuing DIST-01..04 sequence)
 - Phase 27 depends on Phase 26 (APVTS enum changes must land before triplet logic) — Phase 27 now complete
-- Phase 28 depends on Phase 27 (triplet subdivision values must exist in enum before redesign reads them) — Phase 27 now complete
+- Phase 28 depends on Phase 27 (triplet subdivision values must exist in enum before redesign reads them) — Phase 28 now complete
+- Probability (0-1.0) maps to burst size N = round(probability * 64) — 0%=silence, 100%=64 notes per burst
+- Population is Poisson rate lambda for SYNC OFF; hitsPerBarToProbability only for SYNC ON slot-selection
+- Three-branch sync matrix: !randomClockSync=Poisson, isDawPlaying+ppq=DAW-grid, else=internal-counter
 - Triplet subdivisions interleaved with straight counterparts in all selectors (RandomSubdiv enum, APVTS choices, quantizeSubdivToGridSize, PluginEditor ComboBoxes) — no preset backward compatibility maintained (user accepted)
 - Phase 29 depends on Phase 26 (independent of 27/28, but must start from stable base) — Phase 26 now complete
 - Phase 30 depends on Phase 29 (last feature phase; distribution always last)
@@ -109,5 +112,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Phase 27 plan 01 complete — triplet subdivisions added + reordered to interleaved tempo order
-Next step: /gsd:plan-phase 28 or /gsd:plan-phase 29
+Stopped at: Phase 28 plan 01 complete — Poisson clock + burst semantics for RandomFree/RandomHold
+Next step: /gsd:plan-phase 29

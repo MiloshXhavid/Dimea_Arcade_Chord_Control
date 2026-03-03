@@ -73,7 +73,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 - [x] **Phase 26: Defaults and Bug Fix** — Default octave values (Third=4, Fifth=4, Tension=3) + Natural Minor default + noteCount_ clamp removal from all 13 note-off paths (completed 2026-03-02)
 - [x] **Phase 27: Triplet Subdivisions** — 1/1T through 1/32T added to random trigger and quantize subdivision selectors; APVTS enum extended; UI updated (completed 2026-03-03)
-- [ ] **Phase 28: Random Free Redesign** — Three-way RND SYNC / DAW Sync matrix: truly random intervals when SYNC OFF, internal-clock grid when SYNC ON, DAW grid when DAW Sync ON
+- [x] **Phase 28: Random Free Redesign** — Poisson clock + 64-note burst model; three-branch sync matrix: Poisson (SYNC OFF), DAW ppq (SYNC ON + playing), internal counter (SYNC ON + stopped) (completed 2026-03-03)
 - [ ] **Phase 29: Looper Perimeter Bar** — Remove linear strip; clockwise rectangular progress bar around Looper section at 30 Hz; label always visible
 - [ ] **Phase 30: Distribution** — GitHub v1.6 release with installer binary + release notes; desktop backup
 
@@ -368,6 +368,6 @@ Plans:
 | 17–25 | v1.5 | 25/25 | Complete | 2026-03-02 |
 | 26. Defaults and Bug Fix | v1.6 | Complete    | 2026-03-02 | 2026-03-02 |
 | 27. Triplet Subdivisions | v1.6 | Complete    | 2026-03-03 | - |
-| 28. Random Free Redesign | v1.6 | 0/2 | Not started | - |
+| 28. Random Free Redesign | v1.6 | 1/1 | Complete | 2026-03-03 |
 | 29. Looper Perimeter Bar | v1.6 | 0/? | Not started | - |
 | 30. Distribution | v1.6 | 0/? | Not started | - |
