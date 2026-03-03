@@ -97,12 +97,24 @@ void TriggerSystem::processBlock(const ProcessParams& p)
 
     // ── Transport restart detection ───────────────────────────────────────────
     // Reset subdivision indices on transport restart to avoid stale index
-    if (p.isDawPlaying && !wasPlaying_)
+    const bool justStarted = p.isDawPlaying && !wasPlaying_;
+    const bool justStopped = !p.isDawPlaying && wasPlaying_;
+    wasPlaying_ = p.isDawPlaying;
+
+    if (justStarted)
     {
         for (int v = 0; v < 4; ++v)
             prevSubdivIndex_[v] = -1;
     }
-    wasPlaying_ = p.isDawPlaying;
+    if (justStopped)
+    {
+        // On transport stop, drain any in-progress bursts so notes do not fire post-stop
+        for (int v = 0; v < 4; ++v)
+        {
+            burstNotesRemaining_[v] = 0;
+            burstPhase_[v]          = 0.0;
+        }
+    }
 
     // ── Per-voice random subdivision clock ────────────────────────────────────
     const bool allTrig = allTrigger_.exchange(false);
@@ -155,8 +167,13 @@ void TriggerSystem::processBlock(const ProcessParams& p)
         // Universal mode-switch: close any open gate the moment the source changes.
         // Covers all transitions (non-random→random, random→non-random, joy→pad, etc.)
         // so stale gates never outlive the mode they were opened in.
-        if (src != prevSrcV && gateOpen_[v].load())
-            fireNoteOff(v, ch - 1, 0, p);
+        if (src != prevSrcV)
+        {
+            if (gateOpen_[v].load())
+                fireNoteOff(v, ch - 1, 0, p);
+            burstNotesRemaining_[v] = 0;
+            burstPhase_[v]          = 0.0;
+        }
 
         if (allTrig)
         {
@@ -355,6 +372,8 @@ void TriggerSystem::resetAllGates()
         randomPhase_[v]         = 0.0;
         prevSubdivIndex_[v]     = -1;
         randomGateRemaining_[v] = 0;
+        burstNotesRemaining_[v] = 0;
+        burstPhase_[v]          = 0.0;
         prevSrc_[v]             = TriggerSource::TouchPlate;
 
     }

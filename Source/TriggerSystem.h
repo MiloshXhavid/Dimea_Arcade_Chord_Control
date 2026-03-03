@@ -132,6 +132,8 @@ private:
     std::array<double,   4> randomPhase_         {};           // samples since last subdiv (fallback clock)
     std::array<int64_t,  4> prevSubdivIndex_     {-1,-1,-1,-1}; // ppq subdivision index last seen
     std::array<int,      4> randomGateRemaining_ {};           // samples until auto note-off
+    std::array<int,    4> burstNotesRemaining_ {};  // notes left to fire in current burst (0 = idle)
+    std::array<double, 4> burstPhase_          {};  // samples until next burst-internal note fires
     bool                    wasPlaying_          = false;      // for transport restart detection
     std::array<TriggerSource, 4> prevSrc_        {};           // previous source per voice (mode-switch transition detection)
 
