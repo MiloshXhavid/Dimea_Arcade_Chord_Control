@@ -2927,9 +2927,8 @@ void PluginEditor::resized()
 
         section.removeFromTop(4);
 
-        // Looper position bar — 4px strip between mode buttons and subdiv/length controls
-        looperPositionBarBounds_ = section.removeFromTop(4);
-        section.removeFromTop(4);  // 4px gap after bar before subdiv row
+        looperPositionBarBounds_ = {};  // replaced by perimeter bar — no strip layout needed
+        section.removeFromTop(8);       // preserve 8px gap so controls below keep their position
 
         // Subdiv + length: narrow combo for time sig, slider for bars
         {
@@ -3547,27 +3546,98 @@ void PluginEditor::paint(juce::Graphics& g)
         drawSliderLabel(lfoYDistSlider_.getBounds(),  "Dist");
     }
 
-    // ── Looper position bar ───────────────────────────────────────────────────
-    if (!looperPositionBarBounds_.isEmpty())
+    // ── Looper perimeter bar ──────────────────────────────────────────────────
+    // Clockwise circuit of looperPanelBounds_ perimeter. 2px stroke, Clr::gateOn.
+    // Ghost ring shown when stopped; animated bar shown when playing or recording.
+    if (!looperPanelBounds_.isEmpty())
     {
-        const auto barB = looperPositionBarBounds_.toFloat();
+        const auto b = looperPanelBounds_.toFloat().reduced(1.0f); // inset so 2px stroke stays inside border
+        const float W = b.getWidth();
+        const float H = b.getHeight();
+        const float totalPerim = 2.0f * (W + H);
 
-        // Background track
-        g.setColour(Clr::gateOff);
-        g.fillRoundedRectangle(barB, 2.0f);
-
-        // Filled sweep — only when looper is playing or recording
-        if (proc_.looperIsPlaying() || proc_.looperIsRecording())
+        // Maps a perimeter distance [0, totalPerim) to an (x,y) point clockwise from top-left.
+        // Handles negative distances and wrapping correctly.
+        auto perimPoint = [&](float dist) -> juce::Point<float>
         {
+            dist = std::fmod(dist, totalPerim);
+            if (dist < 0.0f) dist += totalPerim;
+            if (dist < W)             return { b.getX() + dist,        b.getY() };          // top: left→right
+            dist -= W;
+            if (dist < H)             return { b.getRight(),            b.getY() + dist };   // right: top→bottom
+            dist -= H;
+            if (dist < W)             return { b.getRight() - dist,     b.getBottom() };     // bottom: right→left
+            dist -= W;
+            return                           { b.getX(),                b.getBottom() - dist }; // left: bottom→top
+        };
+
+        // Compute label exclusion zone — mirrors drawLfoPanel constants for "LOOPER"
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 12.0f, juce::Font::bold));
+        const int labelW = g.getCurrentFont().getStringWidth("LOOPER") + 10;
+        const int labelH = 14;
+        const int labelX = (int)b.getX() + 6;
+        const int labelY = (int)b.getY() - labelH / 2; // = b.getY() - 7
+
+        const juce::PathStrokeType stroke(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+        const juce::PathStrokeType ghostStroke(1.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+        const juce::Rectangle<int> labelExclude(labelX, labelY, labelW, labelH);
+
+        const bool isActive = proc_.looperIsPlaying() || proc_.looperIsRecording();
+
+        if (!isActive)
+        {
+            // Ghost ring: full perimeter at low alpha, 1px stroke
+            juce::Path ghostPath;
+            constexpr int kGhostSegs = 40;
+            ghostPath.startNewSubPath(perimPoint(0.0f));
+            for (int i = 1; i <= kGhostSegs; ++i)
+                ghostPath.lineTo(perimPoint(totalPerim * i / kGhostSegs));
+            ghostPath.closeSubPath();
+
+            juce::Graphics::ScopedSaveState ss(g);
+            g.excludeClipRegion(labelExclude);
+            g.setColour(Clr::gateOff.brighter(0.3f));
+            g.strokePath(ghostPath, ghostStroke);
+        }
+        else
+        {
+            // Animated perimeter bar with tail
             const double len  = proc_.getLooperLengthBeats();
             const double beat = proc_.getLooperPlaybackBeat();
             if (len > 0.0)
             {
                 const float fraction = juce::jlimit(0.0f, 1.0f, static_cast<float>(beat / len));
-                if (fraction > 0.0f)
+                const float d = fraction * totalPerim; // leading-edge distance along perimeter
+
+                constexpr float kTailPx = 40.0f;       // tail length in perimeter pixels
+                constexpr float kHeadPx = 12.0f;        // "hot" head segment drawn at full alpha
+
+                // Draw tail segment at reduced alpha
                 {
+                    juce::Path tailPath;
+                    constexpr int kTailSegs = 16;
+                    tailPath.startNewSubPath(perimPoint(d - kTailPx));
+                    for (int i = 1; i <= kTailSegs; ++i)
+                        tailPath.lineTo(perimPoint(d - kTailPx + kTailPx * i / kTailSegs));
+
+                    juce::Graphics::ScopedSaveState ss(g);
+                    g.excludeClipRegion(labelExclude);
+                    g.setColour(Clr::gateOn.withAlpha(0.28f));
+                    g.strokePath(tailPath, stroke);
+                }
+
+                // Overdraw head segment at full alpha
+                {
+                    juce::Path headPath;
+                    constexpr int kHeadSegs = 6;
+                    headPath.startNewSubPath(perimPoint(d - kHeadPx));
+                    for (int i = 1; i <= kHeadSegs; ++i)
+                        headPath.lineTo(perimPoint(d - kHeadPx + kHeadPx * i / kHeadSegs));
+
+                    juce::Graphics::ScopedSaveState ss(g);
+                    g.excludeClipRegion(labelExclude);
                     g.setColour(Clr::gateOn);
-                    g.fillRoundedRectangle(barB.withWidth(barB.getWidth() * fraction), 2.0f);
+                    g.strokePath(headPath, stroke);
                 }
             }
         }
@@ -3711,10 +3781,10 @@ void PluginEditor::timerCallback()
             repaint(routingBoxBounds_);
     }
 
-    // Partial repaint for looper position bar (driven by this 30 Hz timer)
-    // Only call repaint() if the bar area is valid — avoids repainting the full editor.
-    if (!looperPositionBarBounds_.isEmpty())
-        repaint(looperPositionBarBounds_);
+    // Partial repaint for looper perimeter bar (driven by this 30 Hz timer)
+    // Only call repaint() if the panel area is valid — avoids repainting the full editor.
+    if (!looperPanelBounds_.isEmpty())
+        repaint(looperPanelBounds_);
 
     // Refresh gates, joystick position, looper buttons
     padRoot_.repaint(); padThird_.repaint(); padFifth_.repaint(); padTension_.repaint();
