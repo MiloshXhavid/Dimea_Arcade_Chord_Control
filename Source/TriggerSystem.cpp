@@ -122,31 +122,48 @@ void TriggerSystem::processBlock(const ProcessParams& p)
     bool randomFired[4] = {};
     for (int v = 0; v < 4; ++v)
     {
-        const double effectiveBpm     = p.randomClockSync
-                                            ? p.bpm
-                                            : static_cast<double>(p.randomFreeTempo);
+        // effectiveBpm: use randomFreeTempo when DAW is not playing or SYNC is off.
+        // When SYNC ON + DAW playing, use DAW BPM for samplesPerSubdiv (ppq path doesn't
+        // use it, but kept consistent). When SYNC ON + DAW stopped, use randomFreeTempo
+        // for the internal-clock fallback.
+        const double effectiveBpm     = (!p.randomClockSync || !p.isDawPlaying)
+                                            ? static_cast<double>(p.randomFreeTempo)
+                                            : p.bpm;
         const double beats            = subdivBeatsFor(p.randomSubdiv[v]);
         const double beatsPerSec      = effectiveBpm / 60.0;
         const double samplesPerSubdiv = (p.sampleRate / beatsPerSec) * beats;
 
-        if (p.randomClockSync)
+        if (!p.randomClockSync)
         {
-            // Sync mode: fire on ppq subdivision boundary, only when DAW is playing.
-            // When DAW stops, do nothing — no fallback clock.
-            if (p.isDawPlaying && p.ppqPosition >= 0.0)
+            // RND SYNC OFF: Poisson countdown — truly stochastic inter-onset intervals.
+            // randomPhase_[v] counts DOWN toward 0. When it reaches/passes 0, fire burst
+            // and draw a new exponential wait from the same LCG.
+            randomPhase_[v] -= static_cast<double>(p.blockSize);
+            if (randomPhase_[v] <= 0.0)
             {
-                const int64_t idx = static_cast<int64_t>(p.ppqPosition / beats);
-                if (idx != prevSubdivIndex_[v])
-                {
-                    prevSubdivIndex_[v] = idx;
-                    randomFired[v] = true;
-                }
+                randomFired[v] = true;
+                // Draw new Poisson wait (exponential inter-arrival, rate = population events/bar)
+                const double spBar  = (p.sampleRate * 60.0 / static_cast<double>(p.randomFreeTempo)) * 4.0;
+                const double mean   = spBar / static_cast<double>(std::max(1.0f, p.randomPopulation));
+                const float  u      = std::max(1e-6f, nextRandom());
+                const float  drawn  = static_cast<float>(-mean * std::log(static_cast<double>(u)));
+                const float  minFlr = static_cast<float>(0.010 * p.sampleRate);
+                randomPhase_[v] = static_cast<double>(std::max(minFlr, drawn));
             }
-            // else: transport stopped — no trigger, no phase advance
+        }
+        else if (p.isDawPlaying && p.ppqPosition >= 0.0)
+        {
+            // RND SYNC ON + DAW playing: fire on ppq subdivision boundary.
+            const int64_t idx = static_cast<int64_t>(p.ppqPosition / beats);
+            if (idx != prevSubdivIndex_[v])
+            {
+                prevSubdivIndex_[v] = idx;
+                randomFired[v] = true;
+            }
         }
         else
         {
-            // Free mode: always-running sample-count clock at randomFreeTempo.
+            // RND SYNC ON + DAW stopped (or ppq unavailable): internal free-tempo sample counter.
             randomPhase_[v] += static_cast<double>(p.blockSize);
             if (samplesPerSubdiv > 0.0 && randomPhase_[v] >= samplesPerSubdiv)
             {
@@ -263,12 +280,49 @@ void TriggerSystem::processBlock(const ProcessParams& p)
         }
         else if (src == TriggerSource::RandomFree)
         {
+            // On new burst trigger: compute burst size from Probability and start burst countdown.
             if (randomFired[v])
             {
-                const float popProb  = hitsPerBarToProbability(p.randomPopulation, p.randomSubdiv[v]);
-                const float userProb = p.randomProbability;   // 0.0–1.0, default 1.0
-                if (nextRandom() < popProb && nextRandom() < userProb)
+                // SYNC ON: apply population slot-selection probability to gate this event.
+                // SYNC OFF: burst rate is already controlled by Poisson wait in clock block;
+                //           no additional slot gating — population is the λ rate.
+                bool slotFires = true;
+                if (p.randomClockSync)
+                {
+                    const float slotProb = hitsPerBarToProbability(p.randomPopulation, p.randomSubdiv[v]);
+                    slotFires = (nextRandom() < slotProb);
+                }
+
+                if (slotFires)
+                {
+                    const int burstSize = static_cast<int>(std::round(p.randomProbability * 64.0f));
+                    if (burstSize > 0)
+                    {
+                        burstNotesRemaining_[v] = burstSize;
+                        burstPhase_[v]          = 0.0;  // fire first note immediately this block
+                    }
+                }
+            }
+
+            // Drain burst: fire one note per block, spaced by subdivision samples.
+            if (burstNotesRemaining_[v] > 0)
+            {
+                burstPhase_[v] -= static_cast<double>(p.blockSize);
+                if (burstPhase_[v] <= 0.0)
+                {
                     trigger = true;
+                    burstNotesRemaining_[v]--;
+                    if (burstNotesRemaining_[v] > 0)
+                    {
+                        // Schedule next note in burst at subdivision spacing.
+                        const double effBpm2   = (!p.randomClockSync || !p.isDawPlaying)
+                                                   ? static_cast<double>(p.randomFreeTempo)
+                                                   : p.bpm;
+                        const double beats2    = subdivBeatsFor(p.randomSubdiv[v]);
+                        const double spSub2    = (p.sampleRate / (effBpm2 / 60.0)) * beats2;
+                        burstPhase_[v] = std::max(spSub2, static_cast<double>(0.010 * p.sampleRate));
+                    }
+                }
             }
         }
         else if (src == TriggerSource::RandomHold)
@@ -276,20 +330,54 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             const bool padHeld = padPressed_[v].load();
             padJustFired_[v].exchange(false);  // consume edge flag — RandomHold does not use it
 
-            // Pad released mid-note → hard cut
+            // Pad released mid-note → hard cut, drain burst
             if (!padHeld && gateOpen_[v].load())
             {
                 fireNoteOff(v, ch - 1, 0, p);
-                randomGateRemaining_[v] = 0;
+                randomGateRemaining_[v]  = 0;
+                burstNotesRemaining_[v]  = 0;
+                burstPhase_[v]           = 0.0;
             }
-            // Pad held → random clock gates through (same probability model as RandomFree)
+            // Pad held → random clock gates through with burst semantics (same as RandomFree)
             else if (padHeld && randomFired[v])
             {
-                const float popProb  = hitsPerBarToProbability(p.randomPopulation, p.randomSubdiv[v]);
-                const float userProb = p.randomProbability;
-                if (nextRandom() < popProb && nextRandom() < userProb)
-                    trigger = true;
+                bool slotFires = true;
+                if (p.randomClockSync)
+                {
+                    const float slotProb = hitsPerBarToProbability(p.randomPopulation, p.randomSubdiv[v]);
+                    slotFires = (nextRandom() < slotProb);
+                }
+                if (slotFires)
+                {
+                    const int burstSize = static_cast<int>(std::round(p.randomProbability * 64.0f));
+                    if (burstSize > 0)
+                    {
+                        burstNotesRemaining_[v] = burstSize;
+                        burstPhase_[v]          = 0.0;
+                    }
+                }
             }
+
+            // Drain burst (same pattern as RandomFree; only when pad is held)
+            if (padHeld && burstNotesRemaining_[v] > 0)
+            {
+                burstPhase_[v] -= static_cast<double>(p.blockSize);
+                if (burstPhase_[v] <= 0.0)
+                {
+                    trigger = true;
+                    burstNotesRemaining_[v]--;
+                    if (burstNotesRemaining_[v] > 0)
+                    {
+                        const double effBpm2  = (!p.randomClockSync || !p.isDawPlaying)
+                                                  ? static_cast<double>(p.randomFreeTempo)
+                                                  : p.bpm;
+                        const double beats2   = subdivBeatsFor(p.randomSubdiv[v]);
+                        const double spSub2   = (p.sampleRate / (effBpm2 / 60.0)) * beats2;
+                        burstPhase_[v] = std::max(spSub2, static_cast<double>(0.010 * p.sampleRate));
+                    }
+                }
+            }
+            // Pad released mid-burst already handled above (burst drained on release)
         }
 
         if (trigger)
