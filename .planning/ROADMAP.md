@@ -72,7 +72,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 **Milestone Goal:** Fix the noteCount stuck-notes bug and default param values, add triplet subdivisions to both random and quantize selectors, correct Random Free to fire truly outside the tempo grid when RND SYNC is off, and replace the linear looper progress bar with a rectangular perimeter visualization.
 
 - [x] **Phase 26: Defaults and Bug Fix** — Default octave values (Third=4, Fifth=4, Tension=3) + Natural Minor default + noteCount_ clamp removal from all 13 note-off paths (completed 2026-03-02)
-- [ ] **Phase 27: Triplet Subdivisions** — 1/1T through 1/32T added to random trigger and quantize subdivision selectors; APVTS enum extended; UI updated
+- [x] **Phase 27: Triplet Subdivisions** — 1/1T through 1/32T added to random trigger and quantize subdivision selectors; APVTS enum extended; UI updated (completed 2026-03-03)
 - [ ] **Phase 28: Random Free Redesign** — Three-way RND SYNC / DAW Sync matrix: truly random intervals when SYNC OFF, internal-clock grid when SYNC ON, DAW grid when DAW Sync ON
 - [ ] **Phase 29: Looper Perimeter Bar** — Remove linear strip; clockwise rectangular progress bar around Looper section at 30 Hz; label always visible
 - [ ] **Phase 30: Distribution** — GitHub v1.6 release with installer binary + release notes; desktop backup
@@ -364,7 +364,7 @@ Plans:
 | 12–16 | v1.4 | 9/9 | Complete | 2026-02-26 |
 | 17–25 | v1.5 | 25/25 | Complete | 2026-03-02 |
 | 26. Defaults and Bug Fix | v1.6 | Complete    | 2026-03-02 | 2026-03-02 |
-| 27. Triplet Subdivisions | v1.6 | 0/1 | In progress | - |
+| 27. Triplet Subdivisions | v1.6 | Complete    | 2026-03-03 | - |
 | 28. Random Free Redesign | v1.6 | 0/? | Not started | - |
 | 29. Looper Perimeter Bar | v1.6 | 0/? | Not started | - |
 | 30. Distribution | v1.6 | 0/? | Not started | - |
