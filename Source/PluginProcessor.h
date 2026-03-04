@@ -196,6 +196,8 @@ public:
     std::atomic<float> lfoYRateDisplay_  { 0.01f };
     std::atomic<float> lfoYPhaseDisplay_ { 0.0f  };
     std::atomic<float> lfoYLevelDisplay_ { 0.0f  };
+    std::atomic<float> lfoXOutputDisplay_{ 0.0f  };  // LFO X last output; > 0 = positive half-cycle
+    std::atomic<float> lfoYOutputDisplay_{ 0.0f  };  // LFO Y last output; > 0 = positive half-cycle
     std::atomic<float> gateLengthDisplay_{ 0.5f  };
 
     // MOD FIX knob display — uses live stick (not S&H) for stability.
@@ -346,7 +348,8 @@ private:
     int prevSingleChanTarget_ = 1;
 
     // ── Arpeggiator state (audio-thread-only) ─────────────────────────────────
-    double   arpPhase_            = 0.0;      // accumulated beats within subdivision
+    double    arpPhase_           = 0.0;      // accumulated beats within subdivision
+    long long arpPrevSubdivIdx_   = -1;       // last seen subdiv index; -1 fires step immediately on first block
     double   arpNoteOffRemaining_ = 0.0;      // beats until gate-time note-off fires
     int      arpStep_             = 0;        // current position in step sequence
     int      arpActivePitch_      = -1;       // pitch of currently sounding arp note

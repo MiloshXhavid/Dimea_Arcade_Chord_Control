@@ -128,7 +128,7 @@ private:
         juce::Colour color;
     };
 
-    struct StarDot { float x, y, r; juce::Colour c; };
+    struct StarDot { float x, y, r, vx, vy; juce::Colour c; };
 
     PluginProcessor& proc_;
     void updateFromMouse(const juce::MouseEvent& e);
@@ -147,8 +147,11 @@ private:
     // Space visual foundation (Phase 31)
     juce::Image milkyWayCache_;
     juce::Image heatmapCache_;
+    juce::Image spaceRawImage_;    // loaded once from BinaryData in constructor
+    juce::Image spaceBgBaked_;     // desaturated + vignetted, baked in resized()
     std::vector<StarDot> starfield_;
-    float glowPhase_ = 0.0f;  // 0..1, advanced in timerCallback(), reset by resetGlowPhase()
+    float glowPhase_  = 0.0f;  // 0..1, advanced in timerCallback(), reset by resetGlowPhase()
+    float bgScrollY_  = 0.0f;  // vertical scroll offset for space background fly-through
 };
 
 // ─── TouchPlate ───────────────────────────────────────────────────────────────
@@ -452,6 +455,17 @@ private:
     // so timerCallback() can call clearRecording() and snap back to Unarmed.
     bool prevLfoXOn_ = true;
     bool prevLfoYOn_ = true;
+
+    // ── LFO waveform visualizer (Phase 32 redesign) ───────────────────────────
+    // Ring buffers of recent LFO output values, one per timer tick (30 Hz).
+    // Values are raw process() output in [-level, +level]; drawn as oscilloscope line.
+    static constexpr int kLfoVisBufSize = 48;
+    std::array<float, kLfoVisBufSize> lfoXVisBuf_{};
+    std::array<float, kLfoVisBufSize> lfoYVisBuf_{};
+    int lfoXVisBufIdx_ = 0;
+    int lfoYVisBufIdx_ = 0;
+    // Visualizer bounds — set in resized(), drawn in paint()
+    juce::Rectangle<int> lfoXVisBounds_, lfoYVisBounds_;
 
     // ── Gamepad display ───────────────────────────────────────────────────────
     GamepadDisplayComponent gamepadDisplay_;

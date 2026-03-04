@@ -806,9 +806,9 @@ void GamepadDisplayComponent::paint(juce::Graphics& g)
             const float rsR2 = juce::jmin(w * 0.065f, bodyH * 0.115f);
             g.setColour(juce::Colour(0x66FFFFFF));
             g.drawEllipse(lsX2 - lsR2 * 1.25f, lsY2 - lsR2 * 1.25f,
-                          lsR2 * 2.5f, lsR2 * 2.5f, 1.0f);
+                          lsR2 * 1.8f, lsR2 * 1.8f, 1.0f);
             g.drawEllipse(rsX2 - rsR2 * 1.25f, rsY2 - rsR2 * 1.25f,
-                          rsR2 * 2.5f, rsR2 * 2.5f, 1.0f);
+                          rsR2 * 1.8f, rsR2 * 1.8f, 1.0f);
         }
     }
 }
@@ -821,6 +821,8 @@ JoystickPad::JoystickPad(PluginProcessor& p) : proc_(p)
 {
     setMouseCursor(juce::MouseCursor::CrosshairCursor);
     particles_.reserve(128);
+    spaceRawImage_ = juce::ImageCache::getFromMemory(BinaryData::SpaceBackground_png,
+                                                     BinaryData::SpaceBackground_pngSize);
     startTimerHz(60);
 }
 
@@ -830,25 +832,54 @@ void JoystickPad::resized()
     const int h = getHeight();
     if (w < 2 || h < 2) return;
 
+    // ── Bake spaceBgBaked_ (photo with desaturation + radial vignette) ────────
+    // Meteors lose their colours; edges/corners darken toward the bg colour.
+    spaceBgBaked_ = juce::Image(juce::Image::ARGB, w, h, true);
+    if (spaceRawImage_.isValid())
+    {
+        juce::Image scaled = spaceRawImage_.rescaled(w, h, juce::Graphics::mediumResamplingQuality);
+        const float cx = w * 0.5f, cy = h * 0.5f;
+        const float maxR = std::sqrt(cx * cx + cy * cy);
+        juce::Image::BitmapData src(scaled,        juce::Image::BitmapData::readOnly);
+        juce::Image::BitmapData dst(spaceBgBaked_, juce::Image::BitmapData::writeOnly);
+        for (int py = 0; py < h; ++py)
+        {
+            for (int px = 0; px < w; ++px)
+            {
+                juce::Colour c = src.getPixelColour(px, py);
+                // Boost brightness so faint galaxy/stars become visible (blacks stay black)
+                const float r0 = juce::jlimit(0.0f, 1.0f, c.getFloatRed()   * 1.8f);
+                const float g0 = juce::jlimit(0.0f, 1.0f, c.getFloatGreen() * 1.8f);
+                const float b0 = juce::jlimit(0.0f, 1.0f, c.getFloatBlue()  * 1.8f);
+                dst.setPixelColour(px, py,
+                    juce::Colour((uint8_t)(r0 * 255.0f),
+                                 (uint8_t)(g0 * 255.0f),
+                                 (uint8_t)(b0 * 255.0f),
+                                 (uint8_t)(255.0f)));
+            }
+        }
+    }
+
     // ── Bake milkyWayCache_ ───────────────────────────────────────────────────
-    // Diagonal band with clumpy organic density variation to match real galaxy look.
+    // Wide, foggy diagonal band — sigmas enlarged for dispersed nebula feel.
     milkyWayCache_ = juce::Image(juce::Image::ARGB, w, h, true);
     {
         juce::Image::BitmapData bmp(milkyWayCache_, juce::Image::BitmapData::writeOnly);
         const float bx0 = 0.0f, by0 = (float)h * 0.35f;
         const float bx1 = (float)w, by1 = (float)h * 0.65f;
         const float lineLen = std::sqrt((bx1 - bx0) * (bx1 - bx0) + (by1 - by0) * (by1 - by0));
-        const float nx = -(by1 - by0) / lineLen;  // perpendicular normal x
-        const float ny =  (bx1 - bx0) / lineLen;  // perpendicular normal y
-        const float tx = (bx1 - bx0) / lineLen;   // along-band x
-        const float ty = (by1 - by0) / lineLen;   // along-band y
+        const float nx = -(by1 - by0) / lineLen;
+        const float ny =  (bx1 - bx0) / lineLen;
+        const float tx = (bx1 - bx0) / lineLen;
+        const float ty = (by1 - by0) / lineLen;
 
         auto gauss = [](float d, float sigma) -> float {
             return std::exp(-(d * d) / (2.0f * sigma * sigma));
         };
-        const float outerSigma = (float)h * 0.48f;
-        const float midSigma   = (float)h * 0.15f;
-        const float coreSigma  = (float)h * 0.038f;
+        // Wider sigmas = foggy dispersed nebula rather than a sharp stripe
+        const float outerSigma = (float)h * 0.80f;
+        const float midSigma   = (float)h * 0.38f;
+        const float coreSigma  = (float)h * 0.12f;
 
         for (int py = 0; py < h; ++py)
         {
@@ -857,9 +888,8 @@ void JoystickPad::resized()
                 const float dx    = (float)px - bx0;
                 const float dy    = (float)py - by0;
                 const float dist  = std::abs(dx * nx + dy * ny);
-                const float along = (dx * tx + dy * ty) / lineLen;  // 0..1 along band
+                const float along = (dx * tx + dy * ty) / lineLen;
 
-                // Organic density clumps along the band (multiple sine harmonics)
                 const float k = juce::MathConstants<float>::twoPi;
                 const float density =
                     1.0f
@@ -867,51 +897,69 @@ void JoystickPad::resized()
                     + 0.13f * std::sin(along * k * 5.5f + 1.2f)
                     + 0.07f * std::sin(along * k * 11.3f + 2.6f);
 
-                const float outer = gauss(dist, outerSigma) * 0.05f;
-                const float mid   = gauss(dist, midSigma)   * 0.28f;
-                const float core  = gauss(dist, coreSigma)  * 0.70f;
+                const float outer = gauss(dist, outerSigma) * 0.18f;
+                const float mid   = gauss(dist, midSigma)   * 0.40f;
+                const float core  = gauss(dist, coreSigma)  * 0.55f;
                 const float brightness = juce::jlimit(0.0f, 1.0f, (outer + mid + core) * density);
 
-                // Cool blue-white galaxy color, low alpha so it stays a soft haze
                 const uint8_t R = (uint8_t)(brightness * 0.84f * 255.0f);
                 const uint8_t G = (uint8_t)(brightness * 0.90f * 255.0f);
                 const uint8_t B = (uint8_t)(brightness          * 255.0f);
-                const uint8_t A = (uint8_t)(juce::jlimit(0.0f, 1.0f, brightness * 0.85f) * 255.0f);
+                const uint8_t A = (uint8_t)(juce::jlimit(0.0f, 1.0f, brightness * 1.4f) * 255.0f);
                 bmp.setPixelColour(px, py, juce::Colour(R, G, B, A));
             }
         }
     }
 
     // ── Generate starfield_ ───────────────────────────────────────────────────
-    // 300 stars, fixed deterministic seed, sorted by radius descending
+    // Two depth layers: 200 background (dim) + 50 foreground (clearly visible).
     starfield_.clear();
-    starfield_.reserve(300);
-    juce::Random rng(0xDEADBEEF12345678LL);  // fixed seed — deterministic across sessions
+    starfield_.reserve(250);
+    juce::Random rng(0xDEADBEEF12345678LL);
 
-    for (int i = 0; i < 350; ++i)
+    // Background layer — subdued but clearly visible, slow drift
+    for (int i = 0; i < 200; ++i)
     {
         StarDot s;
         s.x = rng.nextFloat();
         s.y = rng.nextFloat();
-        // Sub-pixel pinpricks: 0.2–1.1px, heavily biased small
-        s.r = 0.20f + std::pow(rng.nextFloat(), 4.5f) * 0.9f;
-
-        // Heavy power-law: most very dim, few moderately bright
-        const float broll = std::pow(rng.nextFloat(), 2.5f);
-        const uint8_t alf = (uint8_t)(10 + broll * 120);   // 10–130
-
-        // 88% white, 12% faint blue-white — no yellow
+        s.r = 0.50f + std::pow(rng.nextFloat(), 2.0f) * 0.7f;  // 0.5–1.2px
+        const float broll = std::pow(rng.nextFloat(), 1.5f);
+        const uint8_t alf = (uint8_t)(60 + broll * 80);  // 60–140
         if (rng.nextFloat() < 0.88f)
             s.c = juce::Colour((uint8_t)242, (uint8_t)245, (uint8_t)255, alf);
         else
-            s.c = juce::Colour((uint8_t)190, (uint8_t)210, (uint8_t)255, alf);
-
+            s.c = juce::Colour((uint8_t)190, (uint8_t)215, (uint8_t)255, alf);
+        // Random direction, slow speed (normalized units/frame)
+        const float angle = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+        const float speed = 0.00008f + rng.nextFloat() * 0.00012f;  // ~0.03–0.08 px/frame @400px
+        s.vx = std::cos(angle) * speed;
+        s.vy = std::sin(angle) * speed;
         starfield_.push_back(s);
     }
-    // Largest/brightest stars appear first as Population knob increases
-    std::sort(starfield_.begin(), starfield_.end(),
-        [](const StarDot& a, const StarDot& b) { return a.r > b.r; });
-
+    // Foreground layer — brighter dots, faster drift
+    for (int i = 0; i < 50; ++i)
+    {
+        StarDot s;
+        s.x = rng.nextFloat();
+        s.y = rng.nextFloat();
+        s.r = 0.90f + rng.nextFloat() * 0.70f;  // 0.9–1.6px
+        const float broll = 0.5f + rng.nextFloat() * 0.5f;
+        const uint8_t alf = (uint8_t)(150 + broll * 70);  // 150–220
+        if (rng.nextFloat() < 0.80f)
+            s.c = juce::Colour((uint8_t)248, (uint8_t)250, (uint8_t)255, alf);
+        else
+            s.c = juce::Colour((uint8_t)200, (uint8_t)220, (uint8_t)255, alf);
+        // Random direction, faster speed for depth parallax
+        const float angle = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+        const float speed = 0.00022f + rng.nextFloat() * 0.00028f;  // ~0.09–0.20 px/frame @400px
+        s.vx = std::cos(angle) * speed;
+        s.vy = std::sin(angle) * speed;
+        starfield_.push_back(s);
+    }
+    // Shuffle to random order — Population knob reveals stars in mixed size/brightness order
+    for (int i = (int)starfield_.size() - 1; i > 0; --i)
+        std::swap(starfield_[i], starfield_[(int)(rng.nextFloat() * (i + 1))]);
 }
 
 void JoystickPad::resetGlowPhase() { glowPhase_ = 0.0f; }
@@ -1022,6 +1070,25 @@ void JoystickPad::timerCallback()
         }
     }
 
+    // ── Animate starfield positions ───────────────────────────────────────────
+    for (auto& s : starfield_)
+    {
+        s.x += s.vx;
+        s.y += s.vy;
+        // Wrap around edges (normalized 0..1)
+        if (s.x < 0.0f) s.x += 1.0f;
+        if (s.x > 1.0f) s.x -= 1.0f;
+        if (s.y < 0.0f) s.y += 1.0f;
+        if (s.y > 1.0f) s.y -= 1.0f;
+    }
+
+    // ── Space background fly-through scroll (0.15px/frame) ──────────────────
+    if (spaceBgBaked_.isValid())
+    {
+        const float imgH = (float)spaceBgBaked_.getHeight();
+        bgScrollY_ = std::fmod(bgScrollY_ + 0.15f, imgH);
+    }
+
     repaint();
 }
 
@@ -1124,11 +1191,25 @@ void JoystickPad::paint(juce::Graphics& g)
     g.setColour(juce::Colour(0xff05050f));
     g.fillRect(b);
 
+    // ── Layer 1.5: Space background photo (scrolling fly-through) ───────────
+    if (spaceBgBaked_.isValid())
+    {
+        juce::Graphics::ScopedSaveState ss(g);
+        g.reduceClipRegion(b.toNearestInt());
+        g.setOpacity(1.0f);
+        const int imgH  = spaceBgBaked_.getHeight();
+        const int offset = (int)bgScrollY_ % imgH;
+        // Primary tile: scrolls upward
+        g.drawImageAt(spaceBgBaked_, (int)b.getX(), (int)b.getY() - offset);
+        // Wrap tile: fills the gap at the bottom as the primary scrolls off the top
+        g.drawImageAt(spaceBgBaked_, (int)b.getX(), (int)b.getY() - offset + imgH);
+    }
+
     // ── Layer 2: Milky way band (brightness driven by randomProbability 0-1) ─
     if (milkyWayCache_.isValid())
     {
         const float prob = proc_.apvts.getRawParameterValue("randomProbability")->load();
-        const float bandAlpha = juce::jmap(prob, 0.0f, 1.0f, 0.05f, 0.55f);
+        const float bandAlpha = juce::jmap(prob, 0.0f, 1.0f, 0.04f, 0.22f);
         juce::Graphics::ScopedSaveState ss(g);
         g.setOpacity(bandAlpha);
         g.drawImage(milkyWayCache_, b);
@@ -1138,7 +1219,7 @@ void JoystickPad::paint(juce::Graphics& g)
     if (!starfield_.empty())
     {
         const float pop = proc_.apvts.getRawParameterValue("randomPopulation")->load();
-        const int visCount = (int)std::floor(300.0f * (pop - 1.0f) / 63.0f);
+        const int visCount = (int)std::floor((float)starfield_.size() * (pop - 1.0f) / 63.0f);
         const int count    = juce::jmin(visCount, (int)starfield_.size());
         for (int i = 0; i < count; ++i)
         {
@@ -1150,14 +1231,23 @@ void JoystickPad::paint(juce::Graphics& g)
         }
     }
 
-    // ── Layer 4: Joystick range circle ───────────────────────────────────────
+    // ── Layer 4: Joystick range circle — cyan glow, BPM-breathing ────────────
     {
         const float circleR = juce::jmin(b.getWidth(), b.getHeight()) * 0.5f;
         const juce::Rectangle<float> circleRect(
             b.getCentreX() - circleR, b.getCentreY() - circleR,
             circleR * 2.0f, circleR * 2.0f);
-        g.setColour(juce::Colours::white.withAlpha(0.10f));
-        g.drawEllipse(circleRect, 1.0f);
+        // Breathe with glowPhase_ — same sine as cursor glow
+        const float breath = 0.5f + 0.5f * std::sin(glowPhase_ * juce::MathConstants<float>::twoPi);
+        // Outer soft glow
+        g.setColour(juce::Colour(0xFF00CFFF).withAlpha(0.10f + breath * 0.12f));
+        g.drawEllipse(circleRect.expanded(3.0f), 5.0f);
+        // Mid glow
+        g.setColour(juce::Colour(0xFF00CFFF).withAlpha(0.22f + breath * 0.15f));
+        g.drawEllipse(circleRect.expanded(1.0f), 2.5f);
+        // Inner crisp rim
+        g.setColour(juce::Colour(0xFF00CFFF).withAlpha(0.50f + breath * 0.20f));
+        g.drawEllipse(circleRect, 1.5f);
     }
 
     // ── Layer 5: Semitone grid ────────────────────────────────────────────────
@@ -1201,9 +1291,11 @@ void JoystickPad::paint(juce::Graphics& g)
         }
         else
         {
-            // Default centre vertical line when no semitone range set
-            g.setColour(juce::Colours::white.withAlpha(0.38f));
-            g.drawLine(b.getCentreX(), b.getY(), b.getCentreX(), b.getBottom(), 1.5f);
+            // Default centre vertical line — glow pass then crisp pass
+            g.setColour(juce::Colours::white.withAlpha(0.10f));
+            g.drawLine(b.getCentreX(), b.getY(), b.getCentreX(), b.getBottom(), 5.0f);
+            g.setColour(juce::Colours::white.withAlpha(0.65f));
+            g.drawLine(b.getCentreX(), b.getY(), b.getCentreX(), b.getBottom(), 1.8f);
         }
 
         // Horizontal lines — dashed, driven by joystickYAtten (Y axis semitone range)
@@ -1228,9 +1320,11 @@ void JoystickPad::paint(juce::Graphics& g)
         }
         else
         {
-            // Default centre horizontal line when no semitone range set
-            g.setColour(juce::Colours::white.withAlpha(0.38f));
-            g.drawLine(b.getX(), b.getCentreY(), b.getRight(), b.getCentreY(), 1.5f);
+            // Default centre horizontal line — glow pass then crisp pass
+            g.setColour(juce::Colours::white.withAlpha(0.10f));
+            g.drawLine(b.getX(), b.getCentreY(), b.getRight(), b.getCentreY(), 5.0f);
+            g.setColour(juce::Colours::white.withAlpha(0.65f));
+            g.drawLine(b.getX(), b.getCentreY(), b.getRight(), b.getCentreY(), 1.8f);
         }
     }
 
@@ -1279,19 +1373,10 @@ void JoystickPad::paint(juce::Graphics& g)
         g.drawLine(ox, oy + dotR + 1.0f,   ox, oy + dotR + tickLen, 1.0f);
     }
 
-    // ── Layer 7b: Cursor — dark halo + subtle cyan glow (BPM-locked breathing) ─
+    // ── Layer 7b: Cursor — dark halo ─────────────────────────────────────────
     constexpr float haloR = dotR + 6.0f;
     g.setColour(juce::Colour(0xff05050f).withAlpha(0.45f));
     g.fillEllipse(cx - haloR, cy - haloR, haloR * 2.0f, haloR * 2.0f);
-
-    // Barely-visible cyan glow that pulses with looper/DAW tempo
-    {
-        const float breath    = 0.5f + 0.5f * std::sin(glowPhase_ * juce::MathConstants<float>::twoPi);
-        const float glowAlpha = 0.04f + breath * 0.11f;        // 0.04..0.15 (very subtle)
-        const float glowR     = dotR + 2.0f + breath * 6.0f;   // dotR+2..dotR+8
-        g.setColour(juce::Colour(0xFF00CFFF).withAlpha(glowAlpha));
-        g.fillEllipse(cx - glowR, cy - glowR, glowR * 2.0f, glowR * 2.0f);
-    }
 
     // ── Layer 7c: Cursor dot + outline + ticks — UNCHANGED ───────────────────
     g.setColour(Clr::highlight);
@@ -1304,9 +1389,7 @@ void JoystickPad::paint(juce::Graphics& g)
     g.drawLine(cx, cy - dotR - tickLen, cx, cy - dotR - 1.0f, 1.0f);
     g.drawLine(cx, cy + dotR + 1.0f,   cx, cy + dotR + tickLen, 1.0f);
 
-    // ── Layer 8: Border ───────────────────────────────────────────────────────
-    g.setColour(Clr::highlight.withAlpha(0.30f));
-    g.drawRect(b.reduced(1), 2.0f);
+    // (no border)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1988,7 +2071,8 @@ PluginEditor::PluginEditor(PluginProcessor& p)
             "1/8", "1/8T",
             "1/16", "1/16T",
             "1/32", "1/32T",
-            "1/64"
+            "1/64",
+            "2/1T", "4/1T"   // indices 15-16: match APVTS to fix combo/parameter normalization
         };
         for (int v = 0; v < 4; ++v)
         {
@@ -2063,11 +2147,11 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     // ── Joystick threshold slider ─────────────────────────────────────────────
     thresholdSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
     thresholdSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    thresholdSlider_.setTooltip("Joystick Threshold  -  minimum stick displacement needed to fire a note in Joystick trigger mode");
-    thresholdSlider_.setColour(juce::Slider::trackColourId,      Clr::highlight);
-    thresholdSlider_.setColour(juce::Slider::backgroundColourId, Clr::accent);
-    thresholdSlider_.setColour(juce::Slider::thumbColourId,      Clr::text);
-    addAndMakeVisible(thresholdSlider_);
+    thresholdSlider_.setTooltip("Trig Threshold  -  minimum stick displacement needed to fire a note in Joystick trigger mode");
+    thresholdSlider_.setColour(juce::Slider::thumbColourId,       Clr::highlight);
+    thresholdSlider_.setColour(juce::Slider::trackColourId,       Clr::accent);
+    thresholdSlider_.setColour(juce::Slider::backgroundColourId,  Clr::gateOff);
+    // addAndMakeVisible deferred — must come after gamepadDisplay_ to paint on top
     thresholdSliderAtt_ = std::make_unique<juce::SliderParameterAttachment>(
         *p.apvts.getParameter("joystickThreshold"), thresholdSlider_);
 
@@ -2153,7 +2237,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     };
     addAndMakeVisible(loopRecWaitBtn_);
 
-    bpmDisplayLabel_.setText("Tempo 120.0 BPM", juce::dontSendNotification);
+    bpmDisplayLabel_.setText("120.0 BPM", juce::dontSendNotification);
     bpmDisplayLabel_.setJustificationType(juce::Justification::centred);
     bpmDisplayLabel_.setFont(juce::Font(11.0f));
     bpmDisplayLabel_.setColour(juce::Label::textColourId, Clr::text.withAlpha(0.75f));
@@ -2219,18 +2303,20 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     }
 
     // ── Quantize subdivision dropdown ─────────────────────────────────────────
-    quantizeSubdivBox_.addItem("1/1T",  1);
-    quantizeSubdivBox_.addItem("1/2T",  2);
-    quantizeSubdivBox_.addItem("1/4",   3);
-    quantizeSubdivBox_.addItem("1/4T",  4);
-    quantizeSubdivBox_.addItem("1/8",   5);
-    quantizeSubdivBox_.addItem("1/8T",  6);
-    quantizeSubdivBox_.addItem("1/16",  7);
-    quantizeSubdivBox_.addItem("1/16T", 8);
-    quantizeSubdivBox_.addItem("1/32",  9);
-    quantizeSubdivBox_.addItem("1/32T", 10);
+    quantizeSubdivBox_.addItem("1/1",   1);
+    quantizeSubdivBox_.addItem("1/1T",  2);
+    quantizeSubdivBox_.addItem("1/2",   3);
+    quantizeSubdivBox_.addItem("1/2T",  4);
+    quantizeSubdivBox_.addItem("1/4",   5);
+    quantizeSubdivBox_.addItem("1/4T",  6);
+    quantizeSubdivBox_.addItem("1/8",   7);
+    quantizeSubdivBox_.addItem("1/8T",  8);
+    quantizeSubdivBox_.addItem("1/16",  9);
+    quantizeSubdivBox_.addItem("1/16T", 10);
+    quantizeSubdivBox_.addItem("1/32",  11);
+    quantizeSubdivBox_.addItem("1/32T", 12);
     styleCombo(quantizeSubdivBox_);
-    quantizeSubdivBox_.setTooltip("Quantize Grid  -  subdivision used for live and post quantisation (1/4 to 1/32T)");
+    quantizeSubdivBox_.setTooltip("Quantize Grid  -  subdivision used for live and post quantisation (1/1 to 1/32T)");
     addAndMakeVisible(quantizeSubdivBox_);
     quantizeSubdivAtt_ = std::make_unique<ComboAtt>(p.apvts, "quantizeSubdiv", quantizeSubdivBox_);
 
@@ -2257,6 +2343,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(chordNameLabel_);
     addAndMakeVisible(gamepadDisplay_);
     gamepadDisplay_.setProcessor(&proc_);  // enables mouse-drag of sticks when no hardware
+    addAndMakeVisible(thresholdSlider_);   // must be after gamepadDisplay_ to paint on top
 
     // Update gamepad status label with specific controller type on hot-plug events.
     // Passes controller name string (empty = disconnected) via onConnectionChangeUI.
@@ -2582,11 +2669,12 @@ PluginEditor::PluginEditor(PluginProcessor& p)
         lfoXRateAtt_.reset();
         if (syncOn)
         {
-            lfoXRateSlider_.setRange(0.0, 5.0, 1.0);
+            lfoXRateSlider_.setRange(0.0, 12.0, 1.0);
             lfoXRateSlider_.setNumDecimalPlacesToDisplay(0);
             lfoXRateSlider_.textFromValueFunction = [](double v) -> juce::String {
-                static const char* names[] = {"1/1","1/2","1/4","1/8","1/16","1/32"};
-                return names[juce::jlimit(0, 5, (int)std::round(v))];
+                static const char* names[] = {"4/1T","2/1T","1/1T","1/2","1/4","1/4T",
+                                              "1/8","1/16.","1/8T","1/16","1/16T","1/32","1/32T"};
+                return names[juce::jlimit(0, 12, (int)std::round(v))];
             };
             if (auto* param = proc_.apvts.getParameter("lfoXSubdiv"))
                 lfoXRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(
@@ -2707,11 +2795,12 @@ PluginEditor::PluginEditor(PluginProcessor& p)
         lfoYRateAtt_.reset();
         if (syncOn)
         {
-            lfoYRateSlider_.setRange(0.0, 5.0, 1.0);
+            lfoYRateSlider_.setRange(0.0, 12.0, 1.0);
             lfoYRateSlider_.setNumDecimalPlacesToDisplay(0);
             lfoYRateSlider_.textFromValueFunction = [](double v) -> juce::String {
-                static const char* names[] = {"1/1","1/2","1/4","1/8","1/16","1/32"};
-                return names[juce::jlimit(0, 5, (int)std::round(v))];
+                static const char* names[] = {"4/1T","2/1T","1/1T","1/2","1/4","1/4T",
+                                              "1/8","1/16.","1/8T","1/16","1/16T","1/32","1/32T"};
+                return names[juce::jlimit(0, 12, (int)std::round(v))];
             };
             if (auto* param = proc_.apvts.getParameter("lfoYSubdiv"))
                 lfoYRateAtt_ = std::make_unique<juce::SliderParameterAttachment>(
@@ -3277,8 +3366,14 @@ void PluginEditor::resized()
         }
         col.removeFromTop(4);
 
-        // Row 6: SYNC button (full width)
-        lfoXSyncBtn_.setBounds(col.removeFromTop(22));
+        // Row 6: SYNC button (left half) + waveform visualizer (right half)
+        {
+            auto row = col.removeFromTop(22);
+            const int btnW = (row.getWidth() - 4) / 2;
+            lfoXSyncBtn_.setBounds(row.removeFromLeft(btnW));
+            row.removeFromLeft(4);
+            lfoXVisBounds_ = row;
+        }
 
         // Row 7: ARM + CLR row
         col.removeFromTop(4);
@@ -3348,8 +3443,14 @@ void PluginEditor::resized()
         }
         col.removeFromTop(4);
 
-        // Row 6: SYNC button (full width)
-        lfoYSyncBtn_.setBounds(col.removeFromTop(22));
+        // Row 6: SYNC button (left half) + waveform visualizer (right half)
+        {
+            auto row = col.removeFromTop(22);
+            const int btnW = (row.getWidth() - 4) / 2;
+            lfoYSyncBtn_.setBounds(row.removeFromLeft(btnW));
+            row.removeFromLeft(4);
+            lfoYVisBounds_ = row;
+        }
 
         // Row 7: ARM + CLR row
         col.removeFromTop(4);
@@ -3375,7 +3476,6 @@ void PluginEditor::resized()
     {
         const int chordX = lfoXCol.getX();
         const int chordW = lfoYCol.getRight() - chordX;   // lfoX + gap + lfoY = 304px
-        thresholdSlider_.setBounds(0, 0, 0, 0);  // hidden — gate length lives in arp panel
         // Component top at the DEL/ALL button row (shoulder buttons float in logo space above body).
         const int gpY = loopDeleteBtn_.getY();
         // Original chord height: same as before the swap
@@ -3389,6 +3489,24 @@ void PluginEditor::resized()
                                   chordW, arpBlockBounds_.getBottom() - gpY);
         // Body rectangle aligned with GAMEPAD ON button row.
         gamepadDisplay_.setBodyOffset(gamepadActiveBtn_.getY() - gamepadDisplay_.getY());
+        // Threshold slider: centred under right joystick (rsX=78%, rsY=bY(0.70))
+        {
+            const int bodyOffsetPx = gamepadActiveBtn_.getY() - gpY;
+            const int bodyHPx      = arpBlockBounds_.getBottom() - (gpY + bodyOffsetPx) - 4;
+            const float rsR        = juce::jmin(chordW * 0.065f, bodyHPx * 0.115f) * 1.6f;
+            const int rsX_abs      = chordX + juce::roundToInt(chordW * 0.78f);
+            const int rsY_abs      = gpY + bodyOffsetPx + juce::roundToInt(bodyHPx * 0.70f);
+
+            constexpr int kTrackH  = 7;
+            const int sliderW      = juce::roundToInt(chordW * 0.26f);
+            const int sliderX      = rsX_abs - sliderW / 2;
+            const int sliderY      = rsY_abs + (int)rsR + 4;
+
+            // Align vertical center of threshold track with vertical center of gate length knob
+            const int alignedY = arpGateTimeKnob_.getY()
+                                 + (arpGateTimeKnob_.getHeight() - kTrackH) / 2;
+            thresholdSlider_.setBounds(sliderX, alignedY, sliderW, kTrackH);
+        }
     }
 
     (void)rowH;
@@ -3413,7 +3531,7 @@ void PluginEditor::paint(juce::Graphics& g)
     // Title: pixel font for branding, but bright/readable
     g.setFont(pixelFont_.withHeight(11.0f));
     g.setColour(Clr::text);
-    g.drawText("Joystick Chord Control (\xce\xb2-test)", header, juce::Justification::centred);
+    g.drawText("Arcade Chord Control (BETA-Test)", header, juce::Justification::centred);
 
     // Outer border
     g.setColour(Clr::accent.brighter(0.5f));
@@ -3730,6 +3848,83 @@ void PluginEditor::paint(juce::Graphics& g)
         drawSliderLabel(lfoYLevelSlider_.getBounds(), "Level");
         drawSliderLabel(lfoYDistSlider_.getBounds(),  "Dist");
     }
+
+    // ── LFO waveform visualizers ──────────────────────────────────────────────
+    // Draws a mini oscilloscope in the right half of the SYNC row for each LFO.
+    // Ring buffer holds kLfoVisBufSize samples; oldest sample is at lfoXVisBufIdx_
+    // (the next write slot). Values are in [-level, +level].
+    // Blink: current output (newest sample) drives overall alpha — bright on positive
+    // half-cycle, dim on negative, giving the pulsing indicator the original ON button
+    // was meant to provide.
+    auto drawLfoVisualizer = [&](juce::Rectangle<int> bounds,
+                                 const std::array<float, kLfoVisBufSize>& buf,
+                                 int writeIdx)
+    {
+        if (bounds.isEmpty()) return;
+        const auto fb = bounds.toFloat().reduced(1.0f);
+
+        // Background
+        g.setColour(juce::Colour(0xff050510));
+        g.fillRoundedRectangle(fb, 3.0f);
+        g.setColour(Clr::accent.withAlpha(0.35f));
+        g.drawRoundedRectangle(fb.reduced(0.5f), 3.0f, 0.75f);
+
+        // Centre reference line
+        const float cy = fb.getCentreY();
+        g.setColour(Clr::textDim.withAlpha(0.25f));
+        g.drawHorizontalLine((int)cy, fb.getX() + 2.0f, fb.getRight() - 2.0f);
+
+        // Waveform — values are raw process() output in [-level, +level].
+        // Scale is fixed at ±1.0: level=0 → flat line, level=1 → full height.
+        // This makes the waveform grow proportionally as the level knob is raised.
+        const float ampH = (fb.getHeight() * 0.5f) - 2.0f;  // max pixel excursion from centre
+
+        // Current output = sample just before writeIdx (most recently written)
+        const int newestIdx = (writeIdx - 1 + kLfoVisBufSize) % kLfoVisBufSize;
+        const float newestVal = buf[newestIdx];
+        // Blink: positive half-cycle = bright, negative = dim
+        const float blink_t   = juce::jmax(0.0f, juce::jmin(1.0f, newestVal));
+        const float lineAlpha = 0.25f + 0.75f * blink_t;
+
+        // Build waveform path — samples drawn left→right, oldest first
+        juce::Path wavePath;
+        const float xStep = fb.getWidth() / (float)(kLfoVisBufSize - 1);
+        bool pathStarted = false;
+        for (int i = 0; i < kLfoVisBufSize; ++i)
+        {
+            // Map ring buffer: oldest sample first (at writeIdx), newest last
+            const int sIdx = (writeIdx + i) % kLfoVisBufSize;
+            const float sNorm = juce::jlimit(-1.0f, 1.0f, buf[sIdx]);
+            const float px = fb.getX() + (float)i * xStep;
+            const float py = cy - sNorm * ampH;
+            if (!pathStarted) { wavePath.startNewSubPath(px, py); pathStarted = true; }
+            else               { wavePath.lineTo(px, py); }
+        }
+
+        // Glow pass (thick, dim) + crisp pass (thin, bright) — same two-layer style as grid lines
+        g.setColour(Clr::highlight.withAlpha(lineAlpha * 0.30f));
+        juce::PathStrokeType(3.5f).createStrokedPath(wavePath, wavePath);
+        g.fillPath(wavePath);
+
+        wavePath.clear();
+        pathStarted = false;
+        for (int i = 0; i < kLfoVisBufSize; ++i)
+        {
+            const int sIdx = (writeIdx + i) % kLfoVisBufSize;
+            const float sNorm = juce::jlimit(-1.0f, 1.0f, buf[sIdx]);
+            const float px = fb.getX() + (float)i * xStep;
+            const float py = cy - sNorm * ampH;
+            if (!pathStarted) { wavePath.startNewSubPath(px, py); pathStarted = true; }
+            else               { wavePath.lineTo(px, py); }
+        }
+        g.setColour(Clr::highlight.withAlpha(lineAlpha));
+        g.strokePath(wavePath, juce::PathStrokeType(1.0f));
+    };
+
+    if (!lfoXVisBounds_.isEmpty())
+        drawLfoVisualizer(lfoXVisBounds_, lfoXVisBuf_, lfoXVisBufIdx_);
+    if (!lfoYVisBounds_.isEmpty())
+        drawLfoVisualizer(lfoYVisBounds_, lfoYVisBuf_, lfoYVisBufIdx_);
 
     // ── Looper perimeter bar ──────────────────────────────────────────────────
     // Clockwise circuit of looperPanelBounds_ perimeter. 2px stroke, Clr::gateOn.
@@ -4065,6 +4260,13 @@ void PluginEditor::timerCallback()
         prevLfoXOn_ = lfoXOn;
         lfoXArmBtn_.setEnabled(lfoXOn);
 
+        // Push LFO X output into visualizer ring buffer (drawn in paint())
+        {
+            const float xOut = proc_.lfoXOutputDisplay_.load(std::memory_order_relaxed);
+            lfoXVisBuf_[lfoXVisBufIdx_] = xOut;
+            lfoXVisBufIdx_ = (lfoXVisBufIdx_ + 1) % kLfoVisBufSize;
+        }
+
         // Control grayout during Playback.
         // setEnabled() blocks interaction; setAlpha() provides the visual dim because
         // PixelLookAndFeel::drawLinearSlider and drawButtonBackground do not check
@@ -4107,6 +4309,13 @@ void PluginEditor::timerCallback()
             proc_.clearLfoYRecording();
         prevLfoYOn_ = lfoYOn;
         lfoYArmBtn_.setEnabled(lfoYOn);
+
+        // Push LFO Y output into visualizer ring buffer (drawn in paint())
+        {
+            const float yOut = proc_.lfoYOutputDisplay_.load(std::memory_order_relaxed);
+            lfoYVisBuf_[lfoYVisBufIdx_] = yOut;
+            lfoYVisBufIdx_ = (lfoYVisBufIdx_ + 1) % kLfoVisBufSize;
+        }
 
         const bool yPlayback = (yState == LfoRecState::Playback);
         const float yDimAlpha = yPlayback ? 0.35f : 1.0f;
@@ -4340,9 +4549,11 @@ void PluginEditor::timerCallback()
             filterYAttenKnob_.setTextValueSuffix(ySuffix);
     }
 
-    // ARP button: blinks while armed (ARP ON but waiting for DAW play press to launch),
+    // ARP button: blinks while armed (ARP ON but waiting for play to launch),
     // solid when actually running, off when disabled.
-    if (arpEnabledBtn_.getToggleState() && proc_.isArpWaitingForPlay())
+    // Read APVTS directly — getToggleState() can be stale after blink sets it false.
+    const bool arpActuallyOn = (*proc_.apvts.getRawParameterValue("arpEnabled") > 0.5f);
+    if (arpActuallyOn && proc_.isArpWaitingForPlay())
     {
         const bool on = ((++arpBlinkCounter_) / 5) % 2 == 0;  // ~3 blinks/sec at 30 Hz
         arpEnabledBtn_.setToggleState(on, juce::dontSendNotification);
@@ -4351,7 +4562,10 @@ void PluginEditor::timerCallback()
     else
     {
         arpBlinkCounter_ = 0;
-        arpEnabledBtn_.setButtonText(arpEnabledBtn_.getToggleState() ? "ARP ON" : "ARP OFF");
+        // Re-sync toggle state in case blink left it false while arp is still running.
+        if (arpEnabledBtn_.getToggleState() != arpActuallyOn)
+            arpEnabledBtn_.setToggleState(arpActuallyOn, juce::dontSendNotification);
+        arpEnabledBtn_.setButtonText(arpActuallyOn ? "ARP ON" : "ARP OFF");
     }
 
     // Update REC JOY / REC GATES / SYNC toggle appearances
@@ -4378,7 +4592,7 @@ void PluginEditor::timerCallback()
     // Update BPM display
     {
         const float bpm = proc_.getEffectiveBpm();
-        bpmDisplayLabel_.setText("Tempo " + juce::String(bpm, 1) + " BPM", juce::dontSendNotification);
+        bpmDisplayLabel_.setText(juce::String(bpm, 1) + " BPM", juce::dontSendNotification);
     }
 
     // Update OPTION indicator — dim=off, green=arp mode, red=interval mode

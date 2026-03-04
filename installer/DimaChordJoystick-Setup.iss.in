@@ -1,34 +1,34 @@
 ; DimaChordJoystick-Setup.iss  (generated — edit DimaChordJoystick-Setup.iss.in instead)
-; Inno Setup 6.7.1 installer for DIMEA CHORD JOYSTICK MK2 VST3 v@PROJECT_VERSION@
+; Inno Setup 6.7.1 installer for Arcade Chord Control (BETA-Test) VST3 v@PROJECT_VERSION@
 ; Place this file in the installer/ subdirectory of the project root.
 
 [Setup]
-AppName=DIMEA CHORD JOYSTICK MK2
+AppName=Arcade Chord Control (BETA-Test)
 AppVersion=@PROJECT_VERSION@
-AppPublisher=DIMEA
+AppPublisher=Dimea Arcade
 AppPublisherURL=https://www.dimea.com
 AppComments=v@PROJECT_VERSION@
-OutputBaseFilename=DIMEA-ChordJoystickMK2-v@PROJECT_VERSION@-Setup
+OutputBaseFilename=DimeaArcade-ChordControl-v@PROJECT_VERSION@-Setup
 OutputDir=Output
-DefaultDirName={commoncf64}\VST3\DIMEA CHORD JOYSTICK MK2.vst3
+DefaultDirName={commoncf64}\VST3\Arcade Chord Control (BETA-Test).vst3
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 DisableDirPage=yes
 Compression=lzma
 SolidCompression=yes
-UninstallDisplayName=DIMEA CHORD JOYSTICK MK2 VST3
+UninstallDisplayName=Arcade Chord Control (BETA-Test) VST3
 
 [Files]
 ; Copies the entire .vst3 bundle (directory tree) to the standard VST3 system path.
 ; Source ends in \* so Inno Setup recurses into the directory.
-; DestDir creates DIMEA CHORD JOYSTICK MK2.vst3\ at the destination.
-Source: "..\build\ChordJoystick_artefacts\Release\VST3\Chord Joystick Control (BETA).vst3\*"; \
-    DestDir: "{commoncf64}\VST3\DIMEA CHORD JOYSTICK MK2.vst3"; \
+; DestDir creates Arcade Chord Control (BETA-Test).vst3\ at the destination.
+Source: "..\build\ChordJoystick_artefacts\Release\VST3\Arcade Chord Control (BETA-Test).vst3\*"; \
+    DestDir: "{commoncf64}\VST3\Arcade Chord Control (BETA-Test).vst3"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 
 [UninstallDelete]
 ; Ensure the whole .vst3 bundle directory is removed on uninstall.
-Type: filesandordirs; Name: "{commoncf64}\VST3\DIMEA CHORD JOYSTICK MK2.vst3"
+Type: filesandordirs; Name: "{commoncf64}\VST3\Arcade Chord Control (BETA-Test).vst3"
 
 [Messages]
 WelcomeLabel1=Welcome to DIMEA — congratulations for unlocking musical skills. Let's play some chords! Check out the Website: www.DIMEA.com

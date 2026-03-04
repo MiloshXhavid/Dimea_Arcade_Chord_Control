@@ -197,17 +197,29 @@ void GamepadInput::timerCallback()
         pitchY_.store(rawY, std::memory_order_relaxed);
     }
 
-    // ── Left stick → filter (with sample-and-hold) ───────────────────────────
+    // ── Left stick → filter (deadzone rescaling, no sample-and-hold) ────────
+    // Rescaling: value starts at 0 at the deadzone boundary and ramps to ±1 at
+    // the stick extreme, eliminating the jump when the stick exits the deadzone.
+    // No S&H: when the stick is centered (inside deadzone), filterX_/filterY_ = 0
+    // so the CC returns to the MOD FIX base knob position.
     {
-        const float rawX =  normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_LEFTX));
-        const float rawY = -normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_LEFTY));
-        if (rawY != 0.0f) lastFilterX_ = rawY;  // Y axis → cutoff (CC74)
-        if (rawX != 0.0f) lastFilterY_ = rawX;  // X axis → resonance (CC71)
-        filterX_.store(lastFilterX_, std::memory_order_relaxed);
-        filterY_.store(lastFilterY_, std::memory_order_relaxed);
-        filterYRaw_.store(rawX, std::memory_order_relaxed);  // 0 when in dead zone (no S&H)
-        leftStickXLive_.store(rawX, std::memory_order_relaxed);
-        leftStickYLive_.store(rawY, std::memory_order_relaxed);
+        const float dz = deadZone_.load(std::memory_order_relaxed);
+        auto rescaleLeft = [dz](int16_t rawInt, float invert) -> float {
+            const float v  = static_cast<float>(rawInt) / 32767.0f * invert;
+            const float av = std::abs(v);
+            if (av < dz) return 0.0f;
+            const float sign = (v > 0.0f) ? 1.0f : -1.0f;
+            return sign * (av - dz) / (1.0f - dz);
+        };
+
+        const float scaledX = rescaleLeft(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_LEFTX),  1.0f);
+        const float scaledY = rescaleLeft(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_LEFTY), -1.0f);
+
+        filterX_.store(scaledX, std::memory_order_relaxed);   // X axis (left/right) → filterX
+        filterY_.store(scaledY, std::memory_order_relaxed);   // Y axis (up/down)    → filterY
+        filterYRaw_.store(scaledY, std::memory_order_relaxed); // 0 when in dead zone (sustain pedal)
+        leftStickXLive_.store(scaledX, std::memory_order_relaxed);
+        leftStickYLive_.store(scaledY, std::memory_order_relaxed);
     }
 
     // ── Voice triggers: L1/L2/R1/R2 (debounced) ──────────────────────────────

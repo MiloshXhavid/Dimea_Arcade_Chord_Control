@@ -111,10 +111,11 @@ endif()
 juce_add_binary_data(ChordJoystickFonts
     SOURCES Fonts/PressStart2P-Regular.ttf
             Resources/DimeaLogo.png
+            Resources/SpaceBackground.png
 )
 
 juce_add_plugin(ChordJoystick
-    PRODUCT_NAME            "Joystick Chord Control (β-test)"
+    PRODUCT_NAME            "Arcade Chord Control (BETA-Test)"
     COMPANY_NAME            "Dimea Arcade"
     FORMATS                 VST3
     PLUGIN_MANUFACTURER_CODE "MxCJ"

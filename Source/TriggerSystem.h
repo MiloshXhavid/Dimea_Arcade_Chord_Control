@@ -23,7 +23,9 @@ enum class RandomSubdiv {
     SixteenthT      = 11,  // 1/16T
     ThirtySecond    = 12,  // 1/32
     ThirtySecondT   = 13,  // 1/32T
-    SixtyFourth     = 14   // 1/64 (no triplet pair)
+    SixtyFourth     = 14,  // 1/64 (no triplet pair)
+    DblWholeT       = 15,  // 2/1T = 16/3 beats
+    QuadWholeT      = 16   // 4/1T = 32/3 beats
 };
 
 // ─── TriggerSystem ────────────────────────────────────────────────────────────
@@ -109,6 +111,10 @@ public:
 
     // Reset all gate state — call from releaseResources() and processBlockBypassed()
     void resetAllGates();
+
+    // Sync all random-free phase counters to 0 without closing gates.
+    // Call on looper reset so all voices re-align from the same starting point.
+    void syncRandomFreePhases();
 
 private:
     // Physical pad state (written by UI/gamepad, read by audio thread)

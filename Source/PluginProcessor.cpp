@@ -136,20 +136,22 @@ PluginProcessor::createParameterLayout()
                 })
         ));
     }
-    addInt  (ParamID::thirdInterval,   "Third Interval",    0, 12,  4);
-    addInt  (ParamID::fifthInterval,   "Fifth Interval",    0, 12,  7);
-    addInt  (ParamID::tensionInterval, "Tension Interval",  0, 12, 11);
-    addInt  (ParamID::rootOctave,      "Root Octave",       0, 12,  2);
-    addInt  (ParamID::thirdOctave,     "Third Octave",      0, 12,  4);
-    addInt  (ParamID::fifthOctave,     "Fifth Octave",      0, 12,  4);
-    addInt  (ParamID::tensionOctave,   "Tension Octave",    0, 12,  3);
+    addInt  (ParamID::thirdInterval,   "Third Interval",    0, 11,  4);
+    addInt  (ParamID::fifthInterval,   "Fifth Interval",    0, 11,  7);
+    addInt  (ParamID::tensionInterval, "Tension Interval",  0, 11, 11);
+    addInt  (ParamID::rootOctave,      "Root Octave",       0, 11,  2);
+    addInt  (ParamID::thirdOctave,     "Third Octave",      0, 11,  4);
+    addInt  (ParamID::fifthOctave,     "Fifth Octave",      0, 11,  4);
+    addInt  (ParamID::tensionOctave,   "Tension Octave",    0, 11,  3);
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         ParamID::joystickXAtten, "Joy X Attenuator",
         juce::NormalisableRange<float>(0.0f, 127.0f, 1.0f), 24.0f));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         ParamID::joystickYAtten, "Joy Y Attenuator",
         juce::NormalisableRange<float>(0.0f, 127.0f, 1.0f), 24.0f));
-    addFloat(ParamID::joystickThreshold,  "Joystick Threshold", 0.001f, 0.1f, 0.015f);
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        ParamID::joystickThreshold, "Joystick Threshold",
+        juce::NormalisableRange<float>(0.0f, 0.1f, 0.001f), 0.05f));
 
     // ── Scale ─────────────────────────────────────────────────────────────────
     {
@@ -187,7 +189,8 @@ PluginProcessor::createParameterLayout()
             "1/8", "1/8T",
             "1/16", "1/16T",
             "1/32", "1/32T",
-            "1/64"
+            "1/64",
+            "2/1T", "4/1T"   // indices 15-16, appended for backward compat
         };
         layout.add(std::make_unique<juce::AudioParameterChoice>(
             "randomSubdiv0", "Random Subdiv Root",    subdivChoices, 8));  // default = 1/8 (index 8)
@@ -229,8 +232,8 @@ PluginProcessor::createParameterLayout()
                                     "LFO-X Freq",   "LFO-X Phase",    "LFO-X Level",      "Gate Length" };
         juce::StringArray yModes { "Resonance (CC71)", "LFO Rate (CC76)", "Cutoff (CC74)", "VCF LFO (CC12)",
                                     "LFO-Y Freq",      "LFO-Y Phase",    "LFO-Y Level",   "Gate Length" };
-        addChoice("filterXMode", "Left Stick X Mode", xModes, 0);
-        addChoice("filterYMode", "Left Stick Y Mode", yModes, 0);
+        addChoice("filterXMode", "Left Stick X Mode", xModes, 2);  // default: Resonance (CC71) on X
+        addChoice("filterYMode", "Left Stick Y Mode", yModes, 2);  // default: Cutoff (CC74) on Y
     }
 
     // ── MIDI routing ──────────────────────────────────────────────────────────
@@ -266,13 +269,14 @@ PluginProcessor::createParameterLayout()
     addInt(ParamID::quantizeMode,   "Quantize Mode",   0, 2, 0);  // 0=Off, 1=Live, 2=Post (default Off)
     {
         const juce::StringArray qSubdivChoices {
-            "1/1T", "1/2T",    // 0–1: slower than 1/4
-            "1/4",  "1/4T",    // 2–3
-            "1/8",  "1/8T",    // 4–5
-            "1/16", "1/16T",   // 6–7
-            "1/32", "1/32T"    // 8–9
+            "1/1",  "1/1T",    // 0–1
+            "1/2",  "1/2T",    // 2–3
+            "1/4",  "1/4T",    // 4–5
+            "1/8",  "1/8T",    // 6–7
+            "1/16", "1/16T",   // 8–9
+            "1/32", "1/32T"    // 10–11
         };
-        addChoice(ParamID::quantizeSubdiv, "Quantize Subdiv", qSubdivChoices, 4);  // default 4 = 1/8
+        addChoice(ParamID::quantizeSubdiv, "Quantize Subdiv", qSubdivChoices, 6);  // default 6 = 1/8
     }
 
     // ── LFO ───────────────────────────────────────────────────────────────────
@@ -285,16 +289,16 @@ PluginProcessor::createParameterLayout()
         addChoice(ParamID::lfoYWaveform, "LFO Y Waveform", waveforms, 0);
     }
     // Rate: log-scale NormalisableRange so slider midpoint ≈ 1 Hz.
-    // Skew factor computed as: log(0.5) / log((midpoint - start) / (end - start))
-    //   = log(0.5) / log((1.0 - 0.01) / (20.0 - 0.01)) ≈ 0.2306
-    // This means at normalized position 0.5 the displayed value is ~1 Hz.
+    // Skew factor: log(0.5) / log((midHz - minHz) / (maxHz - minHz))
+    // 0.35 puts 50% of slider ≈ 0.8 Hz — spreads the useful slow range (0.1–4 Hz)
+    // evenly across most of the slider instead of cramming it into the top 50%.
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         ParamID::lfoXRate, "LFO X Rate",
-        juce::NormalisableRange<float>(0.01f, 20.0f, 0.0f, 0.2306f),
+        juce::NormalisableRange<float>(0.01f, 20.0f, 0.0f, 0.35f),
         1.0f));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         ParamID::lfoYRate, "LFO Y Rate",
-        juce::NormalisableRange<float>(0.01f, 20.0f, 0.0f, 0.2306f),
+        juce::NormalisableRange<float>(0.01f, 20.0f, 0.0f, 0.35f),
         1.0f));
     addFloat(ParamID::lfoXLevel,      "LFO X Level",      0.0f, 1.0f, 0.0f);
     addFloat(ParamID::lfoYLevel,      "LFO Y Level",      0.0f, 1.0f, 0.0f);
@@ -305,9 +309,13 @@ PluginProcessor::createParameterLayout()
     addBool (ParamID::lfoXSync,       "LFO X Sync",       false);
     addBool (ParamID::lfoYSync,       "LFO Y Sync",       false);
     {
-        juce::StringArray subdivs { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-        addChoice(ParamID::lfoXSubdiv, "LFO X Subdivision", subdivs, 2);  // default: 1/4
-        addChoice(ParamID::lfoYSubdiv, "LFO Y Subdivision", subdivs, 2);  // default: 1/4
+        // 13 items sorted slow→fast so slider 50% (index 6) = 1/8.
+        // 6 slow | 1/8 | 6 fast  — new 1/32T added to balance the fast side.
+        juce::StringArray subdivs { "4/1T", "2/1T", "1/1T", "1/2", "1/4", "1/4T",
+                                    "1/8",
+                                    "1/16.", "1/8T", "1/16", "1/16T", "1/32", "1/32T" };
+        addChoice(ParamID::lfoXSubdiv, "LFO X Subdivision", subdivs, 6);  // default: 1/8
+        addChoice(ParamID::lfoYSubdiv, "LFO Y Subdivision", subdivs, 6);  // default: 1/8
     }
     {
         const juce::StringArray ccDests { "Off","CC1 \xe2\x80\x93 Mod Wheel","CC2 \xe2\x80\x93 Breath",
@@ -579,11 +587,11 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         {
             // Mode 1 — octaves: up=rootOct  down=3rdOct  left=tenOct  right=5thOct
             // Clamp (not wrap) so hitting the limit is silent, not a jump.
-            // Range matches the APVTS declaration (0..12 absolute MIDI octave).
-            { const int d = gamepad_.consumeOptionDpadDelta(0); if (d) stepClampingParam(apvts, "rootOctave",    0, 12, d); }
-            { const int d = gamepad_.consumeOptionDpadDelta(1); if (d) stepClampingParam(apvts, "thirdOctave",   0, 12, d); }
-            { const int d = gamepad_.consumeOptionDpadDelta(2); if (d) stepClampingParam(apvts, "tensionOctave", 0, 12, d); }
-            { const int d = gamepad_.consumeOptionDpadDelta(3); if (d) stepClampingParam(apvts, "fifthOctave",   0, 12, d); }
+            // Range matches the APVTS declaration (0..11 absolute MIDI octave).
+            { const int d = gamepad_.consumeOptionDpadDelta(0); if (d) stepClampingParam(apvts, "rootOctave",    0, 11, d); }
+            { const int d = gamepad_.consumeOptionDpadDelta(1); if (d) stepClampingParam(apvts, "thirdOctave",   0, 11, d); }
+            { const int d = gamepad_.consumeOptionDpadDelta(2); if (d) stepClampingParam(apvts, "tensionOctave", 0, 11, d); }
+            { const int d = gamepad_.consumeOptionDpadDelta(3); if (d) stepClampingParam(apvts, "fifthOctave",   0, 11, d); }
 
             // Mode 1 face-button arp dispatch (OPT1-01 through OPT1-04)
             // Circle → toggle arpEnabled; Triangle → step arpSubdiv; Square → step arpOrder; Cross → toggle randomClockSync
@@ -735,8 +743,13 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     // ── LFO modulation ────────────────────────────────────────────────────────
     // Subdivision lookup: beats per cycle (quarter-note = 1.0 beat)
     // Maps lfoXSubdiv / lfoYSubdiv choice index to subdivBeats for LfoEngine
-    // Indices:               1/1  1/2  1/4  1/8   1/16   1/32
-    static constexpr double kLfoSubdivBeats[6] = { 4.0, 2.0, 1.0, 0.5, 0.25, 0.125 };
+    // 13 items sorted slow→fast matching the subdivs list above.
+    // 4/1T  2/1T   1/1T   1/2   1/4   1/4T  | 1/8 |  1/16. 1/8T  1/16  1/16T 1/32  1/32T
+    static constexpr double kLfoSubdivBeats[13] = {
+        32.0/3.0, 16.0/3.0, 8.0/3.0, 2.0, 1.0, 2.0/3.0,
+        0.5,
+        0.375, 1.0/3.0, 0.25, 1.0/6.0, 0.125, 1.0/12.0
+    };
     {
         const bool  xEnabled = *apvts.getRawParameterValue(ParamID::lfoXEnabled) > 0.5f;
         const bool  yEnabled = *apvts.getRawParameterValue(ParamID::lfoYEnabled) > 0.5f;
@@ -751,21 +764,34 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             ProcessParams xp;
             xp.sampleRate   = sampleRate_;
             xp.blockSize    = blockSize;
-            xp.bpm          = lp.bpm;
             xp.syncMode     = *apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f;
-            xp.ppqPosition  = ppqPos;
-            xp.isDawPlaying = isDawPlaying;
+            // Sync ON  → phase-lock to looper beat; looper is the clock source.
+            // Sync OFF → free Hz, completely independent of looper/DAW (analog feel).
+            if (xp.syncMode)
+            {
+                const bool looperOn = looper_.isPlaying();
+                xp.bpm          = effectiveBpm_.load(std::memory_order_relaxed);
+                xp.ppqPosition  = looperOn ? looper_.getPlaybackBeat() : -1.0;
+                xp.isDawPlaying = looperOn;
+            }
+            else
+            {
+                xp.bpm          = lp.bpm;
+                xp.ppqPosition  = ppqPos;
+                xp.isDawPlaying = isDawPlaying;
+            }
             xp.rateHz       = (lfoXRateOverride_  >= 0.0f) ? lfoXRateOverride_
                                                            : *apvts.getRawParameterValue(ParamID::lfoXRate);
             {
-                const bool xSyncOn  = *apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f;
                 const int  xCurMode = (int)apvts.getRawParameterValue("filterXMode")->load();
                 xp.subdivBeats = kLfoSubdivBeats[
-                    juce::jlimit(0, 5, (int)*apvts.getRawParameterValue(ParamID::lfoXSubdiv))];
-                if (xSyncOn && xCurMode == 4)
+                    juce::jlimit(0, 12, (int)*apvts.getRawParameterValue(ParamID::lfoXSubdiv))];
+                if (xp.syncMode && xCurMode == 4)
                     xp.subdivBeats *= lfoXSubdivMult_.load(std::memory_order_relaxed);
             }
-            xp.maxCycleBeats = 16.0;
+            xp.maxCycleBeats = xp.syncMode
+                ? std::max(1.0, looper_.getLoopLengthBeats())
+                : 16.0;
             xp.waveform     = static_cast<Waveform>(
                 (int)*apvts.getRawParameterValue(ParamID::lfoXWaveform));
             xp.phaseShift   = ((lfoXPhaseOverride_ >= 0.0f) ? lfoXPhaseOverride_
@@ -783,6 +809,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                     : 0.0f;
             }
             xTarget = lfoX_.process(xp);
+            lfoXOutputDisplay_.store(xTarget, std::memory_order_relaxed);
         }
 
         float yTarget = 0.0f;
@@ -791,21 +818,34 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             ProcessParams yp;
             yp.sampleRate   = sampleRate_;
             yp.blockSize    = blockSize;
-            yp.bpm          = lp.bpm;
             yp.syncMode     = *apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f;
-            yp.ppqPosition  = ppqPos;
-            yp.isDawPlaying = isDawPlaying;
+            // Sync ON  → phase-lock to looper beat; looper is the clock source.
+            // Sync OFF → free Hz, completely independent of looper/DAW (analog feel).
+            if (yp.syncMode)
+            {
+                const bool looperOn = looper_.isPlaying();
+                yp.bpm          = effectiveBpm_.load(std::memory_order_relaxed);
+                yp.ppqPosition  = looperOn ? looper_.getPlaybackBeat() : -1.0;
+                yp.isDawPlaying = looperOn;
+            }
+            else
+            {
+                yp.bpm          = lp.bpm;
+                yp.ppqPosition  = ppqPos;
+                yp.isDawPlaying = isDawPlaying;
+            }
             yp.rateHz       = (lfoYRateOverride_  >= 0.0f) ? lfoYRateOverride_
                                                            : *apvts.getRawParameterValue(ParamID::lfoYRate);
             {
-                const bool ySyncOn  = *apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f;
                 const int  yCurMode = (int)apvts.getRawParameterValue("filterYMode")->load();
                 yp.subdivBeats = kLfoSubdivBeats[
-                    juce::jlimit(0, 5, (int)*apvts.getRawParameterValue(ParamID::lfoYSubdiv))];
-                if (ySyncOn && yCurMode == 4)
+                    juce::jlimit(0, 12, (int)*apvts.getRawParameterValue(ParamID::lfoYSubdiv))];
+                if (yp.syncMode && yCurMode == 4)
                     yp.subdivBeats *= lfoYSubdivMult_.load(std::memory_order_relaxed);
             }
-            yp.maxCycleBeats = 16.0;
+            yp.maxCycleBeats = yp.syncMode
+                ? std::max(1.0, looper_.getLoopLengthBeats())
+                : 16.0;
             yp.waveform     = static_cast<Waveform>(
                 (int)*apvts.getRawParameterValue(ParamID::lfoYWaveform));
             yp.phaseShift   = ((lfoYPhaseOverride_ >= 0.0f) ? lfoYPhaseOverride_
@@ -823,6 +863,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                     : 0.0f;
             }
             yTarget = lfoY_.process(yp);
+            lfoYOutputDisplay_.store(yTarget, std::memory_order_relaxed);
         }
 
         // Ramp toward target — smooths the disable transition so LFO fades out rather
@@ -949,10 +990,12 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
     if (dawJustStarted)
     {
-        lfoX_.reset();  // align phase to beat 0 on transport restart
-        lfoY_.reset();
-        lfoXRampOut_ = 0.0f;
-        lfoYRampOut_ = 0.0f;
+        // Only reset LFOs that are in sync mode — free-mode LFOs run like analog
+        // hardware and must not snap to phase 0 on every DAW transport press.
+        const bool xSyncOn = *apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f;
+        const bool ySyncOn = *apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f;
+        if (xSyncOn) { lfoX_.reset(); lfoXRampOut_ = 0.0f; }
+        if (ySyncOn) { lfoY_.reset(); lfoYRampOut_ = 0.0f; }
         sampleCounter_ = 0;
         prevBeatCount_ = -1.0;
     }
