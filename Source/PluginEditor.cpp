@@ -4572,9 +4572,14 @@ void PluginEditor::timerCallback()
     // Read and clear the sticky beat flag; set beatPulse_ to 1.0 when triggered.
     // Decay by ~0.11 per tick (30 Hz × 9 frames ≈ 300ms to fade to 0).
     if (proc_.beatOccurred_.exchange(false, std::memory_order_relaxed))
+    {
         beatPulse_ = 1.0f;
+        joystickPad_.resetGlowPhase();  // sync cursor breathing to beat
+    }
     else if (beatPulse_ > 0.0f)
+    {
         beatPulse_ = juce::jmax(0.0f, beatPulse_ - 0.11f);
+    }
 
     // Repaint FREE BPM knob area to update beat dot (drawn by paintOverChildren)
     if (!randomFreeTempoKnob_.getBounds().isEmpty())
