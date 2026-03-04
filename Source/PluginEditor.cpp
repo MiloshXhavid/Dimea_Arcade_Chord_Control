@@ -824,6 +824,111 @@ JoystickPad::JoystickPad(PluginProcessor& p) : proc_(p)
     startTimerHz(60);
 }
 
+void JoystickPad::resized()
+{
+    const int w = getWidth();
+    const int h = getHeight();
+    if (w < 2 || h < 2) return;
+
+    // ── Bake milkyWayCache_ ───────────────────────────────────────────────────
+    // Diagonal band from (0, h*0.35) to (w, h*0.65) — ~-30 deg top-left to bottom-right
+    milkyWayCache_ = juce::Image(juce::Image::ARGB, w, h, true);
+    {
+        juce::Image::BitmapData bmp(milkyWayCache_, juce::Image::BitmapData::writeOnly);
+        const float bx0 = 0.0f, by0 = (float)h * 0.35f;
+        const float bx1 = (float)w, by1 = (float)h * 0.65f;
+        const float lineLen = std::sqrt((bx1 - bx0) * (bx1 - bx0) + (by1 - by0) * (by1 - by0));
+        const float nx = -(by1 - by0) / lineLen;  // perpendicular normal x
+        const float ny =  (bx1 - bx0) / lineLen;  // perpendicular normal y
+
+        for (int py = 0; py < h; ++py)
+        {
+            for (int px = 0; px < w; ++px)
+            {
+                const float dx = (float)px - bx0;
+                const float dy = (float)py - by0;
+                const float dist = std::abs(dx * nx + dy * ny);
+
+                const float outerSigma = (float)h * 0.55f;
+                const float midSigma   = (float)h * 0.18f;
+                const float coreSigma  = (float)h * 0.04f;
+
+                auto gauss = [](float d, float sigma) -> float {
+                    return std::exp(-(d * d) / (2.0f * sigma * sigma));
+                };
+
+                const float outer = gauss(dist, outerSigma) * 0.12f;
+                const float mid   = gauss(dist, midSigma)   * 0.55f;
+                const float core  = gauss(dist, coreSigma)  * 1.00f;
+                float brightness  = juce::jmin(1.0f, outer + mid + core);
+
+                const uint8_t R = (uint8_t)(brightness * 0.88f * 255.0f);
+                const uint8_t G = (uint8_t)(brightness * 0.90f * 255.0f);
+                const uint8_t B = (uint8_t)(brightness          * 255.0f);
+                const uint8_t A = (uint8_t)(juce::jmin(1.0f, brightness * 1.6f) * 255.0f);
+                bmp.setPixelColour(px, py, juce::Colour(R, G, B, A));
+            }
+        }
+    }
+
+    // ── Generate starfield_ ───────────────────────────────────────────────────
+    // 300 stars, fixed deterministic seed, sorted by radius descending
+    starfield_.clear();
+    starfield_.reserve(300);
+    juce::Random rng(0xDEADBEEF12345678LL);  // fixed seed — deterministic across sessions
+
+    for (int i = 0; i < 300; ++i)
+    {
+        StarDot s;
+        s.x = rng.nextFloat();                        // normalized 0..1
+        s.y = rng.nextFloat();
+        s.r = 0.4f + rng.nextFloat() * 2.1f;         // 0.4–2.5px
+
+        const float roll = rng.nextFloat();
+        if (roll < 0.77f)
+            s.c = juce::Colour(0xFFFFFFFF);           // white (77%)
+        else if (roll < 0.92f)
+            s.c = juce::Colour(0xFFAABBFF);           // blue-tinted (15%)
+        else
+            s.c = juce::Colour(0xFFFFEEAA);           // warm yellow (8%)
+
+        starfield_.push_back(s);
+    }
+    // Largest/brightest stars appear first as Population knob increases
+    std::sort(starfield_.begin(), starfield_.end(),
+        [](const StarDot& a, const StarDot& b) { return a.r > b.r; });
+
+    // ── Bake heatmapCache_ ────────────────────────────────────────────────────
+    // Blue-to-magenta angle-based radial gradient
+    heatmapCache_ = juce::Image(juce::Image::ARGB, w, h, true);
+    {
+        juce::Image::BitmapData bmp(heatmapCache_, juce::Image::BitmapData::writeOnly);
+        const float cx = (float)w * 0.5f, cy = (float)h * 0.5f;
+        const float maxR = std::sqrt(cx * cx + cy * cy);
+
+        for (int py = 0; py < h; ++py)
+        {
+            for (int px = 0; px < w; ++px)
+            {
+                const float dx = (float)px - cx;
+                const float dy = (float)py - cy;
+                const float r  = std::sqrt(dx * dx + dy * dy) / maxR;
+                const float angle = std::atan2(-dy, dx);  // -dy = screen Y flip
+                const float t = (angle + juce::MathConstants<float>::pi)
+                              / juce::MathConstants<float>::twoPi;
+
+                const uint8_t R = (uint8_t)(t * 255.0f);
+                const uint8_t G = 0;
+                const uint8_t B = (uint8_t)((1.0f - t) * 255.0f);
+                const uint8_t A = (uint8_t)(juce::jmin(1.0f, r * 1.3f) * 180.0f);
+                bmp.setPixelColour(px, py, juce::Colour(R, G, B, A));
+            }
+        }
+    }
+}
+
+void JoystickPad::resetGlowPhase() { glowPhase_ = 0.0f; }
+
 void JoystickPad::timerCallback()
 {
     // ── Update particles ─────────────────────────────────────────────────────
