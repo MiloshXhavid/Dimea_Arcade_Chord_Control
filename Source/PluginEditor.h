@@ -152,6 +152,13 @@ private:
     std::vector<StarDot> starfield_;
     float glowPhase_  = 0.0f;  // 0..1, advanced in timerCallback(), reset by resetGlowPhase()
     float bgScrollY_  = 0.0f;  // vertical scroll offset for space background fly-through
+
+    // Phase 32: spring-damper display position (pixel coords, display-only)
+    // NEVER write back to proc_.joystickX/Y — sample-and-hold contract is inviolable.
+    float displayCx_  = 0.0f;   // spring-smoothed cursor pixel X
+    float displayCy_  = 0.0f;   // spring-smoothed cursor pixel Y
+    float springVelX_ = 0.0f;   // spring velocity X (pixels/frame)
+    float springVelY_ = 0.0f;   // spring velocity Y (pixels/frame)
 };
 
 // ─── TouchPlate ───────────────────────────────────────────────────────────────
