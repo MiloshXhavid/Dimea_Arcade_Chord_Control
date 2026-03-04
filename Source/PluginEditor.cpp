@@ -1111,88 +1111,135 @@ void JoystickPad::mouseDoubleClick(const juce::MouseEvent& /*e*/)
 void JoystickPad::paint(juce::Graphics& g)
 {
     const auto b = getLocalBounds().toFloat();
+    const int w  = getWidth(), h = getHeight();
+    juce::ignoreUnused(w, h);
 
-    // Background
-    g.setColour(Clr::accent);
+    // ── Layer 1: Near-black background ───────────────────────────────────────
+    g.setColour(juce::Colour(0xff05050f));
     g.fillRect(b);
 
-    // Circle inscribed in the pad (square) — shows the physical joystick reach area
-    const float circleR = juce::jmin(b.getWidth(), b.getHeight()) * 0.5f;
-    const juce::Rectangle<float> circleRect(
-        b.getCentreX() - circleR, b.getCentreY() - circleR,
-        circleR * 2.0f, circleR * 2.0f);
-
-    // Grid: N areas → N-1 equal-spaced lines (i/N for i=1..N-1).
-    // N=0/1/2: only the centre cross is shown (see below).
-    // N>=3: draw N-1 grid lines; centre cross suppressed so no phantom extra division.
+    // ── Layer 2: Milky way band (alpha driven by randomDensity 1-8) ──────────
+    if (milkyWayCache_.isValid())
     {
-        const int xN = juce::jmax(0, (int)proc_.apvts.getRawParameterValue("joystickXAtten")->load());
-        const int yN = juce::jmax(0, (int)proc_.apvts.getRawParameterValue("joystickYAtten")->load());
+        const float density = proc_.apvts.getRawParameterValue("randomDensity")->load();
+        const float bandAlpha = juce::jmap(density, 1.0f, 8.0f, 0.15f, 1.0f);
+        juce::Graphics::ScopedSaveState ss(g);
+        g.setOpacity(bandAlpha);
+        g.drawImage(milkyWayCache_, b);
+    }
 
-        g.setColour(juce::Colours::white.withAlpha(0.20f));
-        for (int i = 1; xN >= 3 && i < xN; ++i)
+    // ── Layer 3: Starfield (count driven by randomPopulation 1-64) ───────────
+    if (!starfield_.empty())
+    {
+        const float pop = proc_.apvts.getRawParameterValue("randomPopulation")->load();
+        const int visCount = (int)std::floor(300.0f * (pop - 1.0f) / 63.0f);
+        const int count    = juce::jmin(visCount, (int)starfield_.size());
+        for (int i = 0; i < count; ++i)
         {
-            const float t = static_cast<float>(i) / static_cast<float>(xN);
-            g.drawLine(b.getX() + t * b.getWidth(), b.getY(),
-                       b.getX() + t * b.getWidth(), b.getBottom(), 1.0f);
+            const auto& s = starfield_[i];
+            g.setColour(s.c);
+            g.fillEllipse(s.x * b.getWidth()  - s.r,
+                          s.y * b.getHeight() - s.r,
+                          s.r * 2.0f, s.r * 2.0f);
         }
-        for (int i = 1; yN >= 3 && i < yN; ++i)
+    }
+
+    // ── Layer 4: Heatmap radial gradient (circle-clipped) ────────────────────
+    {
+        const float circleR = juce::jmin(b.getWidth(), b.getHeight()) * 0.5f;
+        const juce::Rectangle<float> circleRect(
+            b.getCentreX() - circleR, b.getCentreY() - circleR,
+            circleR * 2.0f, circleR * 2.0f);
+
+        if (heatmapCache_.isValid())
         {
-            const float t = static_cast<float>(i) / static_cast<float>(yN);
-            g.drawLine(b.getX(), b.getY() + t * b.getHeight(),
-                       b.getRight(), b.getY() + t * b.getHeight(), 1.0f);
+            juce::Graphics::ScopedSaveState ss(g);
+            juce::Path circle;
+            circle.addEllipse(circleRect);
+            g.reduceClipRegion(circle);
+            g.drawImage(heatmapCache_, b);
         }
 
-        // Centre cross: reference for N<=2 only. For N>=3 the grid itself structures the pad.
-        g.setColour(juce::Colours::white.withAlpha(0.38f));
-        if (xN < 3)
+        // Circle outline — always visible, shows joystick reach boundary
+        g.setColour(juce::Colours::white.withAlpha(0.18f));
+        g.drawEllipse(circleRect, 1.5f);
+    }
+
+    // ── Layer 5: Semitone grid ────────────────────────────────────────────────
+    {
+        const int xSemitones = juce::jmax(0, (int)proc_.apvts.getRawParameterValue("joystickXAtten")->load());
+        const int ySemitones = juce::jmax(0, (int)proc_.apvts.getRawParameterValue("joystickYAtten")->load());
+
+        // Build 12-bit scale bitmask from APVTS (pre-transposed by globalTranspose)
+        const int transpose = (int)proc_.apvts.getRawParameterValue("globalTranspose")->load();
+        uint16_t scaleMask = 0;
+        for (int n = 0; n < 12; ++n)
+        {
+            if (proc_.apvts.getRawParameterValue("scaleNote" + juce::String(n))->load() > 0.5f)
+                scaleMask |= (uint16_t)(1 << n);
+        }
+
+        // Step: cap display density at 48 or 96 semitones
+        auto getStep = [](int semis) -> int {
+            if (semis <= 48) return 1;
+            if (semis <= 96) return 2;
+            return 4;
+        };
+
+        // Vertical lines — solid, driven by joystickXAtten (X axis semitone range)
+        const int xStep = getStep(xSemitones);
+        if (xSemitones >= 1)
+        {
+            for (int i = 0; i < xSemitones; i += xStep)
+            {
+                const float t     = (float)i / (float)xSemitones;
+                const float px    = b.getX() + t * b.getWidth();
+                // Center ramp: lines fade toward center (t=0.5), peak at edges (t=0 or 1)
+                const float ramp  = 1.0f - (1.0f - std::abs(t * 2.0f - 1.0f)) * 0.6f;
+                const int pitchClass = ((i % 12) + transpose) % 12;
+                const bool inScale   = ((scaleMask >> pitchClass) & 1) != 0;
+                const float alpha    = inScale ? (0.28f * ramp) : (0.10f * ramp);
+                const float thick    = inScale ? 1.2f : 0.8f;
+                g.setColour(juce::Colours::white.withAlpha(alpha));
+                g.drawLine(px, b.getY(), px, b.getBottom(), thick);
+            }
+        }
+        else
+        {
+            // Default centre vertical line when no semitone range set
+            g.setColour(juce::Colours::white.withAlpha(0.38f));
             g.drawLine(b.getCentreX(), b.getY(), b.getCentreX(), b.getBottom(), 1.5f);
-        if (yN < 3)
+        }
+
+        // Horizontal lines — dashed, driven by joystickYAtten (Y axis semitone range)
+        const int yStep = getStep(ySemitones);
+        if (ySemitones >= 1)
+        {
+            const float dashLengths[] = { 3.0f, 3.0f };
+            for (int i = 0; i < ySemitones; i += yStep)
+            {
+                const float t     = (float)i / (float)ySemitones;
+                const float py    = b.getY() + t * b.getHeight();
+                const float ramp  = 1.0f - (1.0f - std::abs(t * 2.0f - 1.0f)) * 0.6f;
+                const int pitchClass = ((i % 12) + transpose) % 12;
+                const bool inScale   = ((scaleMask >> pitchClass) & 1) != 0;
+                // Horizontal lines are visually brighter than vertical (X-axis dominant feel — VIS-12)
+                const float alpha    = inScale ? (0.38f * ramp) : (0.14f * ramp);
+                const float thick    = inScale ? 1.2f : 0.8f;
+                g.setColour(juce::Colours::white.withAlpha(alpha));
+                g.drawDashedLine(juce::Line<float>(b.getX(), py, b.getRight(), py),
+                                 dashLengths, 2, thick);
+            }
+        }
+        else
+        {
+            // Default centre horizontal line when no semitone range set
+            g.setColour(juce::Colours::white.withAlpha(0.38f));
             g.drawLine(b.getX(), b.getCentreY(), b.getRight(), b.getCentreY(), 1.5f);
+        }
     }
 
-    // When gamepad is active, dim the corners that the physical stick can't reach
-    if (proc_.isGamepadActive())
-    {
-        juce::Path cornerMask;
-        cornerMask.addRectangle(b);
-        cornerMask.addEllipse(circleRect);
-        cornerMask.setUsingNonZeroWinding(false);  // ellipse punches a hole in the rect
-        g.setColour(Clr::bg.withAlpha(0.60f));
-        g.fillPath(cornerMask);
-    }
-
-    // Circle outline — always visible, shows joystick reach boundary
-    g.setColour(Clr::accent.brighter(0.9f));
-    g.drawEllipse(circleRect, 1.5f);
-
-    // Cursor dot + crosshair ticks
-    // Use LFO-modulated position whenever either LFO is enabled — at level=0 the ramp
-    // holds lfoXRampOut_=0, so modulatedJoyX_ == joystickX anyway.  Checking only
-    // "enabled" (not level > 0) prevents a hard display-mode switch as the level slider
-    // first crosses zero, which was causing the cursor to jump.
-    const bool lfoXActive = *proc_.apvts.getRawParameterValue("lfoXEnabled") > 0.5f;
-    const bool lfoYActive = *proc_.apvts.getRawParameterValue("lfoYEnabled") > 0.5f;
-    const float displayX = (lfoXActive || lfoYActive)
-        ? proc_.modulatedJoyX_.load(std::memory_order_relaxed)
-        : proc_.joystickX.load(std::memory_order_relaxed);
-    const float displayY = (lfoXActive || lfoYActive)
-        ? proc_.modulatedJoyY_.load(std::memory_order_relaxed)
-        : proc_.joystickY.load(std::memory_order_relaxed);
-
-    constexpr float dotR    = 7.0f;
-    constexpr float tickLen = 5.0f;
-    // Border inner edge is 2px from the component boundary (drawRect b.reduced(1), 2px thick).
-    // Adding this margin ensures the dot edge just touches the border at ±1.0 display value
-    // and never visually crosses it — even when unclipped LFO value exceeds ±1.
-    constexpr float brdr    = 2.0f;
-
-    const float cx = juce::jlimit(b.getX() + dotR + brdr, b.getRight()  - dotR - brdr,
-                                  (displayX + 1.0f) * 0.5f * b.getWidth()  + b.getX());
-    const float cy = juce::jlimit(b.getY() + dotR + brdr, b.getBottom() - dotR - brdr,
-                                  (1.0f - (displayY + 1.0f) * 0.5f) * b.getHeight() + b.getY());
-
-    // ── Particles (clipped to pad bounds, no spill) ───────────────────────────
+    // ── Layer 6: Particles (clipped to pad bounds, no spill) — UNCHANGED ─────
     {
         juce::Graphics::ScopedSaveState ss(g);
         g.reduceClipRegion(getLocalBounds());
@@ -1205,7 +1252,28 @@ void JoystickPad::paint(juce::Graphics& g)
         }
     }
 
-    // Static centre reference — same shape as cursor, always visible
+    // ── Cursor position (shared by layers 7a-7c) ─────────────────────────────
+    // Use LFO-modulated position whenever either LFO is enabled.
+    const bool lfoXActive = *proc_.apvts.getRawParameterValue("lfoXEnabled") > 0.5f;
+    const bool lfoYActive = *proc_.apvts.getRawParameterValue("lfoYEnabled") > 0.5f;
+    const float displayX = (lfoXActive || lfoYActive)
+        ? proc_.modulatedJoyX_.load(std::memory_order_relaxed)
+        : proc_.joystickX.load(std::memory_order_relaxed);
+    const float displayY = (lfoXActive || lfoYActive)
+        ? proc_.modulatedJoyY_.load(std::memory_order_relaxed)
+        : proc_.joystickY.load(std::memory_order_relaxed);
+
+    constexpr float dotR    = 7.0f;
+    constexpr float tickLen = 5.0f;
+    // Border inner edge is 2px from the component boundary (drawRect b.reduced(1), 2px thick).
+    constexpr float brdr    = 2.0f;
+
+    const float cx = juce::jlimit(b.getX() + dotR + brdr, b.getRight()  - dotR - brdr,
+                                  (displayX + 1.0f) * 0.5f * b.getWidth()  + b.getX());
+    const float cy = juce::jlimit(b.getY() + dotR + brdr, b.getBottom() - dotR - brdr,
+                                  (1.0f - (displayY + 1.0f) * 0.5f) * b.getHeight() + b.getY());
+
+    // ── Layer 7a: Static centre reference dot — UNCHANGED ────────────────────
     {
         const float ox = b.getCentreX(), oy = b.getCentreY();
         g.setColour(juce::Colours::white.withAlpha(0.22f));
@@ -1216,8 +1284,23 @@ void JoystickPad::paint(juce::Graphics& g)
         g.drawLine(ox, oy + dotR + 1.0f,   ox, oy + dotR + tickLen, 1.0f);
     }
 
-    g.setColour(Clr::highlight.withAlpha(0.25f));
-    g.fillEllipse(cx - dotR - 3.0f, cy - dotR - 3.0f, (dotR + 3.0f) * 2.0f, (dotR + 3.0f) * 2.0f);
+    // ── Layer 7b: Cursor — dark halo + glow ring (breathing via glowPhase_) ──
+    // Dark halo: suppresses background behind cursor for readability
+    constexpr float haloR = dotR + 8.0f;
+    g.setColour(juce::Colour(0xff05050f).withAlpha(0.65f));
+    g.fillEllipse(cx - haloR, cy - haloR, haloR * 2.0f, haloR * 2.0f);
+
+    // Breathing glow ring: alpha 0.15..0.45, radius dotR+4..dotR+12
+    // glowPhase_ drives the breathing; Plan 02 wires timerCallback() to advance it.
+    {
+        const float breath    = 0.5f + 0.5f * std::sin(glowPhase_ * juce::MathConstants<float>::twoPi);
+        const float glowAlpha = 0.15f + breath * 0.30f;        // 0.15..0.45
+        const float glowR     = dotR + 4.0f + breath * 8.0f;   // dotR+4..dotR+12
+        g.setColour(Clr::highlight.withAlpha(glowAlpha));
+        g.fillEllipse(cx - glowR, cy - glowR, glowR * 2.0f, glowR * 2.0f);
+    }
+
+    // ── Layer 7c: Cursor dot + outline + ticks — UNCHANGED ───────────────────
     g.setColour(Clr::highlight);
     g.fillEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f);
     g.setColour(Clr::text);
@@ -1228,8 +1311,8 @@ void JoystickPad::paint(juce::Graphics& g)
     g.drawLine(cx, cy - dotR - tickLen, cx, cy - dotR - 1.0f, 1.0f);
     g.drawLine(cx, cy + dotR + 1.0f,   cx, cy + dotR + tickLen, 1.0f);
 
-    // Border
-    g.setColour(Clr::highlight.withAlpha(0.5f));
+    // ── Layer 8: Border ───────────────────────────────────────────────────────
+    g.setColour(Clr::highlight.withAlpha(0.30f));
     g.drawRect(b.reduced(1), 2.0f);
 }
 
