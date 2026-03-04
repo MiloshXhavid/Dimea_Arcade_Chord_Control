@@ -831,7 +831,7 @@ void JoystickPad::resized()
     if (w < 2 || h < 2) return;
 
     // ── Bake milkyWayCache_ ───────────────────────────────────────────────────
-    // Diagonal band from (0, h*0.35) to (w, h*0.65) — ~-30 deg top-left to bottom-right
+    // Diagonal band with clumpy organic density variation to match real galaxy look.
     milkyWayCache_ = juce::Image(juce::Image::ARGB, w, h, true);
     {
         juce::Image::BitmapData bmp(milkyWayCache_, juce::Image::BitmapData::writeOnly);
@@ -840,32 +840,43 @@ void JoystickPad::resized()
         const float lineLen = std::sqrt((bx1 - bx0) * (bx1 - bx0) + (by1 - by0) * (by1 - by0));
         const float nx = -(by1 - by0) / lineLen;  // perpendicular normal x
         const float ny =  (bx1 - bx0) / lineLen;  // perpendicular normal y
+        const float tx = (bx1 - bx0) / lineLen;   // along-band x
+        const float ty = (by1 - by0) / lineLen;   // along-band y
+
+        auto gauss = [](float d, float sigma) -> float {
+            return std::exp(-(d * d) / (2.0f * sigma * sigma));
+        };
+        const float outerSigma = (float)h * 0.48f;
+        const float midSigma   = (float)h * 0.15f;
+        const float coreSigma  = (float)h * 0.038f;
 
         for (int py = 0; py < h; ++py)
         {
             for (int px = 0; px < w; ++px)
             {
-                const float dx = (float)px - bx0;
-                const float dy = (float)py - by0;
-                const float dist = std::abs(dx * nx + dy * ny);
+                const float dx    = (float)px - bx0;
+                const float dy    = (float)py - by0;
+                const float dist  = std::abs(dx * nx + dy * ny);
+                const float along = (dx * tx + dy * ty) / lineLen;  // 0..1 along band
 
-                const float outerSigma = (float)h * 0.55f;
-                const float midSigma   = (float)h * 0.18f;
-                const float coreSigma  = (float)h * 0.04f;
+                // Organic density clumps along the band (multiple sine harmonics)
+                const float k = juce::MathConstants<float>::twoPi;
+                const float density =
+                    1.0f
+                    + 0.22f * std::sin(along * k * 2.8f + 0.4f)
+                    + 0.13f * std::sin(along * k * 5.5f + 1.2f)
+                    + 0.07f * std::sin(along * k * 11.3f + 2.6f);
 
-                auto gauss = [](float d, float sigma) -> float {
-                    return std::exp(-(d * d) / (2.0f * sigma * sigma));
-                };
+                const float outer = gauss(dist, outerSigma) * 0.05f;
+                const float mid   = gauss(dist, midSigma)   * 0.28f;
+                const float core  = gauss(dist, coreSigma)  * 0.70f;
+                const float brightness = juce::jlimit(0.0f, 1.0f, (outer + mid + core) * density);
 
-                const float outer = gauss(dist, outerSigma) * 0.12f;
-                const float mid   = gauss(dist, midSigma)   * 0.55f;
-                const float core  = gauss(dist, coreSigma)  * 1.00f;
-                float brightness  = juce::jmin(1.0f, outer + mid + core);
-
-                const uint8_t R = (uint8_t)(brightness * 0.88f * 255.0f);
+                // Cool blue-white galaxy color, low alpha so it stays a soft haze
+                const uint8_t R = (uint8_t)(brightness * 0.84f * 255.0f);
                 const uint8_t G = (uint8_t)(brightness * 0.90f * 255.0f);
                 const uint8_t B = (uint8_t)(brightness          * 255.0f);
-                const uint8_t A = (uint8_t)(juce::jmin(1.0f, brightness * 1.6f) * 255.0f);
+                const uint8_t A = (uint8_t)(juce::jlimit(0.0f, 1.0f, brightness * 0.85f) * 255.0f);
                 bmp.setPixelColour(px, py, juce::Colour(R, G, B, A));
             }
         }
@@ -877,20 +888,23 @@ void JoystickPad::resized()
     starfield_.reserve(300);
     juce::Random rng(0xDEADBEEF12345678LL);  // fixed seed — deterministic across sessions
 
-    for (int i = 0; i < 300; ++i)
+    for (int i = 0; i < 350; ++i)
     {
         StarDot s;
-        s.x = rng.nextFloat();                        // normalized 0..1
+        s.x = rng.nextFloat();
         s.y = rng.nextFloat();
-        s.r = 0.4f + rng.nextFloat() * 2.1f;         // 0.4–2.5px
+        // Sub-pixel pinpricks: 0.2–1.1px, heavily biased small
+        s.r = 0.20f + std::pow(rng.nextFloat(), 4.5f) * 0.9f;
 
-        const float roll = rng.nextFloat();
-        if (roll < 0.77f)
-            s.c = juce::Colour(0xFFFFFFFF);           // white (77%)
-        else if (roll < 0.92f)
-            s.c = juce::Colour(0xFFAABBFF);           // blue-tinted (15%)
+        // Heavy power-law: most very dim, few moderately bright
+        const float broll = std::pow(rng.nextFloat(), 2.5f);
+        const uint8_t alf = (uint8_t)(10 + broll * 120);   // 10–130
+
+        // 88% white, 12% faint blue-white — no yellow
+        if (rng.nextFloat() < 0.88f)
+            s.c = juce::Colour((uint8_t)242, (uint8_t)245, (uint8_t)255, alf);
         else
-            s.c = juce::Colour(0xFFFFEEAA);           // warm yellow (8%)
+            s.c = juce::Colour((uint8_t)190, (uint8_t)210, (uint8_t)255, alf);
 
         starfield_.push_back(s);
     }
@@ -898,33 +912,6 @@ void JoystickPad::resized()
     std::sort(starfield_.begin(), starfield_.end(),
         [](const StarDot& a, const StarDot& b) { return a.r > b.r; });
 
-    // ── Bake heatmapCache_ ────────────────────────────────────────────────────
-    // Blue-to-magenta angle-based radial gradient
-    heatmapCache_ = juce::Image(juce::Image::ARGB, w, h, true);
-    {
-        juce::Image::BitmapData bmp(heatmapCache_, juce::Image::BitmapData::writeOnly);
-        const float cx = (float)w * 0.5f, cy = (float)h * 0.5f;
-        const float maxR = std::sqrt(cx * cx + cy * cy);
-
-        for (int py = 0; py < h; ++py)
-        {
-            for (int px = 0; px < w; ++px)
-            {
-                const float dx = (float)px - cx;
-                const float dy = (float)py - cy;
-                const float r  = std::sqrt(dx * dx + dy * dy) / maxR;
-                const float angle = std::atan2(-dy, dx);  // -dy = screen Y flip
-                const float t = (angle + juce::MathConstants<float>::pi)
-                              / juce::MathConstants<float>::twoPi;
-
-                const uint8_t R = (uint8_t)(t * 255.0f);
-                const uint8_t G = 0;
-                const uint8_t B = (uint8_t)((1.0f - t) * 255.0f);
-                const uint8_t A = (uint8_t)(juce::jmin(1.0f, r * 1.3f) * 180.0f);
-                bmp.setPixelColour(px, py, juce::Colour(R, G, B, A));
-            }
-        }
-    }
 }
 
 void JoystickPad::resetGlowPhase() { glowPhase_ = 0.0f; }
@@ -1028,7 +1015,11 @@ void JoystickPad::timerCallback()
         if (anyGateOpen)
             glowPhase_ = 1.0f;  // locked to full glow while a gate is open
         else
-            glowPhase_ = std::fmod(glowPhase_ + 1.0f / 60.0f, 1.0f);
+        {
+            // One glow cycle = one beat at the effective (looper/DAW) BPM
+            const float bpm = proc_.getEffectiveBpm();
+            glowPhase_ = std::fmod(glowPhase_ + bpm / 3600.0f, 1.0f);
+        }
     }
 
     repaint();
@@ -1133,11 +1124,11 @@ void JoystickPad::paint(juce::Graphics& g)
     g.setColour(juce::Colour(0xff05050f));
     g.fillRect(b);
 
-    // ── Layer 2: Milky way band (alpha driven by randomDensity 1-8) ──────────
+    // ── Layer 2: Milky way band (brightness driven by randomProbability 0-1) ─
     if (milkyWayCache_.isValid())
     {
-        const float density = proc_.apvts.getRawParameterValue("randomDensity")->load();
-        const float bandAlpha = juce::jmap(density, 1.0f, 8.0f, 0.15f, 1.0f);
+        const float prob = proc_.apvts.getRawParameterValue("randomProbability")->load();
+        const float bandAlpha = juce::jmap(prob, 0.0f, 1.0f, 0.05f, 0.55f);
         juce::Graphics::ScopedSaveState ss(g);
         g.setOpacity(bandAlpha);
         g.drawImage(milkyWayCache_, b);
@@ -1159,25 +1150,14 @@ void JoystickPad::paint(juce::Graphics& g)
         }
     }
 
-    // ── Layer 4: Heatmap radial gradient (circle-clipped) ────────────────────
+    // ── Layer 4: Joystick range circle ───────────────────────────────────────
     {
         const float circleR = juce::jmin(b.getWidth(), b.getHeight()) * 0.5f;
         const juce::Rectangle<float> circleRect(
             b.getCentreX() - circleR, b.getCentreY() - circleR,
             circleR * 2.0f, circleR * 2.0f);
-
-        if (heatmapCache_.isValid())
-        {
-            juce::Graphics::ScopedSaveState ss(g);
-            juce::Path circle;
-            circle.addEllipse(circleRect);
-            g.reduceClipRegion(circle);
-            g.drawImage(heatmapCache_, b);
-        }
-
-        // Circle outline — always visible, shows joystick reach boundary
-        g.setColour(juce::Colours::white.withAlpha(0.18f));
-        g.drawEllipse(circleRect, 1.5f);
+        g.setColour(juce::Colours::white.withAlpha(0.10f));
+        g.drawEllipse(circleRect, 1.0f);
     }
 
     // ── Layer 5: Semitone grid ────────────────────────────────────────────────
@@ -1299,19 +1279,17 @@ void JoystickPad::paint(juce::Graphics& g)
         g.drawLine(ox, oy + dotR + 1.0f,   ox, oy + dotR + tickLen, 1.0f);
     }
 
-    // ── Layer 7b: Cursor — dark halo + glow ring (breathing via glowPhase_) ──
-    // Dark halo: suppresses background behind cursor for readability
-    constexpr float haloR = dotR + 8.0f;
-    g.setColour(juce::Colour(0xff05050f).withAlpha(0.65f));
+    // ── Layer 7b: Cursor — dark halo + subtle cyan glow (BPM-locked breathing) ─
+    constexpr float haloR = dotR + 6.0f;
+    g.setColour(juce::Colour(0xff05050f).withAlpha(0.45f));
     g.fillEllipse(cx - haloR, cy - haloR, haloR * 2.0f, haloR * 2.0f);
 
-    // Breathing glow ring: alpha 0.15..0.45, radius dotR+4..dotR+12
-    // glowPhase_ drives the breathing; Plan 02 wires timerCallback() to advance it.
+    // Barely-visible cyan glow that pulses with looper/DAW tempo
     {
         const float breath    = 0.5f + 0.5f * std::sin(glowPhase_ * juce::MathConstants<float>::twoPi);
-        const float glowAlpha = 0.15f + breath * 0.30f;        // 0.15..0.45
-        const float glowR     = dotR + 4.0f + breath * 8.0f;   // dotR+4..dotR+12
-        g.setColour(Clr::highlight.withAlpha(glowAlpha));
+        const float glowAlpha = 0.04f + breath * 0.11f;        // 0.04..0.15 (very subtle)
+        const float glowR     = dotR + 2.0f + breath * 6.0f;   // dotR+2..dotR+8
+        g.setColour(juce::Colour(0xFF00CFFF).withAlpha(glowAlpha));
         g.fillEllipse(cx - glowR, cy - glowR, glowR * 2.0f, glowR * 2.0f);
     }
 
