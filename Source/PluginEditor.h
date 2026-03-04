@@ -114,6 +114,8 @@ public:
     void mouseUp          (const juce::MouseEvent& e) override;
     void mouseDoubleClick (const juce::MouseEvent& e) override;
     void timerCallback()  override;
+    void resized()        override;
+    void resetGlowPhase();  // called by PluginEditor::timerCallback() on beat
 
 private:
     struct JoyParticle
@@ -125,6 +127,8 @@ private:
         float size;       // radius in pixels
         juce::Colour color;
     };
+
+    struct StarDot { float x, y, r; juce::Colour c; };
 
     PluginProcessor& proc_;
     void updateFromMouse(const juce::MouseEvent& e);
@@ -139,6 +143,12 @@ private:
     bool  mouseIsDown_ = false;
     float mousePixX_   = 0.0f;
     float mousePixY_   = 0.0f;
+
+    // Space visual foundation (Phase 31)
+    juce::Image milkyWayCache_;
+    juce::Image heatmapCache_;
+    std::vector<StarDot> starfield_;
+    float glowPhase_ = 0.0f;  // 0..1, advanced in timerCallback(), reset by resetGlowPhase()
 };
 
 // ─── TouchPlate ───────────────────────────────────────────────────────────────
