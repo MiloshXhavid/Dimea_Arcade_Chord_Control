@@ -4041,44 +4041,59 @@ void PluginEditor::paint(juce::Graphics& g)
         const auto lb  = gamepadStatusLabel_.getBounds();
         const float bx = (float)(lb.getRight() + 4);
         const float by = (float)(lb.getY() + (lb.getHeight() - 10) / 2);
-        constexpr float bw = 19.0f;   // body width
+        constexpr float bw = 19.0f;
         constexpr float bh = 10.0f;
 
+        // Outline colour based on highest lit stripe
         juce::Colour bClr;
-        float fill = 0.0f;
+        int litCount = 0;
         switch (batteryLevel_)
         {
-            case 0:  bClr = juce::Colour(0xFFFF3333); fill = 0.05f; break; // empty → red
-            case 1:  bClr = juce::Colour(0xFFFF8800); fill = 0.25f; break; // low   → orange
-            case 2:  bClr = juce::Colour(0xFFFFCC00); fill = 0.60f; break; // med   → yellow
-            case 3:  bClr = Clr::gateOn;              fill = 1.00f; break; // full  → green
-            case 4:  bClr = juce::Colour(0xFF00D8FF); fill = 1.00f; break; // wired → cyan
-            default: bClr = Clr::textDim;             fill = 0.0f;  break; // unknown
+            case 0:  bClr = juce::Colour(0xFFFF3333); litCount = 0; break; // empty
+            case 1:  bClr = juce::Colour(0xFFFF3333); litCount = 1; break; // low → red
+            case 2:  bClr = juce::Colour(0xFFFF8800); litCount = 2; break; // medium → orange
+            case 3:  bClr = Clr::gateOn;              litCount = 3; break; // full → green
+            case 4:  bClr = juce::Colour(0xFF00D8FF); litCount = 3; break; // wired → cyan
+            default: bClr = Clr::textDim;             litCount = 0; break; // unknown / -2
         }
 
-        // Body outline + subtle bg
-        g.setColour(bClr.withAlpha(0.25f));
-        g.fillRoundedRectangle(bx, by, bw, bh, 2.0f);
-        g.setColour(bClr.withAlpha(0.75f));
-        g.drawRoundedRectangle(bx + 0.5f, by + 0.5f, bw - 1.0f, bh - 1.0f, 2.0f, 1.0f);
-
-        // Nib (positive terminal on right)
-        g.setColour(bClr.withAlpha(0.65f));
-        g.fillRoundedRectangle(bx + bw, by + bh * 0.3f, 3.0f, bh * 0.4f, 1.0f);
-
-        // Fill bar
-        if (fill > 0.0f)
+        if (batteryLevel_ != -2) // don't draw icon if no controller
         {
-            g.setColour(bClr.withAlpha(0.9f));
-            g.fillRoundedRectangle(bx + 2.0f, by + 2.0f, (bw - 4.0f) * fill, bh - 4.0f, 1.5f);
-        }
+            // Body outline
+            g.setColour(bClr.withAlpha(0.25f));
+            g.fillRoundedRectangle(bx, by, bw, bh, 2.0f);
+            g.setColour(bClr.withAlpha(0.75f));
+            g.drawRoundedRectangle(bx + 0.5f, by + 0.5f, bw - 1.0f, bh - 1.0f, 2.0f, 1.0f);
 
-        // Unknown: small "?" centred
-        if (batteryLevel_ == -1)
-        {
-            g.setColour(Clr::textDim);
-            g.setFont(juce::Font(7.0f));
-            g.drawText("?", (int)bx, (int)by, (int)bw, (int)bh, juce::Justification::centred);
+            // Nib (right side, positive terminal)
+            g.setColour(bClr.withAlpha(0.65f));
+            g.fillRoundedRectangle(bx + bw, by + bh * 0.3f, 3.0f, bh * 0.4f, 1.0f);
+
+            if (batteryLevel_ == -1)
+            {
+                // Unknown: "?" centred
+                g.setColour(Clr::textDim);
+                g.setFont(juce::Font(7.0f));
+                g.drawText("?", (int)bx, (int)by, (int)bw, (int)bh, juce::Justification::centred);
+            }
+            else
+            {
+                // 3 vertical stripe blocks
+                constexpr float innerX = 2.0f;   // padding inside body
+                constexpr float innerY = 2.0f;
+                constexpr float stripeW = 4.0f;
+                constexpr float stripeH = 6.0f;  // bh - 2*innerY
+                constexpr float stripeGap = 1.0f;
+
+                for (int i = 0; i < 3; ++i)
+                {
+                    const float sx = bx + innerX + i * (stripeW + stripeGap);
+                    const float sy = by + innerY;
+                    const juce::Colour sc = (i < litCount) ? bClr : Clr::textDim.withAlpha(0.4f);
+                    g.setColour(sc);
+                    g.fillRoundedRectangle(sx, sy, stripeW, stripeH, 1.0f);
+                }
+            }
         }
     }
 
