@@ -454,6 +454,7 @@ private:
     // ── LFO panels ─────────────────────────────────────────────────────────────
     juce::ComboBox   lfoXShapeBox_,    lfoYShapeBox_;
     juce::ComboBox   lfoXCcDestBox_,   lfoYCcDestBox_;
+    juce::ComboBox   lfoXSisterBox_,   lfoYSisterBox_;
     juce::Slider     lfoXRateSlider_,  lfoYRateSlider_;
     juce::Label      lfoXSyncSubdivLabel_, lfoYSyncSubdivLabel_;
     juce::Slider     lfoXPhaseSlider_, lfoYPhaseSlider_;
@@ -530,6 +531,7 @@ private:
     // LFO X
     std::unique_ptr<ComboAtt>  lfoXShapeAtt_;
     std::unique_ptr<ComboAtt>  lfoXCcDestAtt_;
+    std::unique_ptr<ComboAtt>  lfoXSisterAtt_;
     std::unique_ptr<SliderAtt> lfoXPhaseAtt_, lfoXLevelAtt_, lfoXDistAtt_;
     std::unique_ptr<ButtonAtt> lfoXSyncAtt_, lfoXEnabledAtt_;
     // Rate slider uses SliderParameterAttachment (swap on sync toggle)
@@ -538,6 +540,7 @@ private:
     // LFO Y
     std::unique_ptr<ComboAtt>  lfoYShapeAtt_;
     std::unique_ptr<ComboAtt>  lfoYCcDestAtt_;
+    std::unique_ptr<ComboAtt>  lfoYSisterAtt_;
     std::unique_ptr<SliderAtt> lfoYPhaseAtt_, lfoYLevelAtt_, lfoYDistAtt_;
     std::unique_ptr<ButtonAtt> lfoYSyncAtt_, lfoYEnabledAtt_;
     std::unique_ptr<juce::SliderParameterAttachment> lfoYRateAtt_;

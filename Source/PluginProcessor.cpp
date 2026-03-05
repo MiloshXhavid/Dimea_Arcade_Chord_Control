@@ -330,6 +330,11 @@ PluginProcessor::createParameterLayout()
         layout.add(std::make_unique<juce::AudioParameterChoice>("lfoXCcDest","LFO X CC Dest",ccDests,0));
         layout.add(std::make_unique<juce::AudioParameterChoice>("lfoYCcDest","LFO Y CC Dest",ccDests,0));
     }
+    {
+        juce::StringArray sisterDests { "None", "Rate", "Phase", "Level", "Dist" };
+        layout.add(std::make_unique<juce::AudioParameterChoice>("lfoXSister","LFO X Sister Dest",sisterDests,0));
+        layout.add(std::make_unique<juce::AudioParameterChoice>("lfoYSister","LFO Y Sister Dest",sisterDests,0));
+    }
 
     // ── Sub Octave (Phase 19) ─────────────────────────────────────────────────
     addBool("subOct0", "Sub Oct Root",    false);
@@ -782,6 +787,45 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         const float xLevel   = *apvts.getRawParameterValue(ParamID::lfoXLevel);
         const float yLevel   = *apvts.getRawParameterValue(ParamID::lfoYLevel);
 
+        // Sister modulation: capture last frame's ramped Y output before any mutations.
+        // LFO Y→X uses this (one-frame delay, negligible). LFO X→Y uses same-frame xTarget.
+        const float prevYRampOut = lfoYRampOut_;
+        const int xSisterDest = (int)*apvts.getRawParameterValue("lfoXSister"); // X→Y target
+        const int ySisterDest = (int)*apvts.getRawParameterValue("lfoYSister"); // Y→X target
+
+        // Rate range used for free-mode normalized modulation (mirrors createParameterLayout).
+        static const juce::NormalisableRange<float> kLfoRateRange(0.01f, 20.0f, 0.0f, 0.35f);
+
+        // Applies sister LFO modulation to a ProcessParams before calling process().
+        // modSignal is already scaled to [-srcLevel, +srcLevel] by the source LFO.
+        auto applySisterMod = [&](ProcessParams& p, int dest, float modSignal)
+        {
+            if (dest == 0) return; // None
+            switch (dest)
+            {
+                case 1: // Rate — normalized log space (free) or exp2 multiplier (sync)
+                    if (p.syncMode)
+                        p.subdivBeats *= std::exp2(modSignal * 3.0f); // ±3 octaves at level=1
+                    else
+                    {
+                        float norm = kLfoRateRange.convertTo0to1(p.rateHz);
+                        norm = juce::jlimit(0.0f, 1.0f, norm + modSignal);
+                        p.rateHz = kLfoRateRange.convertFrom0to1(norm);
+                    }
+                    break;
+                case 2: // Phase — additive offset (±180° at level=1), wraps 0..1
+                    p.phaseShift = std::fmod(p.phaseShift + modSignal * 0.5f + 2.0f, 1.0f);
+                    break;
+                case 3: // Level — multiplicative AM, clamped 0..1
+                    p.level = juce::jlimit(0.0f, 1.0f, p.level * (1.0f + modSignal));
+                    break;
+                case 4: // Dist — multiplicative, clamped 0..1
+                    p.distortion = juce::jlimit(0.0f, 1.0f, p.distortion * (1.0f + modSignal));
+                    break;
+                default: break;
+            }
+        };
+
         // Compute ramp targets — process only if enabled and level > 0
         // Per CONTEXT.md: at level=0, phase does NOT advance (bypass path).
         float xTarget = 0.0f;
@@ -834,6 +878,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                     ? static_cast<float>(std::fmod(looper_.getPlaybackBeat() / loopLenBeats, 1.0))
                     : 0.0f;
             }
+            // Sister mod: LFO Y modulates LFO X using last frame's ramped Y output.
+            applySisterMod(xp, ySisterDest, prevYRampOut);
             xTarget = lfoX_.process(xp);
             lfoXOutputDisplay_.store(xTarget, std::memory_order_relaxed);
         }
@@ -888,6 +934,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                     ? static_cast<float>(std::fmod(looper_.getPlaybackBeat() / loopLenBeats, 1.0))
                     : 0.0f;
             }
+            // Sister mod: LFO X modulates LFO Y using this frame's xTarget (same-frame, clean).
+            applySisterMod(yp, xSisterDest, xTarget);
             yTarget = lfoY_.process(yp);
             lfoYOutputDisplay_.store(yTarget, std::memory_order_relaxed);
         }
@@ -1777,12 +1825,15 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             // ── Base knob change detection (primary modulator) ───────────────
             const float xOffset = apvts.getRawParameterValue(ParamID::filterXOffset)->load();
             const float yOffset = apvts.getRawParameterValue(ParamID::filterYOffset)->load();
-            const bool baseChanged = (xOffset != prevBaseX_) || (yOffset != prevBaseY_);
+            const bool baseChanged = (xOffset != prevBaseX_) || (yOffset != prevBaseY_)
+                                   || (xAtten != prevAttenX_) || (yAtten != prevAttenY_);
 
             if (stickUpdated || baseChanged)
             {
-                prevBaseX_ = xOffset;
-                prevBaseY_ = yOffset;
+                prevBaseX_  = xOffset;
+                prevBaseY_  = yOffset;
+                prevAttenX_ = xAtten;
+                prevAttenY_ = yAtten;
 
                 // xOffset/yOffset are now -50..+50 centred at 0; add to MIDI centre 64.
                 const float ccCutF = juce::jlimit(0.0f, 127.0f, 64.0f + xOffset + prevFilterX_ * 63.5f * (xAtten / 100.0f));

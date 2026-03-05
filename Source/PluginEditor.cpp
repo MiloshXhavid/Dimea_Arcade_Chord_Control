@@ -2992,6 +2992,17 @@ PluginEditor::PluginEditor(PluginProcessor& p)
         lfoXCcDestAtt_ = std::make_unique<ComboAtt>(p.apvts, "lfoXCcDest", lfoXCcDestBox_);
     }
 
+    // Sister dest: LFO X output → LFO Y parameter
+    lfoXSisterBox_.addItem("Sister: None",  1);
+    lfoXSisterBox_.addItem("Sister: Rate",  2);
+    lfoXSisterBox_.addItem("Sister: Phase", 3);
+    lfoXSisterBox_.addItem("Sister: Level", 4);
+    lfoXSisterBox_.addItem("Sister: Dist",  5);
+    styleCombo(lfoXSisterBox_);
+    lfoXSisterBox_.setTooltip("LFO X Sister  -  route LFO X output to modulate LFO Y's selected parameter");
+    addAndMakeVisible(lfoXSisterBox_);
+    lfoXSisterAtt_ = std::make_unique<ComboAtt>(p.apvts, "lfoXSister", lfoXSisterBox_);
+
     // Sync button
     lfoXSyncBtn_.setButtonText("SYNC");
     lfoXSyncBtn_.setClickingTogglesState(true);
@@ -3127,6 +3138,17 @@ PluginEditor::PluginEditor(PluginProcessor& p)
         addAndMakeVisible(lfoYCcDestBox_);
         lfoYCcDestAtt_ = std::make_unique<ComboAtt>(p.apvts, "lfoYCcDest", lfoYCcDestBox_);
     }
+
+    // Sister dest: LFO Y output → LFO X parameter
+    lfoYSisterBox_.addItem("Sister: None",  1);
+    lfoYSisterBox_.addItem("Sister: Rate",  2);
+    lfoYSisterBox_.addItem("Sister: Phase", 3);
+    lfoYSisterBox_.addItem("Sister: Level", 4);
+    lfoYSisterBox_.addItem("Sister: Dist",  5);
+    styleCombo(lfoYSisterBox_);
+    lfoYSisterBox_.setTooltip("LFO Y Sister  -  route LFO Y output to modulate LFO X's selected parameter");
+    addAndMakeVisible(lfoYSisterBox_);
+    lfoYSisterAtt_ = std::make_unique<ComboAtt>(p.apvts, "lfoYSister", lfoYSisterBox_);
 
     // Sync button
     lfoYSyncBtn_.setButtonText("SYNC");
@@ -3687,6 +3709,10 @@ void PluginEditor::resized()
         lfoXCcDestBox_.setBounds(col.removeFromTop(22));
         col.removeFromTop(4);
 
+        // Row 1c: Sister dest ComboBox
+        lfoXSisterBox_.setBounds(col.removeFromTop(22));
+        col.removeFromTop(4);
+
         // Row 2: Rate slider (left 34px = label, right 32px = sync subdiv label when active)
         {
             auto row = col.removeFromTop(18);
@@ -3763,6 +3789,10 @@ void PluginEditor::resized()
 
         // Row 1b: CC Dest ComboBox
         lfoYCcDestBox_.setBounds(col.removeFromTop(22));
+        col.removeFromTop(4);
+
+        // Row 1c: Sister dest ComboBox
+        lfoYSisterBox_.setBounds(col.removeFromTop(22));
         col.removeFromTop(4);
 
         // Row 2: Rate slider (left 34px = label, right 32px = sync subdiv label when active)

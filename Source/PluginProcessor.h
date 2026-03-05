@@ -268,6 +268,8 @@ private:
     float prevFilterY_  = -99.0f;       // audio thread only — raw joystick Y, -99 = uninitialised
     float prevBaseX_    = -1.0f;        // last xOffset used in a CC send; -1 = first run
     float prevBaseY_    = -1.0f;
+    float prevAttenX_   = -1.0f;        // last xAtten used — change triggers CC resend
+    float prevAttenY_   = -1.0f;
 
     // LFO override floats — audio-thread only (no synchronization needed).
     // Set in the dispatch block each block when joystick mode matches.
