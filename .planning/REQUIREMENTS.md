@@ -146,8 +146,8 @@
 
 ### Triplet Subdivisions
 
-- [ ] **TRIP-01**: Random trigger subdivision selector (`randomSubdiv` APVTS parameter) includes 1/1T, 1/2T, 1/4T, 1/8T, 1/16T, 1/32T alongside existing straight subdivisions — all subdivisions save/load with preset
-- [ ] **TRIP-02**: Quantize trigger subdivision selector (`quantizeSubdiv` APVTS parameter) includes the same 6 triplet options alongside existing straight subdivisions
+- [x] **TRIP-01**: Random trigger subdivision selector (`randomSubdiv` APVTS parameter) includes 1/1T, 1/2T, 1/4T, 1/8T, 1/16T, 1/32T alongside existing straight subdivisions — all subdivisions save/load with preset
+- [x] **TRIP-02**: Quantize trigger subdivision selector (`quantizeSubdiv` APVTS parameter) includes the same 6 triplet options alongside existing straight subdivisions
 
 ### Random Trigger Behavior
 
@@ -164,8 +164,17 @@
 
 ### Distribution
 
-- [ ] **DIST-05**: GitHub v1.6 release created with built installer binary and release notes listing defaults fix, noteCount bug fix, triplet subdivisions, Random Free redesign, and looper perimeter bar
-- [ ] **DIST-06**: Full plugin copy backed up to Desktop
+- [x] **DIST-05**: GitHub v1.6 release created with built installer binary and release notes listing defaults fix, noteCount bug fix, triplet subdivisions, Random Free redesign, and looper perimeter bar
+- [~] **DIST-06**: Full plugin copy backed up to Desktop (skipped — superseded by v1.7 release)
+
+## v1.7 Requirements
+
+**Defined:** 2026-03-05
+
+### Distribution
+
+- [x] **DIST-07**: GitHub v1.7 release created (Latest) with DimeaArcade-ChordControl-v1.7.0-Setup.exe attached and release notes covering Visual Overhaul, Joystick Physics, Gamepad SWAP/INV, Bug Fixes and Triplets
+- [x] **DIST-08**: Full plugin copy backed up to Desktop/Dima_plug-in/v1.7/ (installer .exe + VST3 bundle + source-v1.7.zip)
 
 ## Future Requirements (v2+)
 
@@ -268,8 +277,8 @@
 | DEF-03 | Phase 26 | Complete |
 | DEF-04 | Phase 26 | Complete |
 | BUG-03 | Phase 26 | Complete |
-| TRIP-01 | Phase 27 | Pending |
-| TRIP-02 | Phase 27 | Pending |
+| TRIP-01 | Phase 27 | Complete |
+| TRIP-02 | Phase 27 | Complete |
 | RND-08 | Phase 28 | Complete |
 | RND-09 | Phase 28 | Complete |
 | RND-10 | Phase 28 | Complete |
@@ -277,15 +286,18 @@
 | LOOP-02 | Phase 29 | Complete |
 | LOOP-03 | Phase 29 | Complete |
 | LOOP-04 | Phase 29 | Complete |
-| DIST-05 | Phase 30 | Pending |
-| DIST-06 | Phase 30 | Pending |
+| DIST-05 | Phase 30 | Complete |
+| DIST-06 | Phase 30 | Skipped (superseded by v1.7) |
+| DIST-07 | Phase 33 | Complete |
+| DIST-08 | Phase 33 | Complete |
 | BUG-04 | Future | Pending |
 
 **Coverage:**
 - v1.4 requirements: 21 total — mapped to phases: 21 (Phase 12: 8, Phase 13: 5, Phase 14: 3, Phase 15: 2, Phase 16: 3) — unmapped: 0 ✓
 - v1.5 requirements: 46 total — mapped to phases: 46 (Phase 17: 2, Phase 18: 5, Phase 19: 4, Phase 20: 7, Phase 21: 4, Phase 22: 6, Phase 23: 6, Phase 24: 7, Phase 24.1: 3, Phase 25: 2) — unmapped: 0 ✓
-- v1.6 requirements: 16 total — mapped to phases: 16 (Phase 26: 5, Phase 27: 2, Phase 28: 3, Phase 29: 4, Phase 30: 2) — unmapped: 0 ✓
+- v1.6 requirements: 16 total — mapped to phases: 16 (Phase 26: 5, Phase 27: 2, Phase 28: 3, Phase 29: 4, Phase 30: 2) — unmapped: 0 ✓ — TRIP-01, TRIP-02, DIST-05 now complete; DIST-06 skipped (superseded by v1.7)
+- v1.7 requirements: 2 total — mapped to phases: 2 (Phase 33: 2) — unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-26 (v1.4), 2026-02-28 (v1.5), 2026-03-02 (v1.6)*
-*Last updated: 2026-03-02 — v1.6 roadmap created; DIST-05/DIST-06 minted; all 16 v1.6 reqs mapped to Phases 26-30; BUG-04 (mono choke) added as future requirement*
+*Last updated: 2026-03-05 — v1.7 requirements added (DIST-07/DIST-08); TRIP-01, TRIP-02, DIST-05 marked complete; DIST-06 skipped (superseded by v1.7 release)*
