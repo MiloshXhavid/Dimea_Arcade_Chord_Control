@@ -76,28 +76,48 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             prevSubdivIndex_[v] = -1;
     }
 
-    // ── Population → subdivision offset ──────────────────────────────────────
-    // Population knob: 1-64, 32 = no change. >32 shifts toward faster subdivisions,
-    // <32 toward slower. Maps linearly: ±7 steps at the extremes.
-    // Applied before timing so all modes use the same effective subdivision.
-    const int subdivOffset = static_cast<int>(
-        std::round((p.randomPopulation - 32.0f) / 32.0f * 7.0f));
+    // ── Population → random subdivision range ────────────────────────────────
+    // kPop -1..+1 (0 = center). Center: deterministic, per-voice dropdown value.
+    // >0: range expands upward from anchor. <0: range expands downward from anchor.
+    // Subdivision is picked randomly at each note-fire (trigger block below).
+    const float kPop = (p.randomPopulation - 32.0f) / 32.0f;
 
     for (int v = 0; v < 4; ++v)
     {
-        const int newIdx = juce::jlimit(0, 14, static_cast<int>(p.randomSubdiv[v]) + subdivOffset);
-        const auto newSub = static_cast<RandomSubdiv>(newIdx);
-        if (newSub != activeSubdiv_[v])
+        if (std::abs(kPop) <= 0.02f)
         {
-            // When subdivision changes in sync mode, update prevSubdivIndex to the current
-            // position so no spurious boundary fire happens on the next block.
-            if (p.randomClockSync && p.ppqPosition >= 0.0)
+            // At center: always use per-voice dropdown value, reset random-mode flag.
+            subdivRandInit_[v] = false;
+            const int anchorIdx = juce::jlimit(0, 16, static_cast<int>(p.randomSubdiv[v]));
+            const auto newSub = static_cast<RandomSubdiv>(anchorIdx);
+            if (newSub != activeSubdiv_[v])
             {
-                const double newB = subdivBeatsFor(newSub);
-                prevSubdivIndex_[v] = static_cast<int64_t>(p.ppqPosition / newB);
+                if (p.randomClockSync && p.ppqPosition >= 0.0)
+                {
+                    const double newB = subdivBeatsFor(newSub);
+                    prevSubdivIndex_[v] = static_cast<int64_t>(p.ppqPosition / newB);
+                }
+                activeSubdiv_[v] = newSub;
             }
-            activeSubdiv_[v] = newSub;
         }
+        else if (!subdivRandInit_[v])
+        {
+            // First block in random mode: seed activeSubdiv_ to anchor so timing
+            // is correct before the first note fire triggers the random picker.
+            subdivRandInit_[v] = true;
+            const int anchorIdx = juce::jlimit(0, 16, static_cast<int>(p.randomSubdiv[v]));
+            const auto newSub = static_cast<RandomSubdiv>(anchorIdx);
+            if (newSub != activeSubdiv_[v])
+            {
+                if (p.randomClockSync && p.ppqPosition >= 0.0)
+                {
+                    const double newB = subdivBeatsFor(newSub);
+                    prevSubdivIndex_[v] = static_cast<int64_t>(p.ppqPosition / newB);
+                }
+                activeSubdiv_[v] = newSub;
+            }
+        }
+        // else: off-center and already seeded — activeSubdiv_[v] is managed at note-fire time.
     }
 
     // ── Per-voice random subdivision clock ────────────────────────────────────
@@ -302,6 +322,33 @@ void TriggerSystem::processBlock(const ProcessParams& p)
                 if (gateOpen_[v].load())
                     fireNoteOff(v, ch - 1, 0, p);
                 fireNoteOn(v, p.heldPitches[v], ch - 1, 0, p);
+
+                // Pick random subdivision for the NEXT interval (weighted toward anchor).
+                // Squared distribution: lower steps (near anchor) are more likely.
+                if (std::abs(kPop) > 0.02f)
+                {
+                    const int anchorIdx = juce::jlimit(0, 16, static_cast<int>(p.randomSubdiv[v]));
+                    const int maxRange  = kPop > 0.0f
+                        ? static_cast<int>(std::round( kPop * (16.0f - anchorIdx)))
+                        : static_cast<int>(std::round(-kPop *  static_cast<float>(anchorIdx)));
+                    int newIdx = anchorIdx;
+                    if (maxRange > 0)
+                    {
+                        const float r    = nextRandom();
+                        const int   step = static_cast<int>(maxRange * r * r);
+                        newIdx = anchorIdx + (kPop > 0.0f ? step : -step);
+                    }
+                    const auto newSub = static_cast<RandomSubdiv>(juce::jlimit(0, 16, newIdx));
+                    if (newSub != activeSubdiv_[v])
+                    {
+                        activeSubdiv_[v] = newSub;
+                        if (p.randomClockSync && p.ppqPosition >= 0.0)
+                        {
+                            const double newB = subdivBeatsFor(newSub);
+                            prevSubdivIndex_[v] = static_cast<int64_t>(p.ppqPosition / newB);
+                        }
+                    }
+                }
 
                 if (p.gateLength <= 0.0f)
                 {

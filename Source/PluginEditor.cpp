@@ -1123,30 +1123,14 @@ void JoystickPad::timerCallback()
     prevCx_ = cx;
     prevCy_ = cy;
 
-    // ── Phase 32: Spring-damper display position ──────────────────────────────
-    // kSpring=0.18, kDamping=0.90 → ~150ms settle at 60Hz, critically damped, no overshoot.
-    // cx/cy above is the raw (LFO-aware) target pixel position (same as particle spawn origin).
-    // displayCx_/Cy_ is the spring-smoothed position read by paint() for the cursor dot.
+    // ── Cursor display position — exponential smoothing ──────────────────────
+    // 1-pole IIR: zero overshoot, guaranteed. kLerp=0.30 → ~150ms settle at 60Hz.
+    // cx/cy is the raw (LFO-aware) target pixel position.
+    // displayCx_/Cy_ is the smoothed position read by paint() for the cursor dot.
     {
-        constexpr float kSpring  = 0.18f;
-        constexpr float kDamping = 0.90f;  // near-critical: settles ~150ms, no overshoot
-        // First-frame snap: all spring state is zero only on the very first timerCallback.
-        // Snap directly to avoid springing from (0,0) at plugin load.
-        if (springVelX_ == 0.0f && springVelY_ == 0.0f &&
-            displayCx_  == 0.0f && displayCy_  == 0.0f)
-        {
-            displayCx_ = cx;
-            displayCy_ = cy;
-        }
-        else
-        {
-            springVelX_ += (cx - displayCx_) * kSpring;
-            springVelY_ += (cy - displayCy_) * kSpring;
-            springVelX_ *= kDamping;
-            springVelY_ *= kDamping;
-            displayCx_  += springVelX_;
-            displayCy_  += springVelY_;
-        }
+        constexpr float kLerp = 0.30f;
+        displayCx_ += (cx - displayCx_) * kLerp;
+        displayCy_ += (cy - displayCy_) * kLerp;
     }
 
     // Visual position of the spring-smoothed cursor dot (for bursts + hold-glow).
@@ -1350,6 +1334,9 @@ void JoystickPad::updateFromMouse(const juce::MouseEvent& e)
     if (std::abs(nx) < kSnap) nx = 0.0f;
     if (std::abs(ny) < kSnap) ny = 0.0f;
 
+    // INV mode: physical stick X drives logical Y axis and vice versa.
+    if (*proc_.apvts.getRawParameterValue("stickInvert") > 0.5f)
+        std::swap(nx, ny);
     proc_.joystickX.store(nx);
     proc_.joystickY.store(ny);
     repaint();
@@ -4532,6 +4519,23 @@ void PluginEditor::timerCallback()
                 filterXAttenAtt_ = std::make_unique<SliderAtt>(proc_.apvts, "filterXAtten", filterXAttenKnob_);
                 filterYAttenAtt_ = std::make_unique<SliderAtt>(proc_.apvts, "filterYAtten", filterYAttenKnob_);
             }
+
+            // Physically swap LEFT X and LEFT Y column positions so the rows
+            // exchange sides when INV is toggled. Repaint updates all paint()-drawn labels.
+            auto swapBounds = [](juce::Component& a, juce::Component& b) {
+                auto tmp = a.getBounds();
+                a.setBounds(b.getBounds());
+                b.setBounds(tmp);
+            };
+            swapBounds(filterXModeBox_,     filterYModeBox_);
+            swapBounds(filterXAttenLabel_,  filterYAttenLabel_);
+            swapBounds(filterXAttenKnob_,   filterYAttenKnob_);
+            swapBounds(filterXOffsetLabel_, filterYOffsetLabel_);
+            swapBounds(filterXOffsetKnob_,  filterYOffsetKnob_);
+            swapBounds(joyXAttenLabel_,     joyYAttenLabel_);
+            swapBounds(joyXAttenKnob_,      joyYAttenKnob_);
+            std::swap(filterCutGroupBounds_, filterResGroupBounds_);
+            repaint();
         }
     }
 

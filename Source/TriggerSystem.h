@@ -138,7 +138,8 @@ private:
     std::array<double,   4> randomPhase_         {};           // samples since last subdiv (fallback clock)
     std::array<int64_t,  4> prevSubdivIndex_     {-1,-1,-1,-1}; // ppq subdivision index last seen
     std::array<int,      4> randomGateRemaining_ {};           // samples until auto note-off
-    std::array<RandomSubdiv, 4> activeSubdiv_   {};  // currently active subdivision per voice
+    std::array<RandomSubdiv, 4> activeSubdiv_    {};  // currently active subdivision per voice
+    std::array<bool,          4> subdivRandInit_ {};  // true once activeSubdiv_ seeded for random mode
     bool                    wasPlaying_          = false;      // for transport restart detection
     std::array<TriggerSource, 4> prevSrc_        {};           // previous source per voice (mode-switch transition detection)
 
