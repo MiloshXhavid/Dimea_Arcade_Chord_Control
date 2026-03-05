@@ -448,6 +448,29 @@ void GamepadDisplayComponent::mouseDown(const juce::MouseEvent& e)
 {
     if (proc_ == nullptr) return;
 
+    // ── SWAP button ───────────────────────────────────────────────────────────
+    if (ctrlBtnR_ > 0.0f)
+    {
+        const float dxSw = e.x - swapBtnCentre_.x;
+        const float dySw = e.y - swapBtnCentre_.y;
+        if (dxSw * dxSw + dySw * dySw <= ctrlBtnR_ * ctrlBtnR_)
+        {
+            auto* p = proc_->apvts.getParameter("stickSwap");
+            if (p) p->setValueNotifyingHost(p->getValue() > 0.5f ? 0.0f : 1.0f);
+            repaint();
+            return;
+        }
+        const float dxIn = e.x - invBtnCentre_.x;
+        const float dyIn = e.y - invBtnCentre_.y;
+        if (dxIn * dxIn + dyIn * dyIn <= ctrlBtnR_ * ctrlBtnR_)
+        {
+            auto* p = proc_->apvts.getParameter("stickInvert");
+            if (p) p->setValueNotifyingHost(p->getValue() > 0.5f ? 0.0f : 1.0f);
+            repaint();
+            return;
+        }
+    }
+
     const float w = (float)getWidth(), h = (float)getHeight();
     const float bodyY = (float)bodyOffset_;
     const float bodyH = h - bodyY - 4.0f;
@@ -553,11 +576,19 @@ juce::String GamepadDisplayComponent::computeRegionTooltip(int mx, int my) const
     if (d(x, y, optX, optY) < optR)
         return "Options - toggle preset-scroll mode (OPTION indicator lights green when active)";
 
+    // ── SWAP button (below OPT) ───────────────────────────────────────────────
+    if (d(x, y, optX, optY + optR * 3.2f) < optR)
+        return "SWAP - swap left/right stick routing: left stick controls pitch, right stick controls filter CC";
+
     // ── PS button ─────────────────────────────────────────────────────────────
     const float psX = w * 0.5f + 22.0f, psY = bY(0.50f);
     const float psR = juce::jmin(w * 0.038f, bodyH * 0.068f) * 1.6f;
     if (d(x, y, psX, psY) < psR)
         return "PS - soft disconnect / reconnect the controller";
+
+    // ── INV button (below PS) ─────────────────────────────────────────────────
+    if (d(x, y, psX, psY + optR * 3.2f) < optR)
+        return "INV - invert both axes on both sticks (sign flip); also swaps X/Y labels in Modulation and Quantizer panels";
 
     return connected_ ? "PS Controller - hover over a button to see its function"
                       : "No controller connected - plug in a PS4/PS5 controller via USB or Bluetooth";
@@ -569,9 +600,13 @@ void GamepadDisplayComponent::paint(juce::Graphics& g)
     const float h   = (float)getHeight();
     const bool  dim = !connected_;
 
+    // ── Stick-routing param states ────────────────────────────────────────────
+    const bool swapActive = proc_ && *proc_->apvts.getRawParameterValue("stickSwap")   > 0.5f;
+    const bool invActive  = proc_ && *proc_->apvts.getRawParameterValue("stickInvert") > 0.5f;
+
     // ── Palette ────────────────────────────────────────────────────────────────
     const auto bgFill   = juce::Colour(dim ? 0xFF0E0F18u : 0xFF131525u);
-    const auto body     = juce::Colour(dim ? 0xFF161820u : 0xFF1C1F32u);
+    const auto body     = juce::Colour(dim ? 0xFF0A0B0Fu : 0xFF0A0B14u);
     const auto outline  = juce::Colour(dim ? 0xFF252535u : 0xFF3A4068u);
     const auto btnIdle  = juce::Colour(dim ? 0xFF1C1E28u : 0xFF252840u);
     const auto btnText  = juce::Colour(dim ? 0xFF3A3C50u : 0xFF7880A8u);
@@ -641,11 +676,12 @@ void GamepadDisplayComponent::paint(juce::Graphics& g)
         g.fillEllipse(lsX + dispLX * (lsR - dR) - dR,
                       lsY - dispLY * (lsR - dR) - dR,
                       dR * 2, dR * 2);
-        // L3 label
+        // L3 label — shows function context based on swap state
         g.setColour(btnText.withAlpha(0.6f));
         g.setFont(juce::Font(7.5f));
-        g.drawText("L3", (int)(lsX - lsR), (int)(lsY + lsR + 1),
-                   (int)(lsR * 2), 10, juce::Justification::centred);
+        g.drawText(swapActive ? "PITCH" : "MOD WHL",
+                   (int)(lsX - lsR * 1.5f), (int)(lsY + lsR + 1),
+                   (int)(lsR * 3), 10, juce::Justification::centred);
     }
 
     // ── D-pad ──────────────────────────────────────────────────────────────────
@@ -726,6 +762,49 @@ void GamepadDisplayComponent::paint(juce::Graphics& g)
                    (int)(psR * 3), 10, juce::Justification::centred);
     }
 
+    // ── SWAP button — below OPT ───────────────────────────────────────────────
+    {
+        const float swapX = optX;
+        const float swapY = optY + optR * 3.2f;
+        const auto  swapClr = swapActive ? juce::Colour(0xFF00CFFF) : btnIdle;
+        g.setColour(swapClr);
+        g.fillEllipse(swapX - optR, swapY - optR, optR * 2, optR * 2);
+        g.setColour(swapActive ? juce::Colour(0xFF00CFFF).brighter(0.5f) : outline);
+        g.drawEllipse(swapX - optR, swapY - optR, optR * 2, optR * 2, 0.8f);
+        g.setColour(swapActive ? juce::Colours::white : btnText);
+        g.setFont(juce::Font(optR * 0.75f, juce::Font::bold));
+        g.drawText("SW", (int)(swapX - optR), (int)(swapY - optR),
+                   (int)(optR * 2), (int)(optR * 2), juce::Justification::centred);
+        g.setFont(juce::Font(7.0f));
+        g.setColour((swapActive ? juce::Colour(0xFF00CFFF) : btnText).withAlpha(0.8f));
+        g.drawText("SWAP", (int)(swapX - optR * 1.5f), (int)(swapY + optR + 1),
+                   (int)(optR * 3), 10, juce::Justification::centred);
+        // Store for hit-testing
+        const_cast<GamepadDisplayComponent*>(this)->swapBtnCentre_ = { swapX, swapY };
+        const_cast<GamepadDisplayComponent*>(this)->ctrlBtnR_       = optR;
+    }
+
+    // ── INV button — below PS ─────────────────────────────────────────────────
+    {
+        const float invX = psX;
+        const float invY = psY + optR * 3.2f;
+        const auto  invClr = invActive ? juce::Colour(0xFFFF9900) : btnIdle;
+        g.setColour(invClr);
+        g.fillEllipse(invX - optR, invY - optR, optR * 2, optR * 2);
+        g.setColour(invActive ? juce::Colour(0xFFFF9900).brighter(0.5f) : outline);
+        g.drawEllipse(invX - optR, invY - optR, optR * 2, optR * 2, 0.8f);
+        g.setColour(invActive ? juce::Colours::white : btnText);
+        g.setFont(juce::Font(optR * 0.75f, juce::Font::bold));
+        g.drawText("INV", (int)(invX - optR), (int)(invY - optR),
+                   (int)(optR * 2), (int)(optR * 2), juce::Justification::centred);
+        g.setFont(juce::Font(7.0f));
+        g.setColour((invActive ? juce::Colour(0xFFFF9900) : btnText).withAlpha(0.8f));
+        g.drawText("INV", (int)(invX - optR * 1.5f), (int)(invY + optR + 1),
+                   (int)(optR * 3), 10, juce::Justification::centred);
+        // Store for hit-testing
+        const_cast<GamepadDisplayComponent*>(this)->invBtnCentre_ = { invX, invY };
+    }
+
     // ── Right stick — R3 + live dot ────────────────────────────────────────────
     const float rsX = w * 0.78f;
     const float rsY = bY(0.70f);
@@ -751,8 +830,9 @@ void GamepadDisplayComponent::paint(juce::Graphics& g)
                       dR * 2, dR * 2);
         g.setColour(btnText.withAlpha(0.6f));
         g.setFont(juce::Font(7.5f));
-        g.drawText("R3", (int)(rsX - rsR), (int)(rsY + rsR + 1),
-                   (int)(rsR * 2), 10, juce::Justification::centred);
+        g.drawText(swapActive ? "MOD WHL" : "PITCH",
+                   (int)(rsX - rsR * 1.5f), (int)(rsY + rsR + 1),
+                   (int)(rsR * 3), 10, juce::Justification::centred);
     }
 
     // ── Face buttons — classic PS colours ──────────────────────────────────────
@@ -761,9 +841,9 @@ void GamepadDisplayComponent::paint(juce::Graphics& g)
     const float fbR   = juce::jmin(w * 0.048f, bodyH * 0.088f);
     const float fbSp  = fbR * 1.95f;
 
-    const auto clrTri = juce::Colour(dim ? 0xFF252840u : 0xFF44DD88u);
-    const auto clrSq  = juce::Colour(dim ? 0xFF252840u : 0xFFFF69B4u);
-    const auto clrCrc = juce::Colour(dim ? 0xFF252840u : 0xFFFF4444u);
+    const auto clrTri = juce::Colour(dim ? 0xFF252840u : 0xFF59C3AFu);  // teal
+    const auto clrSq  = juce::Colour(dim ? 0xFF252840u : 0xFFEB70B3u);  // pink
+    const auto clrCrc = juce::Colour(dim ? 0xFF252840u : 0xFFE84040u);  // red
     const auto clrCrs = juce::Colour(dim ? 0xFF252840u : 0xFF4499FFu);
 
     auto drawFace = [&](float cx, float cy, bool lit, juce::Colour litC, juce::juce_wchar sym)
@@ -999,6 +1079,25 @@ void JoystickPad::timerCallback()
     const float cx = juce::jlimit(dotR + brdr, w - dotR - brdr, (dispX + 1.0f) * 0.5f * w);
     const float cy = juce::jlimit(dotR + brdr, h - dotR - brdr, (1.0f - (dispY + 1.0f) * 0.5f) * h);
 
+    // ── toVisPos: raw pixel → visual pixel (CCW rotation + Y flip) ─────────────
+    // Used to keep particles at the same position as the visible cursor dot.
+    const bool tcbInvOn = *proc_.apvts.getRawParameterValue("stickInvert") > 0.5f;
+    auto toVisPos = [&](float px, float py) -> std::pair<float, float>
+    {
+        float vx = px, vy = py;
+        if (bgRotAngle_ != 0.0f)
+        {
+            const float rad  = bgRotAngle_ * juce::MathConstants<float>::pi / 180.0f;
+            const float cx0  = w * 0.5f, cy0 = h * 0.5f;
+            const float ddx  = px - cx0, ddy = py - cy0;
+            const float cosA = std::cos(rad), sinA = std::sin(rad);
+            vx = cx0 + ddx * cosA + ddy * sinA;
+            vy = cy0 - ddx * sinA + ddy * cosA;
+        }
+        if (tcbInvOn) vy = h - vy;
+        return { vx, vy };
+    };
+
     // ── Spawn gold movement particles ─────────────────────────────────────────
     if (prevCx_ > -999.0f)
     {
@@ -1006,7 +1105,10 @@ void JoystickPad::timerCallback()
         const float dy    = cy - prevCy_;
         const float speed = std::sqrt(dx * dx + dy * dy);
         if (speed > 1.2f)
-            spawnGoldParticles(cx, cy, dx, dy, speed);
+        {
+            const auto [gvx, gvy] = toVisPos(cx, cy);
+            spawnGoldParticles(gvx, gvy, dx, dy, speed);
+        }
     }
     prevCx_ = cx;
     prevCy_ = cy;
@@ -1037,6 +1139,9 @@ void JoystickPad::timerCallback()
         }
     }
 
+    // Visual position of the spring-smoothed cursor dot (for bursts + hold-glow).
+    const auto [partVisX, partVisY] = toVisPos(displayCx_, displayCy_);
+
     // ── Poll voice note-on bursts ─────────────────────────────────────────────
     static const juce::Colour kVoiceClr[4] = {
         juce::Colour(0xFFFF3333),  // Voice 0 (Root):    Red
@@ -1047,7 +1152,7 @@ void JoystickPad::timerCallback()
     for (int v = 0; v < 4; ++v)
     {
         if (proc_.voiceTriggerFlash_[v].exchange(0, std::memory_order_relaxed) > 0)
-            spawnBurst(cx, cy, kVoiceClr[v], 20);
+            spawnBurst(partVisX, partVisY, kVoiceClr[v], 20);
     }
 
     // ── Continuous hold-glow: emit soft particles while a gate is open ────────
@@ -1062,8 +1167,8 @@ void JoystickPad::timerCallback()
             {
                 if (particles_.size() >= 250) break;
                 JoyParticle p;
-                p.x     = cx + rng.nextFloat() * 4.0f - 2.0f;
-                p.y     = cy + rng.nextFloat() * 4.0f - 2.0f;
+                p.x     = partVisX + rng.nextFloat() * 4.0f - 2.0f;
+                p.y     = partVisY + rng.nextFloat() * 4.0f - 2.0f;
                 const float a = rng.nextFloat() * juce::MathConstants<float>::twoPi;
                 const float s = rng.nextFloat() * 0.5f + 0.25f;
                 p.vx    = std::cos(a) * s;
@@ -1113,6 +1218,66 @@ void JoystickPad::timerCallback()
     {
         const float imgH = (float)spaceBgBaked_.getHeight();
         bgScrollY_ = std::fmod(bgScrollY_ + 0.15f, imgH);
+    }
+
+    // ── INV visual rotation — smootherstep ease-in-out (12 s) + spring settle ─
+    {
+        const bool  invOn     = *proc_.apvts.getRawParameterValue("stickInvert") > 0.5f;
+        const float newTarget = invOn ? 90.0f : 0.0f;
+
+        if (!bgRotInitialized_)
+        {
+            // Snap to target on first tick so preset load doesn't trigger a full 12 s spin.
+            bgRotAngle_        = newTarget;
+            bgRotEndAngle_     = newTarget;
+            bgRotProgress_     = 1.0f;
+            bgRotSpringActive_ = false;
+            bgRotInvLast_      = invOn;
+            bgRotInitialized_  = true;
+        }
+        else if (invOn != bgRotInvLast_)
+        {
+            // INV toggled — start new journey from current visual position.
+            bgRotInvLast_      = invOn;
+            bgRotStartAngle_   = bgRotAngle_;
+            bgRotEndAngle_     = newTarget;
+            bgRotProgress_     = 0.0f;
+            bgRotSpringActive_ = false;
+            bgRotSpringVel_    = 0.0f;
+            // Scale duration proportionally: full 12 s for 90°, shorter for mid-anim reversal.
+            const float journeyDeg  = std::abs(bgRotEndAngle_ - bgRotStartAngle_);
+            const float framesTotal = (journeyDeg / 90.0f) * 720.0f;  // 12 s @ 60 Hz = 720 frames
+            bgRotProgressStep_ = (framesTotal > 0.5f) ? (1.0f / framesTotal) : 1.0f;
+        }
+
+        if (!bgRotSpringActive_ && bgRotProgress_ < 1.0f)
+        {
+            // Smootherstep ease-in-out: S(t) = 6t⁵ − 15t⁴ + 10t³
+            bgRotProgress_ = juce::jmin(1.0f, bgRotProgress_ + bgRotProgressStep_);
+            const float t  = bgRotProgress_;
+            const float s  = t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+            bgRotAngle_    = bgRotStartAngle_ + (bgRotEndAngle_ - bgRotStartAngle_) * s;
+
+            if (bgRotProgress_ >= 1.0f)
+            {
+                // Journey complete — hand off to spring for a gentle overshoot settle.
+                bgRotAngle_        = bgRotEndAngle_;
+                bgRotSpringActive_ = true;
+                const float dir    = (bgRotEndAngle_ >= bgRotStartAngle_) ? 1.0f : -1.0f;
+                bgRotSpringVel_    = dir * 2.9f;    // initial kick → peaks at ≈ 96° overshoot
+            }
+        }
+        else if (bgRotSpringActive_)
+        {
+            bgRotSpringVel_ += (bgRotEndAngle_ - bgRotAngle_) * 0.06f;
+            bgRotSpringVel_ *= 0.78f;
+            bgRotAngle_     += bgRotSpringVel_;
+            if (std::abs(bgRotSpringVel_) < 0.004f && std::abs(bgRotAngle_ - bgRotEndAngle_) < 0.015f)
+            {
+                bgRotAngle_        = bgRotEndAngle_;
+                bgRotSpringActive_ = false;
+            }
+        }
     }
 
     repaint();
@@ -1217,18 +1382,49 @@ void JoystickPad::paint(juce::Graphics& g)
     g.setColour(juce::Colour(0xff05050f));
     g.fillRect(b);
 
+    // Mid-rotation pulse: bell curve 0→1→0 over the 12 s journey (0 at rest).
+    // Used by layers 1.5 and 1.6 for subtle opacity boost and vignette deepening.
+    const float bgTransPulse = (bgRotProgress_ < 1.0f)
+        ? std::sin(bgRotProgress_ * juce::MathConstants<float>::pi)
+        : 0.0f;
+
+    // INV Y-flip state — snaps instantly; applies to compass labels, grid, cursor.
+    const bool invOn = *proc_.apvts.getRawParameterValue("stickInvert") > 0.5f;
+
     // ── Layer 1.5: Space background photo (scrolling fly-through) ───────────
     if (spaceBgBaked_.isValid())
     {
         juce::Graphics::ScopedSaveState ss(g);
         g.reduceClipRegion(b.toNearestInt());
-        g.setOpacity(1.0f);
+        // INV visual rotation — rotates CCW around pad centre over 12 s.
+        // Scroll continues normally throughout.
+        if (bgRotAngle_ != 0.0f)
+        {
+            const float rad = bgRotAngle_ * juce::MathConstants<float>::pi / 180.0f;
+            g.addTransform(juce::AffineTransform::rotation(-rad, b.getCentreX(), b.getCentreY()));
+        }
+        // Opacity: 0.88 at rest, peaks to 1.0 at mid-rotation — starfield feels more present.
+        g.setOpacity(0.88f + bgTransPulse * 0.12f);
         const int imgH  = spaceBgBaked_.getHeight();
         const int offset = (int)bgScrollY_ % imgH;
-        // Primary tile: scrolls upward
         g.drawImageAt(spaceBgBaked_, (int)b.getX(), (int)b.getY() - offset);
-        // Wrap tile: fills the gap at the bottom as the primary scrolls off the top
         g.drawImageAt(spaceBgBaked_, (int)b.getX(), (int)b.getY() - offset + imgH);
+    }
+
+    // ── Layer 1.6: Mid-rotation vignette deepening ───────────────────────────
+    // Radial gradient darkens the edges during the rotation, fades out at rest.
+    if (bgTransPulse > 0.002f)
+    {
+        juce::Graphics::ScopedSaveState vsave(g);
+        const float gradR = juce::jmin(b.getWidth(), b.getHeight()) * 0.62f;
+        juce::ColourGradient vig(
+            juce::Colour(0x00000000),
+            b.getCentreX(), b.getCentreY(),
+            juce::Colour(0xFF000000).withAlpha(bgTransPulse * 0.22f),
+            b.getCentreX() + gradR, b.getCentreY(),
+            true);   // isRadial
+        g.setGradientFill(vig);
+        g.fillRect(b);
     }
 
     // ── Layer 2: Milky way band (brightness driven by randomProbability 0-1) ─
@@ -1360,9 +1556,9 @@ void JoystickPad::paint(juce::Graphics& g)
             // Position: label center at labelR from pad center along label's cardinal angle.
             // Offset box so center lands on the cardinal point.
             const float lx = cx0 + std::cos(lbl.angle) * labelR - lw * 0.5f;
-            const float ly = cy0 - std::sin(lbl.angle) * labelR - lh * 0.5f;
-            // Note: ly uses -sin because JUCE Y increases downward, but cardinal angles
-            // were defined in math space (Y up). Subtracting sin maps correctly.
+            // Normal: -sin (JUCE Y down). Y-flip (INV): +sin (mirror vertically).
+            const float sinSign = invOn ? 1.0f : -1.0f;
+            const float ly = cy0 + sinSign * std::sin(lbl.angle) * labelR - lh * 0.5f;
             g.drawText(lbl.name, juce::Rectangle<float>(lx, ly, lw, lh),
                        juce::Justification::centred, false);
         }
@@ -1424,7 +1620,8 @@ void JoystickPad::paint(juce::Graphics& g)
             for (int i = 0; i < ySemitones; i += yStep)
             {
                 const float t     = (float)i / (float)ySemitones;
-                const float py    = b.getY() + t * b.getHeight();
+                const float tY    = invOn ? (1.0f - t) : t;   // Y-flip when INV active
+                const float py    = b.getY() + tY * b.getHeight();
                 const float ramp  = 1.0f - (1.0f - std::abs(t * 2.0f - 1.0f)) * 0.6f;
                 const int pitchClass = ((i % 12) + transpose) % 12;
                 const bool inScale   = ((scaleMask >> pitchClass) & 1) != 0;
@@ -1463,10 +1660,26 @@ void JoystickPad::paint(juce::Graphics& g)
     // Phase 32: cx/cy are now the spring-smoothed display positions (displayCx_/Cy_).
     // The spring target (raw LFO-aware pixel position) is computed in timerCallback().
     // Perimeter arc reads raw proc_.joystickX/Y directly below (NOT the smoothed dot).
+    // INV visual rotation: cursor orbits CCW in sync with the background over 12 s.
     constexpr float dotR    = 7.0f;
     constexpr float tickLen = 5.0f;
-    const float cx = displayCx_;
-    const float cy = displayCy_;
+    float cx = displayCx_;
+    float cy = displayCy_;
+    if (bgRotAngle_ != 0.0f)
+    {
+        const float rad  = bgRotAngle_ * juce::MathConstants<float>::pi / 180.0f;
+        const float cx0  = b.getCentreX();
+        const float cy0  = b.getCentreY();
+        const float dx   = displayCx_ - cx0;
+        const float dy   = displayCy_ - cy0;
+        const float cosA = std::cos(rad);
+        const float sinA = std::sin(rad);
+        // CCW rotation: negate the sin cross-terms relative to CW formula
+        cx = cx0 + dx * cosA + dy * sinA;
+        cy = cy0 - dx * sinA + dy * cosA;
+    }
+    if (invOn)
+        cy = 2.0f * b.getCentreY() - cy;   // Y-flip: mirror cursor vertically
 
     // ── Layer 7a: Static centre reference dot — UNCHANGED ────────────────────
     {
@@ -4247,6 +4460,15 @@ void PluginEditor::paintOverChildren(juce::Graphics& g)
 
 void PluginEditor::timerCallback()
 {
+    // ── INV label swaps ───────────────────────────────────────────────────────
+    {
+        const bool invOn = *proc_.apvts.getRawParameterValue("stickInvert") > 0.5f;
+        filterXModeLabel_.setText(invOn ? "Left Y" : "Left X", juce::dontSendNotification);
+        filterYModeLabel_.setText(invOn ? "Left X" : "Left Y", juce::dontSendNotification);
+        joyXAttenLabel_.setText(invOn ? "SEMITONE Y" : "SEMITONE X", juce::dontSendNotification);
+        joyYAttenLabel_.setText(invOn ? "SEMITONE X" : "SEMITONE Y", juce::dontSendNotification);
+    }
+
     // Routing panel visibility
     const bool isSingle = (*proc_.apvts.getRawParameterValue("singleChanMode") > 0.5f);
     singleChanTargetBox_.setVisible(isSingle);
@@ -4808,7 +5030,9 @@ void PluginEditor::timerCallback()
     loopRecJoyBtn_  .setToggleState(proc_.looperIsRecJoy(),    juce::dontSendNotification);
     filterRecBtn_   .setToggleState(proc_.looperIsRecFilter(), juce::dontSendNotification);
 
-    // Mirror gamepad right stick to joystickX/Y.
+    // Mirror the pitch-control stick to joystickX/Y (cursor + chord input).
+    // SWAP off (default): right stick is pitch.  SWAP on: left stick is pitch.
+    // INV: swap X↔Y axes on the chosen stick.
     // - When the stick moves: write its position and remember it was last writer.
     // - When the stick returns to centre: write 0 once (so the cursor snaps back),
     //   then clear the flag so subsequent mouse clicks are not overridden.
@@ -4816,8 +5040,12 @@ void PluginEditor::timerCallback()
     //   joystickX/Y untouched so mouse clicks stay in effect.
     if (proc_.getGamepad().isConnected() && proc_.isGamepadActive())
     {
-        const float gpX = proc_.getGamepad().getPitchX();
-        const float gpY = proc_.getGamepad().getPitchY();
+        const bool  swapOn = *proc_.apvts.getRawParameterValue("stickSwap")   > 0.5f;
+        const bool  invOn  = *proc_.apvts.getRawParameterValue("stickInvert") > 0.5f;
+        const float rawX = swapOn ? proc_.getGamepad().getFilterX() : proc_.getGamepad().getPitchX();
+        const float rawY = swapOn ? proc_.getGamepad().getFilterY() : proc_.getGamepad().getPitchY();
+        const float gpX  = invOn ? rawY : rawX;
+        const float gpY  = invOn ? rawX : rawY;
 
         // Use the same bypass threshold as GamepadDisplayComponent so jitter
         // that lingers just above the dead zone does not override mouse input.

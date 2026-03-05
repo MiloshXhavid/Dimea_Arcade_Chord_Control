@@ -96,6 +96,11 @@ private:
 
     juce::String computeRegionTooltip(int mx, int my) const;
     void         updateDrag(const juce::MouseEvent& e);
+
+    // SWAP / INV button centres + radius — updated in paint(), hit-tested in mouseDown()
+    juce::Point<float> swapBtnCentre_ {};
+    juce::Point<float> invBtnCentre_  {};
+    float              ctrlBtnR_      = 0.0f;
 };
 
 // ─── JoystickPad ─────────────────────────────────────────────────────────────
@@ -159,6 +164,17 @@ private:
     float displayCy_  = 0.0f;   // spring-smoothed cursor pixel Y
     float springVelX_ = 0.0f;   // spring velocity X (pixels/frame)
     float springVelY_ = 0.0f;   // spring velocity Y (pixels/frame)
+
+    // INV visual rotation — smootherstep ease-in-out (9 s) + spring overshoot settle
+    bool  bgRotInvLast_      = false;  // previous INV state — detects toggle
+    bool  bgRotInitialized_  = false;  // false = snap on first tick (preset load, no anim)
+    float bgRotAngle_        = 0.0f;   // current visual angle (degrees)
+    float bgRotStartAngle_   = 0.0f;   // angle at moment of last toggle
+    float bgRotEndAngle_     = 0.0f;   // target angle (0 or 90)
+    float bgRotProgress_     = 1.0f;   // 0→1 journey progress (1 = arrived)
+    float bgRotProgressStep_ = 0.0f;   // per-frame increment (scales with journey length)
+    float bgRotSpringVel_    = 0.0f;   // spring velocity (degrees/frame) in settle phase
+    bool  bgRotSpringActive_ = false;  // true = spring settle phase active
 };
 
 // ─── TouchPlate ───────────────────────────────────────────────────────────────
