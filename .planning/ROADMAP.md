@@ -85,7 +85,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [ ] **Phase 31: Paint-Only Visual Foundation** — Space background, milky way particle field, BPM-synced glow ring, semitone grid on joystick pad (completed 2026-03-04)
 - [ ] **Phase 32: Spring-Damper Inertia and Angle Indicator** — Spring-damper cursor physics, perimeter arc indicator, note-label compass at cardinal positions (completed 2026-03-04)
 - [ ] **Phase 33.1: Cursor/INV/LFO Fixes** — 7-bug fix batch: cursor center on open, INV mouse swap, lerp cursor, INV column swap, population random range, piano hit test, battery icon (completed 2026-03-05)
-- [ ] **Phase 33: Version Sync** — Publish v1.7 as GitHub Latest release; update installer AppComments; mark TRIP-01/TRIP-02/DIST-05 complete; desktop backup (in progress)
+- [x] **Phase 33: Version Sync** — Publish v1.7 as GitHub Latest release; update installer AppComments; mark TRIP-01/TRIP-02/DIST-05 complete; desktop backup (in progress) (completed 2026-03-05)
 **Plans:** 1 plan
 Plans:
 - [ ] 33-01-PLAN.md — Update installer AppComments, rebuild installer, mark requirements complete, create GitHub v1.7 release, desktop backup
@@ -413,4 +413,4 @@ Plans:
 | 29. Looper Perimeter Bar | v1.6 | Complete    | 2026-03-03 | 2026-03-03 |
 | 30. Distribution | 1/2 | In Progress|  | - |
 | 31. Paint-Only Visual Foundation | 2/2 | Complete    | 2026-03-04 | - |
-| 33. Version Sync | v1.7 | 0/1 | In Progress | - |
+| 33. Version Sync | 1/1 | Complete   | 2026-03-05 | - |

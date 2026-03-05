@@ -87,10 +87,11 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 
 ## Current Position
 
+Phase: 33-version-sync — COMPLETE (plan 01 complete)
 Phase: 33.1 — IN PROGRESS (awaiting human verify checkpoint)
 Plan: 01/01 — tasks 1-8 complete, task 9 = human-verify checkpoint (STOP)
-Status: Phase 33.1 plan 01 code complete and built. VST3 installed. Awaiting human verification.
-Last activity: 2026-03-05 — Phase 33.1 plan 01 executed; 7 bug fixes committed (af5a82b..5f1d401)
+Status: Phase 33-01 complete (GitHub release v1.7 published). Phase 33.1 plan 01 code complete and built. VST3 installed. Awaiting human verification.
+Last activity: 2026-03-05 — Phase 33-01 complete: GitHub v1.7 released Latest, installer attached, desktop backup done
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -154,6 +155,8 @@ Key v1.6 design decisions (locked):
 - [Phase 33.1]: INV attachment swap guarded by prevInvState_ — fires once on toggle, not every 30Hz timer tick
 - [Phase 33.1]: Piano black key two-pass hit test — kBlackNotes[] checked first, then kWhiteNotes[]
 - [Phase 33.1]: Battery icon redesigned as 3 vertical stripe blocks; GamepadInput.cpp unchanged (paint-only fix)
+- [Phase 33]: Plugin release tag convention: v1.7 (no patch) pushed to plugin remote only; gh release create --latest supersedes v1.6 as Latest
+- [Phase 33]: DIST-06 (v1.6 desktop backup) marked skipped — superseded by DIST-08 (v1.7 backup)
 
 ### Pending Todos
 
@@ -166,5 +169,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Phase 33.1 plan 01 — Tasks 1-8 complete, paused at Task 9 (human-verify checkpoint).
+Stopped at: Phase 33-01 complete. Phase 33.1 plan 01 — Tasks 1-8 complete, paused at Task 9 (human-verify checkpoint).
 Next step: Human verifies 7 bug fixes in DAW, then Phase 33.1 plan 01 is approved/closed.
