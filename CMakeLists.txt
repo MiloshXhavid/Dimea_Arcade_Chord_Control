@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(ChordJoystick VERSION 1.7.0)
+project(ChordJoystick VERSION 1.7.1)
 
 # Generate Inno Setup installer script from template (single version source of truth)
 configure_file(
@@ -114,9 +114,13 @@ juce_add_binary_data(ChordJoystickFonts
             Resources/SpaceBackground.png
 )
 
+# Single source of truth for name strings — used by juce_add_plugin AND the RC template.
+set(PLUGIN_PRODUCT_NAME "Arcade Chord Control (BETA-Test)")
+set(PLUGIN_COMPANY_NAME "Dimea Arcade")
+
 juce_add_plugin(ChordJoystick
-    PRODUCT_NAME            "Arcade Chord Control (BETA-Test)"
-    COMPANY_NAME            "Dimea Arcade"
+    PRODUCT_NAME            "${PLUGIN_PRODUCT_NAME}"
+    COMPANY_NAME            "${PLUGIN_COMPANY_NAME}"
     FORMATS                 VST3
     PLUGIN_MANUFACTURER_CODE "MxCJ"
     PLUGIN_CODE             "DCJM"
@@ -126,6 +130,15 @@ juce_add_plugin(ChordJoystick
     NEEDS_MIDI_OUTPUT       TRUE
     IS_MIDI_EFFECT          TRUE
     COPY_PLUGIN_AFTER_BUILD TRUE
+)
+
+# Regenerate the Windows VERSIONINFO resource from the template so Reaper always
+# sees the correct ProductName / FileDescription in the DLL. configure_file() runs
+# at cmake-configure time and overwrites JUCE's auto-generated RC file.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/ChordJoystick_resources.rc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/ChordJoystick_artefacts/JuceLibraryCode/ChordJoystick_resources.rc"
+    @ONLY
 )
 
 set_target_properties(ChordJoystick PROPERTIES
@@ -169,4 +182,13 @@ set(REAPER_VST_CACHE
 add_custom_command(TARGET ChordJoystick_VST3 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rm -f "${REAPER_VST_CACHE}"
     COMMENT "Cleared Reaper VST cache — restart Reaper to load the new build"
+    VERBATIM)
+
+# Also copy to the user-local VST3 scan path so both locations stay in sync.
+set(LOCAL_VST3_DIR "$ENV{LOCALAPPDATA}/Programs/Common/VST3")
+add_custom_command(TARGET ChordJoystick_VST3 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "$<TARGET_FILE_DIR:ChordJoystick_VST3>/../../"
+        "${LOCAL_VST3_DIR}/${PLUGIN_PRODUCT_NAME}.vst3"
+    COMMENT "Copied to local VST3 path: ${LOCAL_VST3_DIR}"
     VERBATIM)
