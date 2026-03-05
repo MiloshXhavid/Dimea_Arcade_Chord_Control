@@ -1862,10 +1862,16 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                             }
                             else
                             {
-                                const float base   = apvts.getRawParameterValue(ParamID::lfoXRate)->load();
-                                const float actual = juce::jlimit(0.01f, 20.0f, base + stick * 9.995f);
+                                {
+                                const float base = apvts.getRawParameterValue(ParamID::lfoXRate)->load();
+                                // Apply stick offset in normalized log space for perceptual symmetry.
+                                // kLfoRange must match the NormalisableRange used in the APVTS layout (skew 0.35).
+                                static const juce::NormalisableRange<float> kLfoRange(0.01f, 20.0f, 0.0f, 0.35f);
+                                const float norm   = kLfoRange.convertTo0to1(base);
+                                const float actual = kLfoRange.convertFrom0to1(juce::jlimit(0.0f, 1.0f, norm + stick * 0.5f));
                                 lfoXRateDisplay_.store(actual, std::memory_order_relaxed);
                                 lfoXRateOverride_ = actual;
+                                }
                             }
                             break;
                         }
@@ -1913,10 +1919,14 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                             }
                             else
                             {
-                                const float base   = apvts.getRawParameterValue(ParamID::lfoYRate)->load();
-                                const float actual = juce::jlimit(0.01f, 20.0f, base + stick * 9.995f);
+                                {
+                                const float base = apvts.getRawParameterValue(ParamID::lfoYRate)->load();
+                                static const juce::NormalisableRange<float> kLfoRange(0.01f, 20.0f, 0.0f, 0.35f);
+                                const float norm   = kLfoRange.convertTo0to1(base);
+                                const float actual = kLfoRange.convertFrom0to1(juce::jlimit(0.0f, 1.0f, norm + stick * 0.5f));
                                 lfoYRateDisplay_.store(actual, std::memory_order_relaxed);
                                 lfoYRateOverride_ = actual;
+                                }
                             }
                             break;
                         }
