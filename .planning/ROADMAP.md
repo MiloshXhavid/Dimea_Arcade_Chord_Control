@@ -78,6 +78,18 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 29: Looper Perimeter Bar** — Clockwise 2px green perimeter bar replaces horizontal strip; ghost ring at idle; LOOPER label excluded from clip at all times (completed 2026-03-03)
 - [ ] **Phase 30: Distribution** — GitHub v1.6 release with installer binary + release notes; desktop backup
 
+### v1.7 Space Joystick
+
+**Milestone Goal:** Ship v1.7 with space-themed visual overhaul, spring-damper joystick physics, gamepad SWAP/INV routing, and a 7-bug fix batch including triplet subdivisions.
+
+- [ ] **Phase 31: Paint-Only Visual Foundation** — Space background, milky way particle field, BPM-synced glow ring, semitone grid on joystick pad (completed 2026-03-04)
+- [ ] **Phase 32: Spring-Damper Inertia and Angle Indicator** — Spring-damper cursor physics, perimeter arc indicator, note-label compass at cardinal positions (completed 2026-03-04)
+- [ ] **Phase 33.1: Cursor/INV/LFO Fixes** — 7-bug fix batch: cursor center on open, INV mouse swap, lerp cursor, INV column swap, population random range, piano hit test, battery icon (completed 2026-03-05)
+- [ ] **Phase 33: Version Sync** — Publish v1.7 as GitHub Latest release; update installer AppComments; mark TRIP-01/TRIP-02/DIST-05 complete; desktop backup (in progress)
+**Plans:** 1 plan
+Plans:
+- [ ] 33-01-PLAN.md — Update installer AppComments, rebuild installer, mark requirements complete, create GitHub v1.7 release, desktop backup
+
 ## Phase Details
 
 ### Phase 12: LFO Engine Core
@@ -373,6 +385,19 @@ Plans:
 - [ ] 31-01-PLAN.md — PluginEditor.h/cpp: add resized() + new members + bake milkyWayCache_/starfield_/heatmapCache_ + rewrite paint() layers 1-6
 - [ ] 31-02-PLAN.md — JoystickPad::timerCallback() glowPhase_ advancement + PluginEditor resetGlowPhase() beat wiring + human visual checkpoint
 
+### Phase 33: Version Sync
+**Goal**: v1.7 is publicly released on GitHub as the Latest release, with the installer rebuilt with v1.7 feature text, all housekeeping requirements marked complete, and a desktop backup created
+**Depends on**: Phase 33.1 (bug fixes approved)
+**Requirements**: TRIP-01, TRIP-02, DIST-05, DIST-07, DIST-08
+**Success Criteria** (what must be TRUE):
+  1. GitHub release v1.7 exists on MiloshXhavid/Dima_Plugin_Chrdmachine, marked Latest, with DimeaArcade-ChordControl-v1.7.0-Setup.exe attached
+  2. Release notes describe all 4 v1.7 feature groups: Visual Overhaul, Joystick Physics, Gamepad SWAP/INV, Bug Fixes and Triplets
+  3. REQUIREMENTS.md shows TRIP-01, TRIP-02, DIST-05 as complete; DIST-06 as skipped; DIST-07 and DIST-08 as complete
+  4. Desktop backup at %USERPROFILE%\Desktop\Dima_plug-in\v1.7\ contains installer .exe, VST3 bundle, and source-v1.7.zip
+**Plans**: 1 plan
+Plans:
+- [ ] 33-01-PLAN.md — Update installer AppComments, rebuild installer, mark requirements complete, create GitHub v1.7 release, desktop backup
+
 
 ## Progress
 
@@ -388,3 +413,4 @@ Plans:
 | 29. Looper Perimeter Bar | v1.6 | Complete    | 2026-03-03 | 2026-03-03 |
 | 30. Distribution | 1/2 | In Progress|  | - |
 | 31. Paint-Only Visual Foundation | 2/2 | Complete    | 2026-03-04 | - |
+| 33. Version Sync | v1.7 | 0/1 | In Progress | - |
