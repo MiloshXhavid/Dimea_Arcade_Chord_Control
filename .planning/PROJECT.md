@@ -8,13 +8,13 @@ ChordJoystick is a paid JUCE VST3 MIDI generator plugin for Windows that sends 4
 
 An XY joystick mapped to harmonic space — combined with per-note trigger gates, scale quantization, a gesture looper with trigger quantization, and gamepad control — that no existing MIDI tool provides as a unified instrument.
 
-## Current State (v1.5)
+## Current State (v1.7)
 
-- **Shipped:** 2026-03-02
-- **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/tag/v1.5 (pre-release)
-- **Codebase:** ~7,000+ C++ LOC, 20+ source files + Catch2 test suite
+- **Shipped:** 2026-03-05
+- **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/tag/v1.7 (Latest)
+- **Codebase:** ~8,000+ C++ LOC, 20+ source files + Catch2 test suite
 - **Build:** JUCE 8.0.4 + CMake FetchContent + SDL2 2.30.9 static, VS 18 2026, Release
-- **Installer:** `installer/Output/DIMEA-ChordJoystickMK2-v1.5-Setup.exe` (Inno Setup 6, static CRT, no MSVC redist required)
+- **Installer:** `installer/Output/DimeaArcade-ChordControl-v1.7.0-Setup.exe` (Inno Setup 6, static CRT, no MSVC redist required)
 - **Known limitation:** COPY_PLUGIN_AFTER_BUILD requires elevation — use `fix-install.ps1` manually after rebuild
 
 ## Requirements
@@ -74,22 +74,35 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - ✓ Bug fix: Looper anchor drift after record cycle — v1.5
 - ✓ Bug fix: PS4 BT reconnect crash — v1.5
 
-### Active — v1.6
+### Validated — v1.6
 
-- [ ] **DEF-01**: Third octave knob displays "4" by default
-- [ ] **DEF-02**: Fifth octave knob displays "4" by default
-- [ ] **DEF-03**: Tension octave knob displays "3" by default
-- [ ] **DEF-04**: Scale preset defaults to Natural Minor on fresh load
-- [ ] **BUG-03**: Remove `else noteCount_ = 0` clamp from all 5 note-off paths — eliminates stuck notes when any two voices produce the same pitch in Single Channel mode
-- [ ] **TRIP-01**: Random trigger subdivision selector adds 1/1T, 1/2T, 1/4T, 1/8T, 1/16T, 1/32T
-- [ ] **TRIP-02**: Quantize trigger subdivision selector adds the same 6 triplet options
-- [ ] **RND-08**: Random Free + RND SYNC OFF → gates fire at truly random intervals, no tempo grid
-- [ ] **RND-09**: Random Free + RND SYNC ON + DAW Sync OFF → gates subdivided to internal free-tempo clock
-- [ ] **RND-10**: Random Free + DAW Sync ON → gates subdivided to DAW beat grid
-- [ ] **LOOP-01**: Remove existing linear looper progress bar (strip below Rec gates)
-- [ ] **LOOP-02**: Rectangular perimeter bar travels clockwise around Looper box — one circuit = one loop cycle, 30 Hz
-- [ ] **LOOP-03**: Bar starts/ends at the Looper label position, travels right → bottom-right → bottom-left → top-left
-- [ ] **LOOP-04**: Looper label remains fully visible at all times
+- ✓ DEF-01/02/03: Third=4, Fifth=4, Tension=3 default octave values — v1.6
+- ✓ DEF-04: Scale preset defaults to Natural Minor on fresh load — v1.6
+- ✓ BUG-03: noteCount_ reference-count clamp removed from all 13 note-off paths — v1.6
+- ✓ TRIP-01: Random trigger subdivision selector adds 1/1T–1/32T triplets — v1.6
+- ✓ TRIP-02: Quantize trigger subdivision selector adds same 6 triplet options — v1.6
+- ✓ RND-08/09/10: Random Free redesign — Poisson (SYNC OFF), internal clock (SYNC ON + stopped), DAW grid (DAW Sync ON) — v1.6
+- ✓ LOOP-01/02/03/04: Looper perimeter bar — clockwise rectangular bar, ghost ring, label exclusion — v1.6
+- ✓ GitHub v1.6 release + installer + desktop backup — v1.6
+
+### Validated — v1.7
+
+- ✓ Space-themed joystick pad — deep-space background, milky way particle band, density-driven starfield, BPM-synced breathing glow ring — v1.7
+- ✓ Semitone grid on joystick pad — in-scale notes bright, out-of-scale dimmed — v1.7
+- ✓ Spring-damper cursor physics — inertia while moving, critically-damped spring-back (kDamping=0.90, ~150ms, no overshoot) — v1.7
+- ✓ Perimeter arc indicator on joystick pad border + note-label compass at cardinal positions — v1.7
+- ✓ LFO waveform oscilloscope in SYNC row (48-sample ring buffer, proportional scale, blink on positive) — v1.7
+- ✓ Gamepad SWAP — left stick ↔ right stick routing (pitch vs filter CC), fully isolated across all 4 dispatch sites — v1.7
+- ✓ Gamepad INV — X↔Y axis swap (90° rotation) on both sticks — v1.7
+- ✓ SWAP/INV buttons in GamepadDisplayComponent; L3/R3 labels swap dynamically; cyan/amber lit colors — v1.7
+- ✓ Left stick deadzone smooth rescaling; CC74/CC71/CC12/CC76 on both left stick X and Y axes — v1.7
+- ✓ Arp step-counting root cause fixed (start-of-block ppq + backward-jump guard) — v1.7
+- ✓ Gate length applies to joystick trigger source — v1.7
+- ✓ Looper reset syncs all random-free voice phases — v1.7
+- ✓ Cursor snaps to pad center on plugin open; INV mode Quantizer/Modulation labels and attachments swap correctly — v1.7
+- ✓ Piano black key two-pass hit test — black keys win over white key rects below them — v1.7
+- ✓ Battery icon redesigned as 3 vertical stripe blocks (green/orange/red/gray/cyan/"?") — v1.7
+- ✓ GitHub v1.7 released as Latest; Inno Setup installer v1.7; desktop backup — v1.7
 
 ### Out of Scope
 
@@ -137,17 +150,11 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 | onConnectionChangeUI passes juce::String | Richer UI (controller type) without extra API call | ✓ Good |
 | Border-only section panels | Fills covered drawAbove labels at same Y coordinate | ✓ Good |
 | Editor height 790 → 810 | Quantize row (20px) was clipped at 790 | ✓ Good |
-
-## Current Milestone: v1.6 Triplets & Fixes
-
-**Goal:** Fix the noteCount stuck-notes bug, add triplet subdivisions, change default octave/scale values, fix Random Free to be truly tempo-free, and replace the looper bar with a rectangular perimeter visualization.
-
-**Target features:**
-- Default octave values: Third=4, Fifth=4, Tension=3 (UI display values); default scale = Natural Minor
-- Bug fix: noteCount_ reference counting clamp removed — eliminates stuck notes in Single Channel mode
-- Triplet subdivisions (1/1T–1/32T) added to random trigger and quantize selectors
-- Random Free redesign: no RND SYNC = truly free timing; RND SYNC = internal clock; DAW Sync = DAW grid
-- Looper visualization: rectangular perimeter fill bar replacing the linear strip
+| Space background baked in resized() | Zero per-frame allocation; paint() is compositing only | ✓ Good |
+| kDamping=0.90 (near-critical) | No overshoot, ~150ms settle, not sluggish | ✓ Good |
+| LFO stick offset in normalized log space | Equal perceptual range across 3 decades | ✓ Good |
+| prevInvState_ guard for INV attachment swap | Fires once on toggle, not 30x/sec | ✓ Good |
+| Piano two-pass hit test (black then white) | No coordinate math changes; just iteration order | ✓ Good |
 
 ---
-*Last updated: 2026-03-02 — v1.6 milestone started*
+*Last updated: 2026-03-05 — v1.7 shipped*

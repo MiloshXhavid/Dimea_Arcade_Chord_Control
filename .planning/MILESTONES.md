@@ -1,20 +1,51 @@
 # Milestones
 ## v1.7 Space Joystick (Shipped: 2026-03-05)
 
-**Phases completed:** 22 phases, 45 plans, 4 tasks
+**Phases completed:** Phases 31–33.1 (4 phases including decimal)
 
 **Key accomplishments:**
-- (none recorded)
+- Deep-space joystick pad: milky way particle band (3-layer Gaussian, baked), density-driven starfield, semitone grid (in-scale bright / out-of-scale dimmed), BPM-synced breathing glow ring
+- Spring-damper cursor physics: inertia while moving, critically-damped spring-back on release (kDamping=0.90, ~150ms, no overshoot)
+- Perimeter arc indicator on pad border + note-label compass at cardinal positions
+- Gamepad SWAP (left ↔ right stick) + INV (X↔Y axis rotation) routing — applied across all 4 dispatch sites (chord params, filter CC, cursor, LFO)
+- SWAP/INV buttons in GamepadDisplayComponent with L3/R3 dynamic labels; cyan/amber lit colors
+- LFO waveform oscilloscope in SYNC row (48-sample ring buffer, proportional ±1 scale, blink on positive)
+- Left stick deadzone smooth rescaling; CC74/CC71/CC12/CC76 on both stick X and Y axes
+- Arp step-counting root cause fixed (start-of-block ppq, backward-jump guard); gate length applies to joystick triggers
+- Looper reset syncs all random-free voice phases
+- 7 UI bug fixes (Phase 33.1): cursor center on open, critically-damped spring, log-space LFO rate mod, INV axis label/attachment swap, piano black key priority, 3-stripe battery icon
+- GitHub v1.7 released as Latest; Inno Setup installer with v1.7 feature text; desktop backup
 
 ---
 
+## v1.6 Triplets & Fixes (Shipped: 2026-03-03)
+
+**Phases completed:** Phases 26–30 (5 phases)
+
+**Key accomplishments:**
+- Default octave values (Third=4, Fifth=4, Tension=3) + Natural Minor scale as default — correct out-of-box chord voicing
+- noteCount_ reference-count clamp removed from all 13 note-off paths — eliminated stuck notes when two voices share a pitch in Single Channel mode
+- Triplet subdivisions (1/1T–1/32T) added to both random trigger and quantize selectors; APVTS enum extended
+- Random Free redesign — three-branch sync matrix: Poisson stochastic (SYNC OFF), internal free-tempo clock grid (SYNC ON + DAW stopped), DAW ppq grid (DAW Sync ON)
+- Looper perimeter bar: clockwise rectangular bar replaces linear strip; ghost ring at idle; LOOPER label always visible; `perimPoint` lambda handles negative-distance wraparound
+- GitHub v1.6 release + installer
+
+---
 
 ## v1.5 Routing + Expression (Shipped: 2026-03-02)
 
-**Phases completed:** 15 phases, 35 plans, 4 tasks
+**Phases completed:** Phases 17–25 (9 phases + 1 decimal)
 
 **Key accomplishments:**
-- (none recorded)
+- Single Channel routing mode — all 4 voices → one configurable MIDI channel; note deduplication prevents doubles
+- Per-voice Sub Octave — parallel note 1 oct below; Hold/SubOct split button on pad; gamepad R3+pad combo
+- Left Joystick X/Y target expansion — LFO freq/phase/level + gate length as modulation targets (6-item dropdowns)
+- LFO recording — arm → record 1 loop cycle → playback in sync; Distort stays live; Clear resets to real-time
+- Arpeggiator — 6 modes (Up/Down/UpDown/Random/etc.), 4 rates, bar-boundary launch, gate length control
+- Random trigger extensions — Free/Hold modes, Population + Probability knobs, 1/64 subdivision
+- Option Mode 1 — Circle=Arp toggle, Triangle=Rate, Square=Order, X=RND Sync; R3+pad=Sub Oct
+- LFO joystick visual tracking — sliders track joystick at 30 Hz via base+offset model
+- Bug fixes: looper anchor drift after record cycle; PS4 BT reconnect crash
 
 ---
 

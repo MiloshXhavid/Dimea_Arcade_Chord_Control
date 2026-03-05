@@ -7,7 +7,7 @@
 - ✅ **v1.4 LFO + Clock** — Phases 12-16 (shipped 2026-02-26)
 - ✅ **v1.5 Routing + Expression** — Phases 17-25 (shipped 2026-03-02)
 - ✅ **v1.6 Triplets & Fixes** — Phases 26-30 (shipped 2026-03-03)
-- 🔲 **v1.7 Space Joystick** — Phases 31-38 (active)
+- ✅ **v1.7 Space Joystick** — Phases 31-33.1 (shipped 2026-03-05)
 
 ## Phases
 
@@ -68,27 +68,26 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 </details>
 
-### v1.6 Triplets & Fixes
+<details>
+<summary>✅ v1.6 Triplets &amp; Fixes (Phases 26-30) — SHIPPED 2026-03-03</summary>
 
-**Milestone Goal:** Fix the noteCount stuck-notes bug and default param values, add triplet subdivisions to both random and quantize selectors, correct Random Free to fire truly outside the tempo grid when RND SYNC is off, and replace the linear looper progress bar with a rectangular perimeter visualization.
+- [x] Phase 26: Defaults and Bug Fix — octave defaults + Natural Minor + noteCount_ clamp removal (completed 2026-03-02)
+- [x] Phase 27: Triplet Subdivisions — 1/1T–1/32T in random trigger and quantize selectors (completed 2026-03-03)
+- [x] Phase 28: Random Free Redesign — Poisson/internal-clock/DAW-grid three-branch sync matrix (completed 2026-03-03)
+- [x] Phase 29: Looper Perimeter Bar — clockwise rectangular bar, ghost ring, label exclusion (completed 2026-03-03)
+- [x] Phase 30: Distribution — GitHub v1.6 release + installer + desktop backup (completed 2026-03-03)
 
-- [x] **Phase 26: Defaults and Bug Fix** — Default octave values (Third=4, Fifth=4, Tension=3) + Natural Minor default + noteCount_ clamp removal from all 13 note-off paths (completed 2026-03-02)
-- [x] **Phase 27: Triplet Subdivisions** — 1/1T through 1/32T added to random trigger and quantize subdivision selectors; APVTS enum extended; UI updated (completed 2026-03-03)
-- [x] **Phase 28: Random Free Redesign** — Poisson clock + 64-note burst model; three-branch sync matrix: Poisson (SYNC OFF), DAW ppq (SYNC ON + playing), internal counter (SYNC ON + stopped) (completed 2026-03-03)
-- [x] **Phase 29: Looper Perimeter Bar** — Clockwise 2px green perimeter bar replaces horizontal strip; ghost ring at idle; LOOPER label excluded from clip at all times (completed 2026-03-03)
-- [ ] **Phase 30: Distribution** — GitHub v1.6 release with installer binary + release notes; desktop backup
+</details>
 
-### v1.7 Space Joystick
+<details>
+<summary>✅ v1.7 Space Joystick (Phases 31-33.1) — SHIPPED 2026-03-05</summary>
 
-**Milestone Goal:** Ship v1.7 with space-themed visual overhaul, spring-damper joystick physics, gamepad SWAP/INV routing, and a 7-bug fix batch including triplet subdivisions.
+- [x] Phase 31: Paint-Only Visual Foundation — deep-space background, milky way, starfield, semitone grid, BPM glow ring (completed 2026-03-04)
+- [x] Phase 32: Spring-Damper Inertia and Angle Indicator — cursor physics, perimeter arc, note-label compass (completed 2026-03-04)
+- [x] Phase 33.1: Cursor/INV/LFO Fixes — 7 UI bug fixes: cursor snap, spring damping, log LFO rate, INV label/attachment swap, piano hit test, battery icon (completed 2026-03-05)
+- [x] Phase 33: Version Sync — GitHub v1.7 Latest release, installer v1.7, desktop backup (completed 2026-03-05)
 
-- [ ] **Phase 31: Paint-Only Visual Foundation** — Space background, milky way particle field, BPM-synced glow ring, semitone grid on joystick pad (completed 2026-03-04)
-- [ ] **Phase 32: Spring-Damper Inertia and Angle Indicator** — Spring-damper cursor physics, perimeter arc indicator, note-label compass at cardinal positions (completed 2026-03-04)
-- [ ] **Phase 33.1: Cursor/INV/LFO Fixes** — 7-bug fix batch: cursor center on open, INV mouse swap, lerp cursor, INV column swap, population random range, piano hit test, battery icon (completed 2026-03-05)
-- [x] **Phase 33: Version Sync** — Publish v1.7 as GitHub Latest release; update installer AppComments; mark TRIP-01/TRIP-02/DIST-05 complete; desktop backup (in progress) (completed 2026-03-05)
-**Plans:** 1 plan
-Plans:
-- [ ] 33-01-PLAN.md — Update installer AppComments, rebuild installer, mark requirements complete, create GitHub v1.7 release, desktop backup
+</details>
 
 ## Phase Details
 
@@ -310,107 +309,13 @@ Plans:
 - [x] 25-01-PLAN.md — Update .iss for v1.5 (DIMEA branding, [Messages] section, remove LicenseFile), clean Release build, recompile installer, smoke test checkpoint (completed 2026-03-02)
 - [x] 25-02-PLAN.md — Create v1.5 git tag, push to plugin remote, create GitHub pre-release, desktop backup (completed 2026-03-02)
 
----
-
-### Phase 26: Defaults and Bug Fix
-**Goal**: The plugin loads with musically sensible default octave values and Natural Minor scale on a fresh install, and the noteCount_ reference-counting clamp is removed so that single-channel mode no longer produces stuck notes when two voices land on the same pitch
-**Depends on**: Phase 25
-**Requirements**: DEF-01, DEF-02, DEF-03, DEF-04, BUG-03
-**Success Criteria** (what must be TRUE):
-  1. Loading the plugin with no saved state (fresh install or initialized preset) shows Third octave = 4, Fifth octave = 4, Tension octave = 3 in the UI — verified by checking the knob display values before any user interaction
-  2. Loading the plugin with no saved state defaults the scale preset dropdown to Natural Minor — the scale keyboard reflects the Natural Minor pattern immediately on load
-  3. In Single Channel mode, pressing two pads that produce the same MIDI pitch simultaneously and then releasing both results in exactly one note-off with no stuck note — verified in DAW MIDI monitor across all 5 note-off paths (live, looper, looper sub-octave, live sub-octave, arp choke)
-  4. All existing preset files (v1.5 and earlier) load without regression — octave and scale defaults only apply when no saved value is present
-**Plans**: 1 plan
-Plans:
-- [x] 26-01-PLAN.md — PluginProcessor.cpp: fifthOctave default 3→4, scalePreset default 0→1, remove all 13 else noteCount_ = 0 clamp branches, build + smoke test checkpoint (completed 2026-03-02)
-
-### Phase 27: Triplet Subdivisions
-**Goal**: Players can select triplet rhythms (1/1T through 1/32T) in both the random trigger and quantize subdivision selectors, enabling triplet-feel gate patterns and quantize snapping without any workarounds
-**Depends on**: Phase 26
-**Requirements**: TRIP-01, TRIP-02
-**Success Criteria** (what must be TRUE):
-  1. The random trigger subdivision selector for each voice shows 1/1T, 1/2T, 1/4T, 1/8T, 1/16T, 1/32T alongside the existing straight subdivisions — all 12 options save and reload correctly with a preset
-  2. The quantize subdivision selector shows the same 6 triplet options alongside existing straight subdivisions — quantize snapping at 1/8T produces gate events that land on the correct triplet grid when verified in a DAW piano roll
-  3. Selecting a triplet subdivision in Random Free mode with RND SYNC ON produces gate onsets spaced at exactly 2/3 of the equivalent straight note duration — confirmed against the DAW MIDI event timestamps
-**Plans**: 1 plan
-Plans:
-- [ ] 27-01-PLAN.md — Backend enum/APVTS/dispatch extension + UI ComboBox update + human timing verification
-
-### Phase 28: Random Free Redesign
-**Goal**: Random Free trigger behavior is unambiguously determined by two controls — RND SYNC and DAW Sync — so that musicians get truly stochastic timing when SYNC is off, internal-clock grid when SYNC is on, and DAW grid when DAW Sync is active
-**Depends on**: Phase 27
-**Requirements**: RND-08, RND-09, RND-10
-**Success Criteria** (what must be TRUE):
-  1. Random Free + RND SYNC OFF: gate onsets arrive at irregular, non-grid-aligned intervals — consecutive inter-onset intervals differ from one another; no two consecutive gates land on the same beat subdivision when checked in a DAW MIDI monitor
-  2. Random Free + RND SYNC ON + DAW Sync OFF: gates fire on the internal free-tempo clock grid at the selected subdivision; onset timing matches the beat clock dot period — verified by comparing onset timestamps to expected subdivision durations at the current free BPM
-  3. Random Free + DAW Sync ON: gates fire on the DAW beat grid at the selected subdivision regardless of the RND SYNC toggle state — behavior matches pre-v1.6 RND SYNC ON behavior
-**Plans**: 2 plans
-Plans:
-- [ ] 28-01-PLAN.md — TriggerSystem.h/cpp: burst arrays, Poisson clock block, RandomFree/RandomHold burst rewrite, build verification
-- [ ] 28-02-PLAN.md — Deploy VST3 + DAW smoke test checkpoint (all 3 sync matrix behaviors + burst mechanics)
-
-### Phase 29: Looper Perimeter Bar
-**Goal**: The looper progress visualization is a clockwise rectangular bar that travels around the perimeter of the Looper section box — immediately readable as a clock-face metaphor — with the section label always fully visible
-**Depends on**: Phase 26
-**Requirements**: LOOP-01, LOOP-02, LOOP-03, LOOP-04
-**Success Criteria** (what must be TRUE):
-  1. The linear progress strip below the Rec gates is gone — no horizontal bar renders in that position during looper playback
-  2. A colored bar travels clockwise around the outer edge of the Looper section rectangle at 30 Hz, completing exactly one circuit per loop cycle — observable by watching the bar complete a full lap in sync with the DAW transport
-  3. The bar starts and ends its circuit at the top-left corner (Looper label area), travels right along the top edge, down the right edge, left along the bottom edge, and up the left edge — direction confirmed by watching a slow loop (e.g. 4-bar at 60 BPM)
-  4. The "LOOPER" section label text remains fully legible at all times — the bar does not paint over or occlude the label characters at any point in the circuit
-**Plans**: 1 plan
-Plans:
-- [x] 29-01-PLAN.md — PluginEditor.cpp paint/resized/timerCallback: remove horizontal strip, add ghost ring + clockwise perimeter bar with tail and label exclusion; human visual smoke-test checkpoint (completed 2026-03-03)
-
-### Phase 30: Distribution
-**Goal**: v1.6 is publicly released on GitHub with an updated installer and backed up locally
-**Depends on**: Phase 29
-**Requirements**: DIST-05, DIST-06
-**Success Criteria** (what must be TRUE):
-  1. A GitHub release tagged `v1.6` exists with the installer binary attached and release notes listing the defaults fix, noteCount bug fix, triplet subdivisions, Random Free redesign, and looper perimeter bar
-  2. A full copy of the built plugin and installer is present on the Desktop backup location — confirmed by directory listing
-  3. The installer runs successfully on a clean machine and the plugin loads in Ableton Live with no stuck notes on first use in Single Channel mode
-**Plans**: 2 plans
-Plans:
-- [ ] 30-01-PLAN.md — Promote v1.5 to finished release, update .iss to v1.6, clean build, recompile installer, smoke test checkpoint
-- [ ] 30-02-PLAN.md — Create v1.6 git tag, push to plugin remote, create GitHub Latest release, desktop backup
-
-### Phase 31: Paint-Only Visual Foundation
-**Goal**: The joystick pad has a realistic deep-space visual identity — milky way band, density-driven starfield, heatmap overlay, semitone grid, and a beat-synced breathing cursor glow — implemented as pure paint operations with zero audio/MIDI changes
-**Depends on**: Phase 30
-**Requirements**: VIS-03, VIS-07, VIS-12
-**Plans**: 2 plans
-Plans:
-- [ ] 31-01-PLAN.md — PluginEditor.h/cpp: add resized() + new members + bake milkyWayCache_/starfield_/heatmapCache_ + rewrite paint() layers 1-6
-- [ ] 31-02-PLAN.md — JoystickPad::timerCallback() glowPhase_ advancement + PluginEditor resetGlowPhase() beat wiring + human visual checkpoint
-
-### Phase 33: Version Sync
-**Goal**: v1.7 is publicly released on GitHub as the Latest release, with the installer rebuilt with v1.7 feature text, all housekeeping requirements marked complete, and a desktop backup created
-**Depends on**: Phase 33.1 (bug fixes approved)
-**Requirements**: TRIP-01, TRIP-02, DIST-05, DIST-07, DIST-08
-**Success Criteria** (what must be TRUE):
-  1. GitHub release v1.7 exists on MiloshXhavid/Dima_Plugin_Chrdmachine, marked Latest, with DimeaArcade-ChordControl-v1.7.0-Setup.exe attached
-  2. Release notes describe all 4 v1.7 feature groups: Visual Overhaul, Joystick Physics, Gamepad SWAP/INV, Bug Fixes and Triplets
-  3. REQUIREMENTS.md shows TRIP-01, TRIP-02, DIST-05 as complete; DIST-06 as skipped; DIST-07 and DIST-08 as complete
-  4. Desktop backup at %USERPROFILE%\Desktop\Dima_plug-in\v1.7\ contains installer .exe, VST3 bundle, and source-v1.7.zip
-**Plans**: 1 plan
-Plans:
-- [ ] 33-01-PLAN.md — Update installer AppComments, rebuild installer, mark requirements complete, create GitHub v1.7 release, desktop backup
-
-
 ## Progress
 
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 01–07 | v1.0 | 17/17 | Complete | 2026-02-23 |
-| 09–11 | v1.3 | 11/11 | Complete | 2026-02-25 |
-| 12–16 | v1.4 | 9/9 | Complete | 2026-02-26 |
-| 17–25 | v1.5 | 25/25 | Complete | 2026-03-02 |
-| 26. Defaults and Bug Fix | v1.6 | Complete    | 2026-03-02 | 2026-03-02 |
-| 27. Triplet Subdivisions | v1.6 | Complete    | 2026-03-03 | - |
-| 28. Random Free Redesign | v1.6 | 1/1 | Complete | 2026-03-03 |
-| 29. Looper Perimeter Bar | v1.6 | Complete    | 2026-03-03 | 2026-03-03 |
-| 30. Distribution | 1/2 | In Progress|  | - |
-| 31. Paint-Only Visual Foundation | 2/2 | Complete    | 2026-03-04 | - |
-| 33. Version Sync | 1/1 | Complete    | 2026-03-05 | - |
+| Phase | Milestone | Status | Completed |
+|-------|-----------|--------|-----------|
+| 01–07 | v1.0 | Complete | 2026-02-23 |
+| 09–11 | v1.3 | Complete | 2026-02-25 |
+| 12–16 | v1.4 | Complete | 2026-02-26 |
+| 17–25 | v1.5 | Complete | 2026-03-02 |
+| 26–30 | v1.6 | Complete | 2026-03-03 |
+| 31–33.1 | v1.7 | Complete | 2026-03-05 |
