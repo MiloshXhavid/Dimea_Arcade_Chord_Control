@@ -1124,12 +1124,12 @@ void JoystickPad::timerCallback()
     prevCy_ = cy;
 
     // ── Phase 32: Spring-damper display position ──────────────────────────────
-    // kSpring=0.18, kDamping=0.72 → ~90ms settle at 60Hz, slight underdamp overshoot.
+    // kSpring=0.18, kDamping=0.90 → ~150ms settle at 60Hz, critically damped, no overshoot.
     // cx/cy above is the raw (LFO-aware) target pixel position (same as particle spawn origin).
     // displayCx_/Cy_ is the spring-smoothed position read by paint() for the cursor dot.
     {
         constexpr float kSpring  = 0.18f;
-        constexpr float kDamping = 0.72f;
+        constexpr float kDamping = 0.90f;  // near-critical: settles ~150ms, no overshoot
         // First-frame snap: all spring state is zero only on the very first timerCallback.
         // Snap directly to avoid springing from (0,0) at plugin load.
         if (springVelX_ == 0.0f && springVelY_ == 0.0f &&
