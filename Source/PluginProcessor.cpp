@@ -227,11 +227,15 @@ PluginProcessor::createParameterLayout()
     addInt  (ParamID::filterMidiCh, "Filter MIDI Channel",  1, 16, 1);
     {
         // X: 0=CC74, 1=CC12, 2=CC71, 3=CC76, 4=LFO-X Freq, 5=LFO-X Phase, 6=LFO-X Level, 7=Gate
-        // Y: 0=CC71, 1=CC76, 2=CC74, 3=CC12, 4=LFO-Y Freq, 5=LFO-Y Phase, 6=LFO-Y Level, 7=Gate
+        //    8=LFO-Y Freq, 9=LFO-Y Phase, 10=LFO-Y Level  (cross-LFO targets)
         juce::StringArray xModes { "Cutoff (CC74)", "VCF LFO (CC12)", "Resonance (CC71)", "LFO Rate (CC76)",
-                                    "LFO-X Freq",   "LFO-X Phase",    "LFO-X Level",      "Gate Length" };
+                                    "LFO-X Freq",   "LFO-X Phase",    "LFO-X Level",      "Gate Length",
+                                    "LFO-Y Freq",   "LFO-Y Phase",    "LFO-Y Level" };
+        // Y: 0=CC71, 1=CC76, 2=CC74, 3=CC12, 4=LFO-Y Freq, 5=LFO-Y Phase, 6=LFO-Y Level, 7=Gate
+        //    8=LFO-X Freq, 9=LFO-X Phase, 10=LFO-X Level  (cross-LFO targets)
         juce::StringArray yModes { "Resonance (CC71)", "LFO Rate (CC76)", "Cutoff (CC74)", "VCF LFO (CC12)",
-                                    "LFO-Y Freq",      "LFO-Y Phase",    "LFO-Y Level",   "Gate Length" };
+                                    "LFO-Y Freq",      "LFO-Y Phase",    "LFO-Y Level",   "Gate Length",
+                                    "LFO-X Freq",      "LFO-X Phase",    "LFO-X Level" };
         addChoice("filterXMode", "Left Stick X Mode", xModes, 2);  // default: Resonance (CC71) on X
         addChoice("filterYMode", "Left Stick Y Mode", yModes, 2);  // default: Cutoff (CC74) on Y
     }
@@ -376,7 +380,16 @@ PluginProcessor::PluginProcessor()
     };
 }
 
-PluginProcessor::~PluginProcessor() {}
+PluginProcessor::~PluginProcessor()
+{
+    // Clear the onConnectionChange callback before gamepad_ destructs.
+    // gamepad_ member destructs after pendingAllNotesOff_ / pendingCcReset_
+    // (C++ reverse-declaration-order destruction): those atomics are already
+    // gone when GamepadInput::~GamepadInput fires closeController(). Nulling
+    // the slot here makes the destructor-time callback a no-op, avoiding
+    // formally-UB store into already-destructed atomics.
+    gamepad_.onConnectionChange = nullptr;
+}
 
 // ─── Prepare ─────────────────────────────────────────────────────────────────
 
@@ -1825,13 +1838,26 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
 
         if (pendingCcReset_.exchange(false, std::memory_order_acq_rel))
         {
-            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 74, 0), 0);
-            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 71, 0), 0);
+            // Reset CCs to their base-knob resting positions, NOT to 0.
+            // Sending CC74=0 on disconnect would close the synth filter permanently
+            // (cutoff at minimum), making the synth appear silent until the user
+            // manually opens the filter again. Use 64+offset so the synth returns
+            // to whatever the MOD FIX base knob is set to.
+            const float xOff = apvts.getRawParameterValue(ParamID::filterXOffset)->load();
+            const float yOff = apvts.getRawParameterValue(ParamID::filterYOffset)->load();
+            const int ccCutRest = juce::jlimit(0, 127, (int)(64.0f + xOff));
+            const int ccResRest = juce::jlimit(0, 127, (int)(64.0f + yOff));
+            // Send to all modes' CC numbers (X and Y may map to any of these):
+            // mode 0: CC74 (cut) / CC71 (res); mode 1: CC12/CC76; etc.
+            // For CC74 and CC71, use the base-knob rest value to avoid closing the filter.
+            // For CC12, CC1, CC76 (LFO aux), send 0 (no analog base knob).
+            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 74, ccCutRest), 0);
+            midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 71, ccResRest), 0);
             midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 12, 0), 0);
             midi.addEvent(juce::MidiMessage::controllerEvent(fCh,  1, 0), 0);
             midi.addEvent(juce::MidiMessage::controllerEvent(fCh, 76, 0), 0);
-            prevCcCut_.store(0, std::memory_order_relaxed);
-            prevCcRes_.store(0, std::memory_order_relaxed);
+            prevCcCut_.store(ccCutRest, std::memory_order_relaxed);
+            prevCcRes_.store(ccResRest, std::memory_order_relaxed);
             prevLfoCcX_ = prevLfoCcY_ = -1;
         }
 
