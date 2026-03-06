@@ -8,6 +8,8 @@
 - ✅ **v1.5 Routing + Expression** — Phases 17-25 (shipped 2026-03-02)
 - ✅ **v1.6 Triplets & Fixes** — Phases 26-30 (shipped 2026-03-03)
 - ✅ **v1.7 Space Joystick** — Phases 31-33.1 (shipped 2026-03-05)
+- 🔲 **v1.8 Modulation Expansion + Arp/Looper Fixes** — Phases 34-37 (planned)
+- 🔲 **v1.9 Living Interface** — Phases 38-43 (planned)
 
 ## Phases
 
@@ -309,6 +311,126 @@ Plans:
 - [x] 25-01-PLAN.md — Update .iss for v1.5 (DIMEA branding, [Messages] section, remove LicenseFile), clean Release build, recompile installer, smoke test checkpoint (completed 2026-03-02)
 - [x] 25-02-PLAN.md — Create v1.5 git tag, push to plugin remote, create GitHub pre-release, desktop backup (completed 2026-03-02)
 
+### v1.8 Modulation Expansion + Arp/Looper Fixes
+
+**Milestone Goal:** Extend the left-joystick modulation matrix to support cross-LFO targeting (X stick → LFO-Y params, Y stick → LFO-X params), expand arp subdivisions to the full 17-item set matching Random, allow the arpeggiator to work with all trigger sources (not just TouchPlate), and fix the looper internalBeat_ double-scan bug that causes hanging notes after overdub recording.
+
+#### Phase 34: Cross-LFO Modulation Targets
+**Goal**: Left Joystick X can target LFO-Y Frequency, Phase, and Level; Left Joystick Y can target LFO-X Frequency, Phase, and Level — extending the APVTS filterXMode/filterYMode choice params from 8 to 11 items each and adding the corresponding processBlock dispatch branches.
+**Depends on**: Phase 33 (v1.7 shipped)
+**Key change**: `filterXMode`/`filterYMode` APVTS params extend from 8→11 choices. New modes 8–10 on each axis dispatch to the opposite LFO's freq/phase/level in processBlock.
+**Success Criteria**:
+  1. Left Joystick X dropdown shows 11 options including "LFO-Y Freq", "LFO-Y Phase", "LFO-Y Level" as the last three entries; same for Left Joystick Y with "LFO-X" variants
+  2. Selecting "LFO-Y Level" as the Left Joystick X target and moving the left stick left-right visibly changes the LFO Y Level slider in real time — confirmed by slider thumb movement and audible LFO depth change
+  3. Cross-LFO modulation stops emitting CC74/CC71 — no leftover filter CC messages after switching to a cross-LFO target
+  4. Existing modes 0–7 continue working unchanged on both axes; old presets with mode indices 0–7 load correctly without mapping shift
+**Plans**: 2 plans
+Plans:
+- [ ] 34-01-PLAN.md — PluginProcessor: extend APVTS to 11 items, cases 8/9/10 on both dispatch blocks, subdivMult guards, !liveGamepad sync reset
+- [ ] 34-02-PLAN.md — PluginEditor: 11-item ComboBox population + timerCallback cross-LFO visual tracking (wave 2)
+
+#### Phase 35: Arp Subdivision Expansion
+**Goal**: The arpeggiator subdivision selector is replaced with the full 17-item set already used by Random Trigger, giving players access to all straight + triplet subdivisions (1/1 through 1/32T) in the arp.
+**Depends on**: Phase 34
+**Key change**: `arpSubdiv` APVTS param (currently 6 items: 1/4, 1/8, 1/16, 1/32, 1/4T, 1/8T) is replaced with the full `kSubdivBeats[17]` array. Breaking change for old presets — acceptable per design decision.
+**Success Criteria**:
+  1. The Arp Rate dropdown shows 17 subdivision options matching the Random trigger list exactly (1/1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64, 1/1T, 1/2T, 1/4T, 1/8T, 1/16T, 1/32T, and dotted variants if present)
+  2. Selecting 1/8T in the arp with DAW sync active produces triplet-timing note steps — confirmed against DAW piano roll showing notes at 2/3 of an eighth note duration
+  3. Selecting 1/32 produces audibly faster steps than 1/16 — basic subdivision ordering is correct
+  4. Old presets saved with the 6-item arp param load without crashing; the arp rate defaults to 1/8 if the old index is out of range
+**Plans**: 1 plan
+
+#### Phase 36: Arp + All Trigger Sources
+**Goal**: The arpeggiator works with all four trigger source modes (Pad, Joystick, Random Free, Random Hold) — removing the hardcoded TouchPlate-only guard that currently forces pad mode when the arp is active.
+**Depends on**: Phase 35
+**Key change**: Remove `PluginProcessor.cpp` lines 1586–1588 (`if (arpOn) force TouchPlate`). Safe because the arp already gates on `trigger_.isGateOpen()` — no hanging notes result.
+**Success Criteria**:
+  1. With trigger source set to Joystick and arp enabled, arp steps fire while the joystick is outside the dead zone — no forced fallback to pad mode
+  2. With trigger source set to Random Free and arp enabled, arp steps fire when the random gate fires — no forced pad mode
+  3. With trigger source set to Pad (normal), arp behavior is unchanged from before this fix
+  4. No hanging notes occur in any trigger mode when the arp is disabled mid-phrase
+**Plans**: 1 plan
+
+#### Phase 37: Looper internalBeat_ Fix
+**Goal**: Fix the LooperEngine double-scan bug where resetting `internalBeat_` to 0.0 at beat boundaries causes beat-0 events to be scanned twice, producing hanging notes and "resets to beginning" artifacts after overdub recording.
+**Depends on**: Phase 36
+**Key change**: Remove `LooperEngine.cpp` line 773 (`internalBeat_ = 0.0`). One-line fix.
+**Success Criteria**:
+  1. Recording an overdub loop and letting it play back produces no extra note-ons at the loop start boundary — DAW MIDI monitor shows exactly the recorded notes, no duplicates at beat 0
+  2. The looper does not jump back to the beginning of the loop mid-phrase after an overdub recording completes
+  3. Multiple consecutive overdub records do not accumulate phantom events — each overdub adds exactly the newly played notes
+  4. Existing looper behavior (quantized record start, perimeter bar, sync) is unaffected
+**Plans**: 1 plan
+
+---
+
+### v1.9 Living Interface
+
+**Milestone Goal:** Ship v1.9 with expressive UI refinements — per-lane recording undo, smart chord display, pitch axis crosshair, velocity-based knob drag, subdivision dot indicators, warp space effect, and a proportionally resizable plugin window.
+
+#### Phase 38: Quick Fixes & Rec Lane Undo
+**Goal**: Three targeted fixes: play button stops flashing when DAW sync is armed but transport is stopped; each recording lane (Gates, Joy, Mod Whl) can be individually cleared by pressing its lit button again; LFO cross-mod level slider visually tracks when LFO X drives LFO Y's level parameter.
+**Depends on**: Phase 37
+**Success Criteria**:
+  1. In DAW Sync mode, the play button is unlit when transport is stopped and lit solid when playing — it never flashes while armed-but-stopped
+  2. Pressing Rec Gates while green immediately clears the gate buffer and turns the button gray; same behavior for Rec Joy and Rec Mod Whl independently — no cross-lane clearing
+  3. When LFO X is routed to LFO Y's Level parameter, the LFO Y Level slider thumb moves visually in real time at 30 Hz
+**Plans**: 1 plan
+
+#### Phase 39: Knob UX — Velocity Drag & Visual Indicators
+**Goal**: Knob interaction feels professional — slow drag gives fine control, fast drag sweeps broadly, hovering shows a subtle highlight, and octave/interval buttons display 12 subdivision dots instead of the red ring indicator.
+**Depends on**: Phase 38
+**Success Criteria**:
+  1. Dragging slowly (< 2 px/frame) gives fine control; dragging fast (> 10 px/frame) sweeps ~3x faster — no jump on direction reversal
+  2. Exponential moving average smooths drag values — no stepping artifacts on LFO rate, Cutoff, Resonance
+  3. Hovering any knob shows a subtle brightness lift or highlight ring; disappears on mouse leave
+  4. All 4 octave and 4 interval buttons show 12 evenly-spaced 2 px filled dots at snap positions; red position ring removed; current value shown as a brighter dot
+**Plans**: 2 plans
+
+#### Phase 40: Pitch Axis Crosshair Visualization
+**Goal**: Two subtle lines extend from the cursor to the joystick pad edges with quantized note names — giving the player immediate pitch feedback without cluttering the space visual.
+**Depends on**: Phase 38
+**Success Criteria**:
+  1. Horizontal line to Y axis: root note name above the line, third note name below — both update in real time
+  2. Vertical line to X axis: fifth note name on left side, tension note name on right — both update in real time
+  3. Lines at ~30% alpha in voice accent color; not rendered when cursor is at center or pad inactive
+  4. Note names reflect quantized pitches (post-scale quantization)
+**Plans**: 1 plan
+
+#### Phase 41: Smart Chord Display
+**Goal**: The chord display always shows the current chord quality built from the root up — inferring the third from scale when Voice 1 is not triggered — and only updating on an active trigger.
+**Depends on**: Phase 40
+**Success Criteria**:
+  1. Root from Voice 0 (Y axis); quality built upward through voices 1–3 — always root-relative (e.g. "Cm7", "Gmaj7#11", "D6")
+  2. When Voice 1 not triggered, third inferred from active scale pattern relative to root — correct minor/major quality shown
+  3. Display retains last chord name during silence — no update until next trigger fires
+  4. Correctly identifies: minor, major, dom7, maj7, m7, 6th, sus2/sus4, tension extensions (#11, b9, #9)
+**Plans**: 1 plan
+
+#### Phase 42: Warp Space Effect
+**Goal**: When the looper enters playback mode, the joystick pad background transforms into a cinematic warp tunnel with 4000ms ease-in ramp.
+**Depends on**: Phase 31 (starfield foundation)
+**Success Criteria**:
+  1. Looper play start → Z-velocity ramps to full warp over 4000ms smooth ease-in
+  2. At full warp: stars drawn as stretched lines (length ∝ speed); long edge streaks, short center dashes
+  3. Tunnel perspective: dim small at center → bright large at edge; vanishing point at center
+  4. Center axis stars shift to blue-white (#aaddff); peripheral stars warm white — radial Doppler blend
+  5. Looper stop → ramps back down over 4000ms; no sudden cut
+  6. Cursor and all UI on top; warp strictly behind joystick pad bounds
+**Plans**: 2 plans
+
+#### Phase 43: Resizable UI
+**Goal**: Plugin window resizes proportionally from 0.5x to 2.0x with locked aspect ratio — remembered across sessions.
+**Depends on**: Phase 38
+**Success Criteria**:
+  1. Dragging window corner in DAW resizes with locked aspect ratio — no overlap or distortion at any scale
+  2. At 0.5x all controls remain clickable and text readable; at 2.0x nothing overflows
+  3. Resizing produces no MIDI output or parameter changes
+  4. Scale factor persists across plugin save/load
+**Plans**: 2 plans
+
+---
+
 ## Progress
 
 | Phase | Milestone | Status | Completed |
@@ -319,3 +441,5 @@ Plans:
 | 17–25 | v1.5 | Complete | 2026-03-02 |
 | 26–30 | v1.6 | Complete | 2026-03-03 |
 | 31–33.1 | v1.7 | Complete | 2026-03-05 |
+| 34–37 | v1.8 | Planned | — |
+| 38–43 | v1.9 | Planned | — |
