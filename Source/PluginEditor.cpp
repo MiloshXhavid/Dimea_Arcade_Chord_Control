@@ -4954,6 +4954,60 @@ void PluginEditor::timerCallback()
                 default: break;
             }
         }
+        // Cross-LFO: xMode 8/9/10 drives LFO-Y sliders — guard by yPlayback (target LFO)
+        if (!yPlayback)
+        {
+            switch (xMode)
+            {
+                case 8:  // LFO-Y Freq (from X stick cross-modulation)
+                    if (!lfoYRateDragging_)
+                        lfoYRateSlider_.setValue(
+                            proc_.lfoYRateDisplay_.load(std::memory_order_relaxed),
+                            juce::dontSendNotification);
+                    break;
+                case 9:  // LFO-Y Phase (from X stick cross-modulation)
+                    if (!lfoYPhaseDragging_)
+                        lfoYPhaseSlider_.setValue(
+                            proc_.lfoYPhaseDisplay_.load(std::memory_order_relaxed),
+                            juce::dontSendNotification);
+                    break;
+                case 10: // LFO-Y Level (from X stick cross-modulation)
+                    if (!lfoYLevelDragging_)
+                        lfoYLevelSlider_.setValue(
+                            proc_.lfoYLevelDisplay_.load(std::memory_order_relaxed),
+                            juce::dontSendNotification);
+                    break;
+                default: break;
+            }
+        }
+
+        // Cross-LFO: yMode 8/9/10 drives LFO-X sliders — guard by xPlayback (target LFO)
+        if (!xPlayback)
+        {
+            switch (yMode)
+            {
+                case 8:  // LFO-X Freq (from Y stick cross-modulation)
+                    if (!lfoXRateDragging_)
+                        lfoXRateSlider_.setValue(
+                            proc_.lfoXRateDisplay_.load(std::memory_order_relaxed),
+                            juce::dontSendNotification);
+                    break;
+                case 9:  // LFO-X Phase (from Y stick cross-modulation)
+                    if (!lfoXPhaseDragging_)
+                        lfoXPhaseSlider_.setValue(
+                            proc_.lfoXPhaseDisplay_.load(std::memory_order_relaxed),
+                            juce::dontSendNotification);
+                    break;
+                case 10: // LFO-X Level (from Y stick cross-modulation)
+                    if (!lfoXLevelDragging_)
+                        lfoXLevelSlider_.setValue(
+                            proc_.lfoXLevelDisplay_.load(std::memory_order_relaxed),
+                            juce::dontSendNotification);
+                    break;
+                default: break;
+            }
+        }
+
         // MOD FIX Y knob always tracks live joystick regardless of LFO playback state.
         // Not guarded by yPlayback — should always show the live modulated position.
         if (!filterYOffsetDragging_)
