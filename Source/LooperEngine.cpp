@@ -734,6 +734,10 @@ LooperEngine::BlockOutput LooperEngine::process(const ProcessParams& p)
     const double beatAtEnd  = std::fmod(rawEnd, loopLen);
     const bool   wraps      = rawEnd >= loopLen;
 
+    // Signal a cycle wrap to the processor (playback only — not during recording).
+    if (wraps && !recording_.load(std::memory_order_relaxed))
+        out.looperCycled = true;
+
     // Activate overdub that was deferred to the next cycle boundary.
     if (recPendingNextCycle_.load(std::memory_order_relaxed) && wraps)
     {
@@ -766,16 +770,14 @@ LooperEngine::BlockOutput LooperEngine::process(const ProcessParams& p)
             const double overshoot = recordedBeats_ - loopLen;  // MUST be first: recordedBeats_ not yet cleared
             recording_.store(false, std::memory_order_relaxed);
             finaliseRecording();       // merge FIFO → playbackStore_
-            internalBeat_  = 0.0;     // free-running: restart at beat 0
             loopStartPpq_  = loopStartPpq_ + loopLen;  // DAW sync: advance anchor by exactly one loop length
             // Eliminates BUG-01: the old sentinel -1.0 caused anchorToBar() to re-floor
             // on the next block, picking the wrong bar when FP drift places ppqPosition
             // fractionally below the bar boundary.  Advancing by loopLen keeps the anchor
             // at the exact ppq that corresponds to beat 0 of the next playback cycle.
-            // overshoot is computed here for completeness; free-running mode discards it
-            // (internalBeat_ = 0.0); DAW sync mode automatically absorbs it because
-            // elapsed = ppqPosition - loopStartPpq_ will equal overshoot on the first
-            // playback block, which is the correct "already N beats into cycle" position.
+            // Both modes now absorb overshoot correctly:
+            //   Free-running: fmod at line 758 above sets internalBeat_ = overshoot
+            //   DAW sync: elapsed = ppqPosition - loopStartPpq_ = overshoot on first playback block
             (void)overshoot;
             recordedBeats_ = 0.0;
             // playing_ stays true — fall through to scan playbackStore_ this block
