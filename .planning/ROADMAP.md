@@ -8,9 +8,8 @@
 - ✅ **v1.5 Routing + Expression** — Phases 17-25 (shipped 2026-03-02)
 - ✅ **v1.6 Triplets & Fixes** — Phases 26-30 (shipped 2026-03-03)
 - ✅ **v1.7 Space Joystick** — Phases 31-33.1 (shipped 2026-03-05)
-- 🔲 **v1.8 Modulation Expansion + Arp/Looper Fixes** — Phases 34-37 (planned)
+- 🔲 **v1.8 Modulation Expansion + Arp/Looper Fixes** — Phases 34-37, 44 (planned)
 - 🔲 **v1.9 Living Interface** — Phases 38-43 (planned)
-- 🔲 **v2.0 Professional Distribution** — Phases 44+ (planned)
 
 ## Phases
 
@@ -432,13 +431,9 @@ Plans:
   4. Scale factor persists across plugin save/load
 **Plans**: 2 plans
 
-### v2.0 Professional Distribution
-
-**Milestone Goal:** Make the plugin a professional-grade, DAW-agnostic product by converting from a MIDI effect to an instrument type with silent audio output — the industry standard for MIDI generator plugins (Scaler 2, Captain Chords, Riffer). This eliminates all DAW compatibility issues while keeping Ableton and Reaper workflows intact.
-
 #### Phase 44: Instrument Type Conversion
 **Goal**: Convert the plugin from `isMidiEffect()=true` to a VST3 instrument with a silent stereo audio output bus — achieving universal DAW compatibility (Cakewalk, Logic, FL Studio, Bitwig, etc.) while preserving all existing functionality and the Ableton/Reaper workflow.
-**Depends on**: Phase 43 (v1.9 complete)
+**Depends on**: Phase 37 (v1.8 looper fix)
 **Key change**: `isMidiEffect()` → false, `isSynth()` → true, add stereo output bus (always silent), update CMakeLists plugin category to "Instrument|Fx".
 **Success Criteria**:
   1. Plugin appears in Cakewalk's instrument slot and can be inserted — no "not detected" issue
@@ -461,6 +456,5 @@ Plans:
 | 17–25 | v1.5 | Complete | 2026-03-02 |
 | 26–30 | v1.6 | Complete | 2026-03-03 |
 | 31–33.1 | v1.7 | Complete | 2026-03-05 |
-| 34–37 | v1.8 | Planned | — |
+| 34–37, 44 | v1.8 | Planned | — |
 | 38–43 | v1.9 | Planned | — |
-| 44 | v2.0 | Planned | — |
