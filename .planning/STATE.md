@@ -136,17 +136,16 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-02)
+See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** XY joystick mapped to harmonic space — per-note trigger gates, scale quantization, gesture looper with trigger quantization, gamepad control — no competitor provides this as a unified instrument.
-**Current focus:** v1.6 — Phase 30 distribution in progress (1/2 plans done)
+**Current focus:** v1.9 — Planning next milestone (Phases 38-43)
 
 ## Current Position
 
-Phase: 37-looper-internalbeat-fix — COMPLETE (1/1 plans)
-Plan: 01/01 — built, all 14 tests pass (TC 14 GREEN), DAW smoke test approved
-Status: Phase 37 complete. internalBeat_ double-scan bug fixed; regression test TC 14 added.
-Last activity: 2026-03-07 — Phase 37-01 DAW verification approved, phase closed
+Milestone v1.8 complete — all 5 phases (34, 35, 36, 37, 44), 7 plans shipped.
+Status: v1.8 archived. Next: /gsd:new-milestone for v1.9 Living Interface.
+Last activity: 2026-03-07 — v1.8 milestone completion archived
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23

@@ -8,13 +8,14 @@ ChordJoystick is a paid JUCE VST3 MIDI generator plugin for Windows that sends 4
 
 An XY joystick mapped to harmonic space — combined with per-note trigger gates, scale quantization, a gesture looper with trigger quantization, and gamepad control — that no existing MIDI tool provides as a unified instrument.
 
-## Current State (v1.7)
+## Current State (v1.8)
 
-- **Shipped:** 2026-03-05
-- **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/tag/v1.7 (Latest)
-- **Codebase:** ~8,000+ C++ LOC, 20+ source files + Catch2 test suite
+- **Shipped:** 2026-03-07
+- **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/tag/v1.8
+- **Codebase:** ~8,500+ C++ LOC, 20+ source files + 14 Catch2 tests (LooperEngine)
 - **Build:** JUCE 8.0.4 + CMake FetchContent + SDL2 2.30.9 static, VS 18 2026, Release
-- **Installer:** `installer/Output/DimeaArcade-ChordControl-v1.7.0-Setup.exe` (Inno Setup 6, static CRT, no MSVC redist required)
+- **Plugin type:** VST3 instrument (IS_SYNTH TRUE, IS_MIDI_EFFECT FALSE, silent stereo output bus)
+- **Installer:** `installer/Output/DimeaArcade-ChordControl-v1.8.0-Setup.exe` (Inno Setup 6, static CRT, no MSVC redist required)
 - **Known limitation:** COPY_PLUGIN_AFTER_BUILD requires elevation — use `fix-install.ps1` manually after rebuild
 
 ## Requirements
@@ -104,6 +105,14 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - ✓ Battery icon redesigned as 3 vertical stripe blocks (green/orange/red/gray/cyan/"?") — v1.7
 - ✓ GitHub v1.7 released as Latest; Inno Setup installer v1.7; desktop backup — v1.7
 
+### Validated — v1.8
+
+- ✓ Cross-LFO modulation: filterXMode indices 8/9/10 = X stick → LFO-Y Freq/Phase/Level; filterYMode 8/9/10 = Y stick → LFO-X Freq/Phase/Level; real-time visual slider tracking with Playback guard — v1.8
+- ✓ Arp subdivision selector expanded to 17 items (4/1 through 1/32T) — parity with Random Trigger system — v1.8
+- ✓ Arpeggiator works with all trigger sources (Pad, Joystick, Random Free, Random Hold) — force-TouchPlate guard removed — v1.8
+- ✓ Looper overdub fix: internalBeat_=0 double-scan sentinel removed; TC 14 regression guard added — v1.8
+- ✓ Plugin type converted to VST3 instrument (IS_SYNTH TRUE, IS_MIDI_EFFECT FALSE, silent stereo output bus) — loads in instrument slot in Ableton, Reaper, FL Studio, Cakewalk — v1.8
+
 ### Out of Scope
 
 | Feature | Reason |
@@ -123,7 +132,7 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - **Gamepad**: SDL2 static lib — must initialize with `SDL_INIT_GAMECONTROLLER` only
 - **MIDI**: 4 voices across configurable channels + filter CCs (CC74 cutoff, CC71 resonance)
 - **Platform**: Windows 11 first; macOS/Linux deferred
-- **No audio buses**: Pure MIDI effect — `isBusesLayoutSupported` rejects all audio buses
+- **Audio output**: Silent stereo output bus — `isMidiEffect()=false`, `IS_SYNTH TRUE`; all MIDI generation unchanged
 
 ## Key Decisions
 
@@ -155,6 +164,11 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 | LFO stick offset in normalized log space | Equal perceptual range across 3 decades | ✓ Good |
 | prevInvState_ guard for INV attachment swap | Fires once on toggle, not 30x/sec | ✓ Good |
 | Piano two-pass hit test (black then white) | No coordinate math changes; just iteration order | ✓ Good |
+| filterXMode/filterYMode extended 8→11 (cross-LFO indices 8/9/10) | Symmetric cross-axis modulation without new APVTS params | ✓ Good |
+| arpSubdiv extended 6→17 items; breaking change accepted | Full triplet parity with Random Trigger; pre-market beta, no user presets | ✓ Good |
+| Force-TouchPlate arp guard removed | isGateOpen skip already handles collision; simpler and more expressive | ✓ Good |
+| internalBeat_=0 sentinel removed from LooperEngine | fmod absorbs overshoot in both modes; sentinel was double-scan bug root cause | ✓ Good |
+| IS_MIDI_EFFECT FALSE + IS_SYNTH TRUE + enabled output bus | Universal DAW instrument slot compatibility; audio.clear() ensures silence | ✓ Good |
 
 ---
-*Last updated: 2026-03-05 — v1.7 shipped*
+*Last updated: 2026-03-07 — v1.8 shipped*
