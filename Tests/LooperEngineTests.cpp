@@ -85,7 +85,8 @@ TEST_CASE("LooperEngine - record gate and play back", "[looper]")
     eng.setRecGates(true);
 
     eng.startStop();   // playing_ = true
-    eng.record();      // recording_ = true
+    eng.record();      // arm recording → recordPending_ = true
+    { LooperEngine::ProcessParams pArm { 44100.0, 120.0, -1.0, 1, false }; eng.process(pArm); }  // activate recordPending_ → recording_ = true
     eng.recordGate(0.5, 0, true);    // gate-on voice 0 at beat 0.5
     eng.recordGate(1.0, 0, false);   // gate-off voice 0 at beat 1.0
     eng.record();      // stop recording → finaliseRecording() → moves to playbackStore_
@@ -107,7 +108,8 @@ TEST_CASE("LooperEngine - reset clears content", "[looper]")
 {
     LooperEngine eng;
     eng.startStop();
-    eng.record();
+    eng.record();   // arm recording → recordPending_ = true
+    { LooperEngine::ProcessParams pArm { 44100.0, 120.0, -1.0, 1, false }; eng.process(pArm); }  // activate recording
     eng.setRecGates(true);
     eng.recordGate(0.1, 1, true);
     eng.record();   // finalise
@@ -128,7 +130,8 @@ TEST_CASE("LooperEngine - deleteLoop clears content", "[looper]")
 {
     LooperEngine eng;
     eng.startStop();
-    eng.record();
+    eng.record();   // arm recording → recordPending_ = true
+    { LooperEngine::ProcessParams pArm { 44100.0, 120.0, -1.0, 1, false }; eng.process(pArm); }  // activate recording
     eng.setRecGates(true);
     eng.recordGate(0.2, 2, true);
     eng.record();
@@ -251,7 +254,8 @@ TEST_CASE("LooperEngine - punch-in preserves events at untouched beat positions"
 
     // --- FIRST PASS: record voice 0 gate-on at beat 0.5 ---
     eng.startStop();   // playing_ = true
-    eng.record();      // recording_ = true
+    eng.record();      // arm recording → recordPending_ = true
+    { LooperEngine::ProcessParams pArm { 44100.0, 120.0, -1.0, 1, false }; eng.process(pArm); }  // activate recording
     eng.recordGate(0.5, 0, true);   // voice 0 on at beat 0.5
     eng.record();      // stop recording → finaliseRecording() → playbackStore_ has 1 event
     CHECK(eng.hasContent());
@@ -262,7 +266,8 @@ TEST_CASE("LooperEngine - punch-in preserves events at untouched beat positions"
     // --- SECOND PASS (punch-in): record voice 1 gate-on at beat 2.0 ---
     // Beat 2.0 is NOT in the same beat window as 0.5 (separation = 1.5 beats >> touchRadius)
     eng.startStop();   // playing_ = true
-    eng.record();      // recording_ = true
+    eng.record();      // arm recording → recordPending_ = true
+    { LooperEngine::ProcessParams pArm { 44100.0, 120.0, -1.0, 1, false }; eng.process(pArm); }  // activate recording
     eng.recordGate(2.0, 1, true);   // voice 1 on at beat 2.0
     eng.record();      // stop recording → finaliseRecording() with punch-in merge
 
@@ -339,7 +344,8 @@ TEST_CASE("LooperEngine - loop wrap boundary fires event exactly once per cycle"
 
             // Record the event (sequential: record then play)
             eng.startStop();   // playing_ = true
-            eng.record();      // recording_ = true
+            eng.record();      // arm recording → recordPending_ = true
+            { LooperEngine::ProcessParams pArm { sampleRate, bpm, -1.0, 1, false }; eng.process(pArm); }  // activate recording
             eng.recordGate(eventBeat, 0, true);
             eng.record();      // stop recording → finaliseRecording()
             REQUIRE(eng.hasContent());
