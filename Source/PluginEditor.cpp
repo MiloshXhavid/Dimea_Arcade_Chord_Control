@@ -2873,13 +2873,21 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(arpEnabledBtn_);
     arpEnabledAtt_ = std::make_unique<ButtonAtt>(p.apvts, "arpEnabled", arpEnabledBtn_);
 
-    arpSubdivBox_.addItem("1/4",  1);
-    arpSubdivBox_.addItem("1/8T", 2);
-    arpSubdivBox_.addItem("1/8",  3);
-    arpSubdivBox_.addItem("1/16T",4);
-    arpSubdivBox_.addItem("1/16", 5);
-    arpSubdivBox_.addItem("1/32", 6);
-    arpSubdivBox_.setTooltip("ARP Rate  -  time between arpeggiator steps (1/4 to 1/32)");
+    {
+        const juce::StringArray arpSubdivChoices {
+            "4/1", "2/1",
+            "1/1", "1/1T",
+            "1/2", "1/2T",
+            "1/4", "1/4T",
+            "1/8", "1/8T",
+            "1/16", "1/16T",
+            "1/32", "1/32T",
+            "1/64",
+            "2/1T", "4/1T"
+        };
+        arpSubdivBox_.addItemList(arpSubdivChoices, 1);
+    }
+    arpSubdivBox_.setTooltip("ARP Rate  -  time between arpeggiator steps");
     styleCombo(arpSubdivBox_);
     addAndMakeVisible(arpSubdivBox_);
     styleLabel(arpSubdivLabel_, "RATE");

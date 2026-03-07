@@ -259,7 +259,15 @@ PluginProcessor::createParameterLayout()
     // ── Arpeggiator ───────────────────────────────────────────────────────────
     addBool(ParamID::arpEnabled, "Arp Enabled", false);
     addChoice(ParamID::arpSubdiv, "Arp Subdivision",
-              { "1/4", "1/8T", "1/8", "1/16T", "1/16", "1/32" }, 2);  // default: 1/8
+              { "4/1", "2/1",
+                "1/1", "1/1T",
+                "1/2", "1/2T",
+                "1/4", "1/4T",    // index 6 = default
+                "1/8", "1/8T",
+                "1/16", "1/16T",
+                "1/32", "1/32T",
+                "1/64",
+                "2/1T", "4/1T" }, 6);  // default: 1/4 (matches Random Trigger default)
     addChoice(ParamID::arpOrder, "Arp Order",
               { "Up", "Down", "Up+Down", "Down+Up", "Outer-In", "Inner-Out", "Random" }, 0);
     // arpGateTime removed in Phase 20; unified gateLength param (0.0–1.0) registered in Trigger section above
@@ -382,13 +390,19 @@ PluginProcessor::PluginProcessor()
 
 PluginProcessor::~PluginProcessor()
 {
-    // Clear the onConnectionChange callback before gamepad_ destructs.
-    // gamepad_ member destructs after pendingAllNotesOff_ / pendingCcReset_
-    // (C++ reverse-declaration-order destruction): those atomics are already
-    // gone when GamepadInput::~GamepadInput fires closeController(). Nulling
-    // the slot here makes the destructor-time callback a no-op, avoiding
-    // formally-UB store into already-destructed atomics.
-    gamepad_.onConnectionChange = nullptr;
+    // Clear both callback slots before gamepad_ destructs.
+    //
+    // onConnectionChange: gamepad_ is declared last in the private section, so it
+    // destructs first (C++ reverse-declaration-order rule). By the time
+    // GamepadInput::~GamepadInput runs closeController() and fires this callback,
+    // pendingAllNotesOff_ / pendingCcReset_ would already be destructed — UB.
+    // Nulling here makes the callback a no-op.
+    //
+    // onConnectionChangeUI: the editor destructor nulls this in normal flow, but
+    // we add a defensive null here for the case where the editor was never created
+    // or was already destroyed by another path before this destructor runs.
+    gamepad_.onConnectionChange   = nullptr;
+    gamepad_.onConnectionChangeUI = nullptr;
 }
 
 // ─── Prepare ─────────────────────────────────────────────────────────────────
@@ -411,9 +425,70 @@ void PluginProcessor::prepareToPlay(double sr, int /*blockSize*/)
 
 void PluginProcessor::releaseResources()
 {
-    // Cannot write MIDI here — audio thread already stopped.
-    // Reset all gate state so next prepareToPlay starts clean.
+    // The host calls this after the last processBlock(), before the plugin is
+    // deactivated or unloaded. The audio thread is already stopped. We cannot
+    // write MIDI here, but we must reset all audio-thread-only state so that the
+    // next prepareToPlay() + processBlock() cycle starts from a known-clean state.
+    //
+    // Failure to reset these means stale noteCount_[] entries from a previous
+    // session can suppress note-offs (the count is already 0 so the decrement
+    // path that emits noteOff never fires) or cause phantom notes on first block.
+
+    // ── Gate / trigger state ──────────────────────────────────────────────────
     trigger_.resetAllGates();
+
+    // ── Note-count reference counters (single-channel routing) ───────────────
+    resetNoteCount();   // also zeros subHeldPitch_ and subOctSounding_
+
+    // ── Looper pitch snapshots ────────────────────────────────────────────────
+    looperActivePitch_.fill(-1);
+    std::fill(std::begin(looperActiveSubPitch_), std::end(looperActiveSubPitch_), -1);
+
+    // ── Arpeggiator pitch snapshot ────────────────────────────────────────────
+    arpActivePitch_      = -1;
+    arpActiveVoice_      = -1;
+    arpNoteOffRemaining_ = 0.0;
+    arpCurrentVoice_.store(-1, std::memory_order_relaxed);
+
+    // ── LFO ramp-out state ────────────────────────────────────────────────────
+    lfoXRampOut_ = 0.0f;
+    lfoYRampOut_ = 0.0f;
+
+    // ── CC dedup sentinels — force re-emit on next prepare ───────────────────
+    // -1 = force-send (not -2 which is the "never touched" on-load sentinel).
+    prevCcCut_.store(-1, std::memory_order_relaxed);
+    prevCcRes_.store(-1, std::memory_order_relaxed);
+    prevLfoCcX_ = -1;
+    prevLfoCcY_ = -1;
+
+    // ── Filter dedup sentinels — force recalculation on first block ──────────
+    prevFilterX_ = -99.0f;
+    prevFilterY_ = -99.0f;
+    prevBaseX_   = -1.0f;
+    prevBaseY_   = -1.0f;
+    prevAttenX_  = -1.0f;
+    prevAttenY_  = -1.0f;
+
+    // ── Transport edge-detect booleans ────────────────────────────────────────
+    // Reset so that the first processBlock() after re-arm sees a clean edge state
+    // and does not skip the DAW-stop allNotesOff sequence.
+    prevIsDawPlaying_      = false;
+    prevLooperWasPlaying_  = false;
+    prevLooperRecording_   = false;
+    prevDawPlaying_        = false;
+    prevArpOn_             = false;
+
+    // ── Free-tempo beat detection ─────────────────────────────────────────────
+    sampleCounter_ = 0;
+    prevBeatCount_ = -1.0;
+
+    // ── LFO instant-capture countdown ────────────────────────────────────────
+    lfoInstantCaptureSamplesLeft_ = 0;
+    lfoInstantCapture_.store(false, std::memory_order_relaxed);
+
+    // ── LFO mid-cycle recording flags ─────────────────────────────────────────
+    lfoXMidCycleRec_ = false;
+    lfoYMidCycleRec_ = false;
 }
 
 void PluginProcessor::processBlockBypassed(juce::AudioBuffer<float>& audio,
@@ -665,7 +740,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                     }
                 }
             }
-            { const int d = gamepad_.consumeArpRateDelta();  if (d) stepWrappingParam(apvts, "arpSubdiv", 0, 5, d); }
+            { const int d = gamepad_.consumeArpRateDelta();  if (d) stepWrappingParam(apvts, "arpSubdiv", 0, 16, d); }
             { const int d = gamepad_.consumeArpOrderDelta(); if (d) stepWrappingParam(apvts, "arpOrder",  0, 6, d); }
             if (gamepad_.consumeRndSyncToggle())
             {
@@ -1656,9 +1731,27 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
     else
     {
         // Subdivision interval in beats (1 beat = 1 quarter note).
-        // Indices: 0=1/4, 1=1/8T, 2=1/8, 3=1/16T, 4=1/16, 5=1/32
-        static const double kSubdivBeats[] = { 1.0, 1.0/3.0, 0.5, 1.0/6.0, 0.25, 0.125 };
-        const int subdivIdx = juce::jlimit(0, 5,
+        // Indices match RandomSubdiv enum + randomSubdivN APVTS ordering (Phase 35)
+        static const double kSubdivBeats[17] = {
+            16.0,        // 0: 4/1
+            8.0,         // 1: 2/1
+            4.0,         // 2: 1/1
+            8.0/3.0,     // 3: 1/1T
+            2.0,         // 4: 1/2
+            4.0/3.0,     // 5: 1/2T
+            1.0,         // 6: 1/4  (default)
+            2.0/3.0,     // 7: 1/4T
+            0.5,         // 8: 1/8
+            1.0/3.0,     // 9: 1/8T
+            0.25,        // 10: 1/16
+            1.0/6.0,     // 11: 1/16T
+            0.125,       // 12: 1/32
+            1.0/12.0,    // 13: 1/32T
+            0.0625,      // 14: 1/64
+            16.0/3.0,    // 15: 2/1T
+            32.0/3.0     // 16: 4/1T
+        };
+        const int subdivIdx = juce::jlimit(0, 16,
             static_cast<int>(*apvts.getRawParameterValue(ParamID::arpSubdiv)));
         const double subdivBeats = kSubdivBeats[subdivIdx];
 
