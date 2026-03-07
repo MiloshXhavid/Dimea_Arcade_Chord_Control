@@ -113,10 +113,10 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 
 ## Current Position
 
-Phase: 44-instrument-type-conversion — Plan 01 complete
-Plan: 01/01 — all code changes committed (9ad14bf)
-Status: Phase 44 plan 01 code complete. Plugin converted from MIDI effect to instrument type. Awaiting user build + install.
-Last activity: 2026-03-07 — Phase 44-01 instrument type conversion code changes
+Phase: 44-instrument-type-conversion — COMPLETE (2/2 plans)
+Plan: 02/02 — build verified, DAW tests approved (Ableton + Reaper)
+Status: Phase 44 complete. Plugin converted to VST3 instrument type and verified in target DAWs.
+Last activity: 2026-03-07 — Phase 44-02 DAW verification approved, phase closed
 
 ```
 v1.0 MVP    [██████████] SHIPPED 2026-02-23
@@ -200,5 +200,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-07
-Stopped at: Completed 44-01-PLAN.md — all code changes committed (9ad14bf).
-Next step: User runs build32.ps1 + do-reinstall.ps1, verifies plugin appears in instrument slot in target DAWs.
+Stopped at: Completed 44-02-PLAN.md — DAW verification approved, phase 44 closed.
+Next step: Phases 34-37 (cross-LFO modulation, arp subdivision, arp trigger sources, looper fix) for v1.8 completion.
