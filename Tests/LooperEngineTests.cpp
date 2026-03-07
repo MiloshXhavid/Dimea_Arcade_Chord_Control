@@ -345,7 +345,7 @@ TEST_CASE("LooperEngine - loop wrap boundary fires event exactly once per cycle"
             // Record the event (sequential: record then play)
             eng.startStop();   // playing_ = true
             eng.record();      // arm recording → recordPending_ = true
-            { LooperEngine::ProcessParams pArm { sampleRate, bpm, -1.0, 1, false }; eng.process(pArm); }  // activate recording
+            { LooperEngine::ProcessParams pArm { 44100.0, 120.0, -1.0, 1, false }; eng.process(pArm); }  // activate recordPending_ → recording_ = true
             eng.recordGate(eventBeat, 0, true);
             eng.record();      // stop recording → finaliseRecording()
             REQUIRE(eng.hasContent());
