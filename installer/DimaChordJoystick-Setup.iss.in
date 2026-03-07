@@ -31,5 +31,5 @@ Source: "..\build\ChordJoystick_artefacts\Release\VST3\Arcade Chord Control (BET
 Type: filesandordirs; Name: "{commoncf64}\VST3\Arcade Chord Control (BETA-Test).vst3"
 
 [Messages]
-WelcomeLabel1=Welcome to DIMEA — congratulations for unlocking musical skills. Let's play some chords! Check out the Website: www.DIMEA.com
-WelcomeLabel2=Hi, I am DIMEA. I am currently no certified developer by Microsoft nor MAC OS and this Plugin is currently in Beta-Phase. That's why you will see the warning PopUP by installing this File. Ignore it ;) The Plugin will enroll with all necessary certificates once it's out for the market. How cares about these warnings anyway. Have fun exploring Harmonization and give me your feedback under dimitri.daehler@dimea.com!
+WelcomeLabel1=Welcome to Arcade Chord Control by Dimea Arcade%nVisit us at www.dimea.com
+WelcomeLabel2=This installer will place the VST3 plugin in your system VST3 folder.%n%nNote: Windows may show a SmartScreen security warning during installation. This is expected for independently published software. Click "More info" and then "Run anyway" to continue.%n%nFor support or feedback: dimitri.daehler@dimea.com
