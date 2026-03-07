@@ -367,8 +367,7 @@ PluginProcessor::createParameterLayout()
 
 PluginProcessor::PluginProcessor()
     : AudioProcessor(BusesProperties()
-          .withInput ("Input",  juce::AudioChannelSet::stereo(), false)
-          .withOutput("Output", juce::AudioChannelSet::stereo(), false)),
+          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "ChordJoystick", createParameterLayout())
 {
     gamepad_.onConnectionChange = [this](bool connected)
@@ -513,12 +512,11 @@ void PluginProcessor::processBlockBypassed(juce::AudioBuffer<float>& audio,
 
 bool PluginProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
-    // MIDI effect: buses must be disabled (0 ch) or stereo passthrough (2 ch).
-    // Ableton deactivates audio buses before loading on a MIDI track;
-    // accepting both layouts prevents kResultFalse from activateBus().
+    // Instrument: no audio input, stereo output.
+    // Accept numOut == 0 for DAWs that don't need audio from a MIDI generator.
     const int numIn  = layouts.getMainInputChannels();
     const int numOut = layouts.getMainOutputChannels();
-    return (numIn == 0 && numOut == 0) || (numIn == 2 && numOut == 2);
+    return numIn == 0 && (numOut == 0 || numOut == 2);
 }
 
 // ─── ChordParams builder ──────────────────────────────────────────────────────
