@@ -3,12 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: Modulation Expansion + Arp/Looper Fixes
 status: unknown
-last_updated: "2026-03-07T02:33:35.494Z"
+stopped_at: "37-01 checkpoint:human-verify — Tasks 1+2 committed, awaiting build+DAW approval"
+last_updated: "2026-03-07T02:55:21.308Z"
+last_activity: 2026-03-07 — Phase 44-02 DAW verification approved, phase closed
 progress:
-  total_phases: 32
-  completed_phases: 31
-  total_plans: 66
-  completed_plans: 65
+  total_phases: 26
+  completed_phases: 20
+  total_plans: 42
+  completed_plans: 42
 ---
 
 ---
@@ -201,6 +203,7 @@ Key v1.6 design decisions (locked):
 - [Phase 44]: Output bus enabled (true) in BusesProperties — instrument slot visibility in FL Studio, Cakewalk, Logic requires active output bus
 - [Phase 44]: .withInput() removed entirely — instruments don't consume audio input; inactive input bus would confuse host routing
 - [Phase 44]: isBusesLayoutSupported accepts numOut=0 — DAWs may probe with zero outputs during instrument discovery
+- [Phase 37]: Line 773 (internalBeat_=0.0) removed — fmod at line 758 already absorbs overshoot; sentinel was always wrong for free-running mode
 
 ### Pending Todos
 
@@ -212,6 +215,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-07
-Stopped at: Completed 44-02-PLAN.md — DAW verification approved, phase 44 closed.
+Last session: 2026-03-07T02:55:18.896Z
+Stopped at: 37-01 checkpoint:human-verify — Tasks 1+2 committed, awaiting build+DAW approval
 Next step: Phases 34-37 (cross-LFO modulation, arp subdivision, arp trigger sources, looper fix) for v1.8 completion.
