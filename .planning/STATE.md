@@ -1,5 +1,21 @@
 ---
 gsd_state_version: 1.0
+milestone: v1.9
+milestone_name: Living Interface
+status: unknown
+stopped_at: "Completed 38-01-PLAN.md — backend: lane-clear API, DAW atomic, looper force-stop, joy offset, trigger flash, LFO freq display"
+last_updated: "2026-03-08T00:05:52.534Z"
+last_activity: 2026-03-07 — v1.8 milestone completion archived
+progress:
+  total_phases: 21
+  completed_phases: 15
+  total_plans: 37
+  completed_plans: 36
+  percent: 97
+---
+
+---
+gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: Modulation Expansion + Arp/Looper Fixes
 status: unknown
@@ -7,7 +23,7 @@ stopped_at: Completed 37-01-PLAN.md — internalBeat_ double-scan fix built+inst
 last_updated: "2026-03-07T03:33:45.709Z"
 last_activity: 2026-03-07 — Phase 37-01 DAW verification approved, phase closed
 progress:
-  total_phases: 26
+  [██████████] 97%
   completed_phases: 20
   total_plans: 42
   completed_plans: 42
@@ -218,6 +234,8 @@ Key v1.6 design decisions (locked):
 - [Phase 44]: .withInput() removed entirely — instruments don't consume audio input; inactive input bus would confuse host routing
 - [Phase 44]: isBusesLayoutSupported accepts numOut=0 — DAWs may probe with zero outputs during instrument discovery
 - [Phase 37]: Line 773 (internalBeat_=0.0) removed — fmod at line 758 already absorbs overshoot; sentinel was always wrong for free-running mode
+- [Phase 38-quick-fixes-rec-lane-undo]: looperJoyActive/gpXs/gpYs re-read inline at looper write-back site (processBlock) because buildChordParams() is a separate function — no shared scope
+- [Phase 38-quick-fixes-rec-lane-undo]: Lane-clear pending flags use same exchange pattern as deleteRequest_/resetRequest_ at top of LooperEngine::process()
 
 ### Pending Todos
 
@@ -229,6 +247,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-07T03:32:01.020Z
-Stopped at: Completed 37-01-PLAN.md — internalBeat_ double-scan fix built+installed+DAW approved
+Last session: 2026-03-08T00:05:48.030Z
+Stopped at: Completed 38-01-PLAN.md — backend: lane-clear API, DAW atomic, looper force-stop, joy offset, trigger flash, LFO freq display
 Next step: Phases 34-37 (cross-LFO modulation, arp subdivision, arp trigger sources, looper fix) for v1.8 completion.

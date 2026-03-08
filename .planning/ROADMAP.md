@@ -329,12 +329,16 @@ Full details: `.planning/milestones/v1.8-ROADMAP.md`
 **Milestone Goal:** Ship v1.9 with expressive UI refinements — per-lane recording undo, smart chord display, pitch axis crosshair, velocity-based knob drag, subdivision dot indicators, warp space effect, and a proportionally resizable plugin window.
 
 #### Phase 38: Quick Fixes & Rec Lane Undo
-**Goal**: Three targeted fixes: play button stops flashing when DAW sync is armed but transport is stopped; each recording lane (Gates, Joy, Mod Whl) can be individually cleared by pressing its lit button again; LFO cross-mod level slider visually tracks when LFO X drives LFO Y's level parameter.
+**Goal**: Five targeted fixes: play button stops flashing when DAW sync is armed but transport is stopped; each recording lane (Gates, Joy, Mod Whl) can be individually cleared by pressing its lit button again; LFO cross-mod level slider visually tracks when LFO X drives LFO Y's level parameter; looper is force-stopped when DAW transport stops to prevent note hang on DAW close; live joystick input (mouse drag or gamepad stick) overrides looper joystick playback with equal priority.
 **Depends on**: Phase 37
 **Success Criteria**:
   1. In DAW Sync mode, the play button is unlit when transport is stopped and lit solid when playing — it never flashes while armed-but-stopped
   2. Pressing Rec Gates while green immediately clears the gate buffer and turns the button gray; same behavior for Rec Joy and Rec Mod Whl independently — no cross-lane clearing
   3. When LFO X is routed to LFO Y's Level parameter, the LFO Y Level slider thumb moves visually in real time at 30 Hz
+  4. When DAW transport stops while the looper is playing, the looper automatically stops in the same processBlock — note-offs for any active looper voices are emitted before the looper halts; closing the DAW after stopping transport leaves no stuck notes on the external synth
+  5. While actively dragging the mouse on the JoystickPad, the looper's recorded joystick positions do not override the live cursor position — the chord follows the mouse. When the gamepad right stick is deflected, it overrides the looper joystick playback identically. Releasing mouse/stick resumes looper joystick playback. Mouse and gamepad have equal priority.
+  6. The cursor burst particle effect fires for every trigger source — pad, joystick, random, looper playback, and arpeggiator — on the correct voice color. Currently looper and arp note-ons bypass voiceTriggerFlash_ and produce no burst.
+  7. When filterXMode or filterYMode is set to an LFO Freq target, the LFO Rate slider is the primary base value — MOD FIX adds a normalized offset on top of it (same additive pattern as Phase and Level targets already use). The LFO Rate slider visually tracks the combined value (base + MOD FIX + stick) whenever filterModOn is true, not only when a gamepad is active. Moving MOD FIX with no gamepad connected immediately updates the displayed rate. The fix applies to all four Freq cases: X→LFO-X, X→LFO-Y (cross), Y→LFO-Y, Y→LFO-X (cross).
 **Plans**: 1 plan
 
 #### Phase 39: Knob UX — Velocity Drag & Visual Indicators
