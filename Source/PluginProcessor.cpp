@@ -2192,7 +2192,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         case 5:  // LFO-X Phase (0–360°)
                         {
                             const float base   = apvts.getRawParameterValue(ParamID::lfoXPhase)->load();
-                            const float actual = juce::jlimit(0.0f, 360.0f, base + stick * 180.0f);
+                            const float actual = juce::jlimit(0.0f, 360.0f, base + (xOffset / 50.0f) * 180.0f + stick * 180.0f);
                             lfoXPhaseDisplay_.store(actual, std::memory_order_relaxed);
                             lfoXPhaseOverride_ = actual;
                             break;
@@ -2200,7 +2200,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         case 6:  // LFO-X Level (0–1)
                         {
                             const float base   = apvts.getRawParameterValue(ParamID::lfoXLevel)->load();
-                            const float actual = juce::jlimit(0.0f, 1.0f, base + stick * 0.5f);
+                            const float actual = juce::jlimit(0.0f, 1.0f, base + (xOffset / 50.0f) * 0.5f + stick * 0.5f);
                             lfoXLevelDisplay_.store(actual, std::memory_order_relaxed);
                             lfoXLevelOverride_ = actual;
                             break;
@@ -2233,7 +2233,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                                 const float base = apvts.getRawParameterValue(ParamID::lfoYRate)->load();
                                 const float norm = kLfoRange.convertTo0to1(base);
                                 const float actual = kLfoRange.convertFrom0to1(
-                                    juce::jlimit(0.0f, 1.0f, norm + stick * 0.5f));
+                                    juce::jlimit(0.0f, 1.0f, norm + (xOffset / 50.0f) * 0.5f + stick * 0.5f));
                                 lfoYRateDisplay_.store(actual, std::memory_order_relaxed);
                                 lfoYRateOverride_ = actual;
                             }
@@ -2243,7 +2243,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         {
                             if (lfoY_.getRecState() == LfoRecState::Playback) break;
                             const float base   = apvts.getRawParameterValue(ParamID::lfoYPhase)->load();
-                            const float actual = juce::jlimit(0.0f, 360.0f, base + stick * 180.0f);
+                            const float actual = juce::jlimit(0.0f, 360.0f, base + (xOffset / 50.0f) * 180.0f + stick * 180.0f);
                             lfoYPhaseDisplay_.store(actual, std::memory_order_relaxed);
                             lfoYPhaseOverride_ = actual;
                             break;
@@ -2252,7 +2252,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         {
                             if (lfoY_.getRecState() == LfoRecState::Playback) break;
                             const float base   = apvts.getRawParameterValue(ParamID::lfoYLevel)->load();
-                            const float actual = juce::jlimit(0.0f, 1.0f, base + stick * 0.5f);
+                            const float actual = juce::jlimit(0.0f, 1.0f, base + (xOffset / 50.0f) * 0.5f + stick * 0.5f);
                             lfoYLevelDisplay_.store(actual, std::memory_order_relaxed);
                             lfoYLevelOverride_ = actual;
                             break;
@@ -2299,7 +2299,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         case 5:  // LFO-Y Phase (0–360°)
                         {
                             const float base   = apvts.getRawParameterValue(ParamID::lfoYPhase)->load();
-                            const float actual = juce::jlimit(0.0f, 360.0f, base + stick * 180.0f);
+                            const float actual = juce::jlimit(0.0f, 360.0f, base + (yOffset / 50.0f) * 180.0f + stick * 180.0f);
                             lfoYPhaseDisplay_.store(actual, std::memory_order_relaxed);
                             lfoYPhaseOverride_ = actual;
                             break;
@@ -2307,7 +2307,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         case 6:  // LFO-Y Level (0–1)
                         {
                             const float base   = apvts.getRawParameterValue(ParamID::lfoYLevel)->load();
-                            const float actual = juce::jlimit(0.0f, 1.0f, base + stick * 0.5f);
+                            const float actual = juce::jlimit(0.0f, 1.0f, base + (yOffset / 50.0f) * 0.5f + stick * 0.5f);
                             lfoYLevelDisplay_.store(actual, std::memory_order_relaxed);
                             lfoYLevelOverride_ = actual;
                             break;
@@ -2340,7 +2340,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                                 const float base = apvts.getRawParameterValue(ParamID::lfoXRate)->load();
                                 const float norm = kLfoRange.convertTo0to1(base);
                                 const float actual = kLfoRange.convertFrom0to1(
-                                    juce::jlimit(0.0f, 1.0f, norm + stick * 0.5f));
+                                    juce::jlimit(0.0f, 1.0f, norm + (yOffset / 50.0f) * 0.5f + stick * 0.5f));
                                 lfoXRateDisplay_.store(actual, std::memory_order_relaxed);
                                 lfoXRateOverride_ = actual;
                             }
@@ -2350,7 +2350,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         {
                             if (lfoX_.getRecState() == LfoRecState::Playback) break;
                             const float base   = apvts.getRawParameterValue(ParamID::lfoXPhase)->load();
-                            const float actual = juce::jlimit(0.0f, 360.0f, base + stick * 180.0f);
+                            const float actual = juce::jlimit(0.0f, 360.0f, base + (yOffset / 50.0f) * 180.0f + stick * 180.0f);
                             lfoXPhaseDisplay_.store(actual, std::memory_order_relaxed);
                             lfoXPhaseOverride_ = actual;
                             break;
@@ -2359,7 +2359,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         {
                             if (lfoX_.getRecState() == LfoRecState::Playback) break;
                             const float base   = apvts.getRawParameterValue(ParamID::lfoXLevel)->load();
-                            const float actual = juce::jlimit(0.0f, 1.0f, base + stick * 0.5f);
+                            const float actual = juce::jlimit(0.0f, 1.0f, base + (yOffset / 50.0f) * 0.5f + stick * 0.5f);
                             lfoXLevelDisplay_.store(actual, std::memory_order_relaxed);
                             lfoXLevelOverride_ = actual;
                             break;
