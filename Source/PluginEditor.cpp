@@ -4052,23 +4052,33 @@ void PluginEditor::resized()
             auto row = col.removeFromTop(22);
             const bool xHasTarget = (lfoXSisterBox_.getSelectedId() != 1);
             lfoXSisterAttenSlider_.setVisible(xHasTarget);
+            if (xHasTarget != lfoXSisterShrunk_)
+            {
+                lfoXSisterShrunk_ = xHasTarget;
+                if (xHasTarget)
+                {
+                    lfoXSisterBox_.changeItemText(2, "Rate");
+                    lfoXSisterBox_.changeItemText(3, "Phase");
+                    lfoXSisterBox_.changeItemText(4, "Level");
+                    lfoXSisterBox_.changeItemText(5, "Dist");
+                }
+                else
+                {
+                    lfoXSisterBox_.changeItemText(2, "Sister: Rate");
+                    lfoXSisterBox_.changeItemText(3, "Sister: Phase");
+                    lfoXSisterBox_.changeItemText(4, "Sister: Level");
+                    lfoXSisterBox_.changeItemText(5, "Sister: Dist");
+                }
+                lfoXSisterBox_.setSelectedId(lfoXSisterBox_.getSelectedId(),
+                                             juce::dontSendNotification);
+            }
             if (xHasTarget)
             {
-                lfoXSisterBox_.changeItemText(2, "Rate");
-                lfoXSisterBox_.changeItemText(3, "Phase");
-                lfoXSisterBox_.changeItemText(4, "Level");
-                lfoXSisterBox_.changeItemText(5, "Dist");
                 const int half = row.getWidth() / 2;
                 lfoXSisterAttenSlider_.setBounds(row.removeFromRight(half));
             }
             else
-            {
-                lfoXSisterBox_.changeItemText(2, "Sister: Rate");
-                lfoXSisterBox_.changeItemText(3, "Sister: Phase");
-                lfoXSisterBox_.changeItemText(4, "Sister: Level");
-                lfoXSisterBox_.changeItemText(5, "Sister: Dist");
                 lfoXSisterAttenSlider_.setBounds({});
-            }
             lfoXSisterBox_.setBounds(row);
         }
         col.removeFromTop(4);
@@ -4173,23 +4183,33 @@ void PluginEditor::resized()
             auto row = col.removeFromTop(22);
             const bool yHasTarget = (lfoYSisterBox_.getSelectedId() != 1);
             lfoYSisterAttenSlider_.setVisible(yHasTarget);
+            if (yHasTarget != lfoYSisterShrunk_)
+            {
+                lfoYSisterShrunk_ = yHasTarget;
+                if (yHasTarget)
+                {
+                    lfoYSisterBox_.changeItemText(2, "Rate");
+                    lfoYSisterBox_.changeItemText(3, "Phase");
+                    lfoYSisterBox_.changeItemText(4, "Level");
+                    lfoYSisterBox_.changeItemText(5, "Dist");
+                }
+                else
+                {
+                    lfoYSisterBox_.changeItemText(2, "Sister: Rate");
+                    lfoYSisterBox_.changeItemText(3, "Sister: Phase");
+                    lfoYSisterBox_.changeItemText(4, "Sister: Level");
+                    lfoYSisterBox_.changeItemText(5, "Sister: Dist");
+                }
+                lfoYSisterBox_.setSelectedId(lfoYSisterBox_.getSelectedId(),
+                                             juce::dontSendNotification);
+            }
             if (yHasTarget)
             {
-                lfoYSisterBox_.changeItemText(2, "Rate");
-                lfoYSisterBox_.changeItemText(3, "Phase");
-                lfoYSisterBox_.changeItemText(4, "Level");
-                lfoYSisterBox_.changeItemText(5, "Dist");
                 const int half = row.getWidth() / 2;
                 lfoYSisterAttenSlider_.setBounds(row.removeFromRight(half));
             }
             else
-            {
-                lfoYSisterBox_.changeItemText(2, "Sister: Rate");
-                lfoYSisterBox_.changeItemText(3, "Sister: Phase");
-                lfoYSisterBox_.changeItemText(4, "Sister: Level");
-                lfoYSisterBox_.changeItemText(5, "Sister: Dist");
                 lfoYSisterAttenSlider_.setBounds({});
-            }
             lfoYSisterBox_.setBounds(row);
         }
         col.removeFromTop(4);

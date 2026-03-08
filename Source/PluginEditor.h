@@ -465,6 +465,7 @@ private:
     juce::String filterXCustomCcParamId_ { "filterXCustomCc" };
     juce::String filterYCustomCcParamId_ { "filterYCustomCc" };
     juce::ComboBox   lfoXSisterBox_,   lfoYSisterBox_;
+    bool             lfoXSisterShrunk_ = false, lfoYSisterShrunk_ = false;
     juce::Slider     lfoXSisterAttenSlider_, lfoYSisterAttenSlider_;
     juce::Slider     lfoXRateSlider_,  lfoYRateSlider_;
     juce::Label      lfoXSyncSubdivLabel_, lfoYSyncSubdivLabel_;
