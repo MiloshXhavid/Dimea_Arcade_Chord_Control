@@ -3186,7 +3186,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
 
     // CC Dest ComboBox
     {
-        static const juce::StringArray ccDests { "Off","CC1 - Mod Wheel","CC2 - Breath",
+        static const juce::StringArray ccDests { "MIDI CC","CC1 - Mod Wheel","CC2 - Breath",
             "CC5 - Portamento","CC7 - Volume","CC10 - Pan",
             "CC11 - Expression","CC12 - VCF LFO",
             "CC16 - GenPurp 1","CC17 - GenPurp 2",
@@ -3385,7 +3385,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
 
     // CC Dest ComboBox
     {
-        static const juce::StringArray ccDests { "Off","CC1 - Mod Wheel","CC2 - Breath",
+        static const juce::StringArray ccDests { "MIDI CC","CC1 - Mod Wheel","CC2 - Breath",
             "CC5 - Portamento","CC7 - Volume","CC10 - Pan",
             "CC11 - Expression","CC12 - VCF LFO",
             "CC16 - GenPurp 1","CC17 - GenPurp 2",
