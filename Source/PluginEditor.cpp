@@ -4548,10 +4548,9 @@ void PluginEditor::paint(juce::Graphics& g)
             (float)arpStepRowABounds_.getY(),
             (float)arpStepRowBBounds_.getBottom());
 
-        // 1px horizontal separator between row A and row B
-        g.drawHorizontalLine(arpStepRowABounds_.getBottom(),
-            (float)arpStepRowABounds_.getX(),
-            (float)arpStepRowABounds_.getRight());
+        // 2px horizontal separator between row A and row B
+        g.fillRect(arpStepRowABounds_.getX(), arpStepRowABounds_.getBottom(),
+                   arpStepRowABounds_.getWidth(), 2);
     }
 
     drawLfoPanel(triggerBoxBounds_,    "TRIGGER");
