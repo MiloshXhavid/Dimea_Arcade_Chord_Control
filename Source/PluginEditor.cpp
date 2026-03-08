@@ -282,9 +282,34 @@ void PixelLookAndFeel::drawLinearSlider(juce::Graphics& g,
     g.setColour(Clr::gateOff);
     g.fillRect(juce::Rectangle<float>(trackL, trackY, (float)width, trackH));
 
-    // Filled portion (value fill, 0 → thumb)
-    g.setColour(slider.findColour(juce::Slider::trackColourId));
-    g.fillRect(juce::Rectangle<float>(trackL, trackY, sliderPos - trackL, trackH));
+    // Filled portion — bipolar (center-out) for symmetric sliders, unipolar otherwise
+    {
+        const float sMin = (float)slider.getMinimum();
+        const float sMax = (float)slider.getMaximum();
+        const bool isBipolar = (sMin < 0.0f && sMax > 0.0f &&
+                                std::abs(sMin + sMax) < 0.01f);
+        if (isBipolar)
+        {
+            const float centerPix = trackL + (float)width * 0.5f;
+            const juce::Colour posClr(0xFFE03030);  // red  — positive attenuation
+            const juce::Colour negClr(0xFF3060FF);  // blue — negative (inverted)
+            if (sliderPos > centerPix + 1.0f)
+            {
+                g.setColour(posClr.withAlpha(0.75f));
+                g.fillRect(juce::Rectangle<float>(centerPix, trackY, sliderPos - centerPix, trackH));
+            }
+            else if (sliderPos < centerPix - 1.0f)
+            {
+                g.setColour(negClr.withAlpha(0.75f));
+                g.fillRect(juce::Rectangle<float>(sliderPos, trackY, centerPix - sliderPos, trackH));
+            }
+        }
+        else
+        {
+            g.setColour(slider.findColour(juce::Slider::trackColourId));
+            g.fillRect(juce::Rectangle<float>(trackL, trackY, sliderPos - trackL, trackH));
+        }
+    }
 
     // Modulation anchor indicator: fills from anchor (pre-modulation position) to current thumb.
     // Grows as fader moves away from anchor, shrinks back as it returns.
@@ -3217,6 +3242,23 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addAndMakeVisible(lfoXSisterBox_);
     lfoXSisterAtt_ = std::make_unique<ComboAtt>(p.apvts, "lfoXSister", lfoXSisterBox_);
 
+    // Sister attenuation slider (Phase 38.3) — hidden until dest != None
+    lfoXSisterAttenSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoXSisterAttenSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoXSisterAttenSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoXSisterAttenSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoXSisterAttenSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoXSisterAttenSlider_.setTooltip("LFO X Sister Atten  -  scales cross-modulation depth (-1..+1); negative inverts direction");
+    addChildComponent(lfoXSisterAttenSlider_);
+    lfoXSisterAttenAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoXSisterAtten", lfoXSisterAttenSlider_);
+
+    lfoXSisterBox_.onChange = [this]() {
+        const bool hasTarget = (lfoXSisterBox_.getSelectedId() != 1);
+        lfoXSisterAttenSlider_.setVisible(hasTarget);
+        resized();
+    };
+    lfoXSisterBox_.onChange();  // sync visibility from saved APVTS state on load
+
     // Sync button
     lfoXSyncBtn_.setButtonText("SYNC");
     lfoXSyncBtn_.setClickingTogglesState(true);
@@ -3402,6 +3444,23 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     lfoYSisterBox_.setTooltip("LFO Y Sister  -  route LFO Y output to modulate LFO X's selected parameter");
     addAndMakeVisible(lfoYSisterBox_);
     lfoYSisterAtt_ = std::make_unique<ComboAtt>(p.apvts, "lfoYSister", lfoYSisterBox_);
+
+    // Sister attenuation slider (Phase 38.3) — hidden until dest != None
+    lfoYSisterAttenSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    lfoYSisterAttenSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    lfoYSisterAttenSlider_.setColour(juce::Slider::thumbColourId,      Clr::highlight);
+    lfoYSisterAttenSlider_.setColour(juce::Slider::trackColourId,      Clr::accent);
+    lfoYSisterAttenSlider_.setColour(juce::Slider::backgroundColourId, Clr::gateOff);
+    lfoYSisterAttenSlider_.setTooltip("LFO Y Sister Atten  -  scales cross-modulation depth (-1..+1); negative inverts direction");
+    addChildComponent(lfoYSisterAttenSlider_);
+    lfoYSisterAttenAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoYSisterAtten", lfoYSisterAttenSlider_);
+
+    lfoYSisterBox_.onChange = [this]() {
+        const bool hasTarget = (lfoYSisterBox_.getSelectedId() != 1);
+        lfoYSisterAttenSlider_.setVisible(hasTarget);
+        resized();
+    };
+    lfoYSisterBox_.onChange();  // sync visibility from saved APVTS state on load
 
     // Sync button
     lfoYSyncBtn_.setButtonText("SYNC");
@@ -3996,8 +4055,20 @@ void PluginEditor::resized()
         }
         col.removeFromTop(4);
 
-        // Row 1c: Sister dest ComboBox
-        lfoXSisterBox_.setBounds(col.removeFromTop(22));
+        // Row 1c: Sister dest ComboBox (left 50%) + attenuation slider (right 50%, when visible)
+        {
+            auto row = col.removeFromTop(22);
+            if (lfoXSisterAttenSlider_.isVisible())
+            {
+                const int half = row.getWidth() / 2;
+                lfoXSisterAttenSlider_.setBounds(row.removeFromRight(half));
+            }
+            else
+            {
+                lfoXSisterAttenSlider_.setBounds({});
+            }
+            lfoXSisterBox_.setBounds(row);
+        }
         col.removeFromTop(4);
 
         // Row 2: Rate slider (left 34px = label, right 40px = sync subdiv label when active)
@@ -4095,8 +4166,20 @@ void PluginEditor::resized()
         }
         col.removeFromTop(4);
 
-        // Row 1c: Sister dest ComboBox
-        lfoYSisterBox_.setBounds(col.removeFromTop(22));
+        // Row 1c: Sister dest ComboBox (left 50%) + attenuation slider (right 50%, when visible)
+        {
+            auto row = col.removeFromTop(22);
+            if (lfoYSisterAttenSlider_.isVisible())
+            {
+                const int half = row.getWidth() / 2;
+                lfoYSisterAttenSlider_.setBounds(row.removeFromRight(half));
+            }
+            else
+            {
+                lfoYSisterAttenSlider_.setBounds({});
+            }
+            lfoYSisterBox_.setBounds(row);
+        }
         col.removeFromTop(4);
 
         // Row 2: Rate slider (left 34px = label, right 40px = sync subdiv label when active)
@@ -4556,6 +4639,14 @@ void PluginEditor::paint(juce::Graphics& g)
         drawSliderLabel(lfoXPhaseSlider_.getBounds(), "Phase");
         drawSliderLabel(lfoXLevelSlider_.getBounds(), "Level");
         drawSliderLabel(lfoXDistSlider_.getBounds(),  "Dist");
+        if (lfoXSisterAttenSlider_.isVisible())
+        {
+            g.setFont(juce::Font(9.0f));
+            g.setColour(Clr::textDim);
+            const auto sb = lfoXSisterAttenSlider_.getBounds();
+            g.drawText("Att", sb.getX() + 2, sb.getY(), 18, sb.getHeight(),
+                       juce::Justification::centredLeft, false);
+        }
     }
     if (!lfoYPanelBounds_.isEmpty())
     {
@@ -4563,6 +4654,14 @@ void PluginEditor::paint(juce::Graphics& g)
         drawSliderLabel(lfoYPhaseSlider_.getBounds(), "Phase");
         drawSliderLabel(lfoYLevelSlider_.getBounds(), "Level");
         drawSliderLabel(lfoYDistSlider_.getBounds(),  "Dist");
+        if (lfoYSisterAttenSlider_.isVisible())
+        {
+            g.setFont(juce::Font(9.0f));
+            g.setColour(Clr::textDim);
+            const auto sb = lfoYSisterAttenSlider_.getBounds();
+            g.drawText("Att", sb.getX() + 2, sb.getY(), 18, sb.getHeight(),
+                       juce::Justification::centredLeft, false);
+        }
     }
 
     // ── LFO waveform visualizers ──────────────────────────────────────────────

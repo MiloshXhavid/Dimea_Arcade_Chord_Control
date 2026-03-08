@@ -465,6 +465,7 @@ private:
     juce::String filterXCustomCcParamId_ { "filterXCustomCc" };
     juce::String filterYCustomCcParamId_ { "filterYCustomCc" };
     juce::ComboBox   lfoXSisterBox_,   lfoYSisterBox_;
+    juce::Slider     lfoXSisterAttenSlider_, lfoYSisterAttenSlider_;
     juce::Slider     lfoXRateSlider_,  lfoYRateSlider_;
     juce::Label      lfoXSyncSubdivLabel_, lfoYSyncSubdivLabel_;
     juce::Slider     lfoXPhaseSlider_, lfoYPhaseSlider_;
@@ -546,6 +547,7 @@ private:
     std::unique_ptr<ComboAtt>  lfoXShapeAtt_;
     std::unique_ptr<ComboAtt>  lfoXCcDestAtt_;
     std::unique_ptr<ComboAtt>  lfoXSisterAtt_;
+    std::unique_ptr<SliderAtt> lfoXSisterAttenAtt_;
     std::unique_ptr<SliderAtt> lfoXPhaseAtt_, lfoXLevelAtt_, lfoXDistAtt_;
     std::unique_ptr<ButtonAtt> lfoXSyncAtt_, lfoXEnabledAtt_, lfoXLinkAtt_;
     // Rate slider uses SliderParameterAttachment (swap on sync toggle)
@@ -555,6 +557,7 @@ private:
     std::unique_ptr<ComboAtt>  lfoYShapeAtt_;
     std::unique_ptr<ComboAtt>  lfoYCcDestAtt_;
     std::unique_ptr<ComboAtt>  lfoYSisterAtt_;
+    std::unique_ptr<SliderAtt> lfoYSisterAttenAtt_;
     std::unique_ptr<SliderAtt> lfoYPhaseAtt_, lfoYLevelAtt_, lfoYDistAtt_;
     std::unique_ptr<ButtonAtt> lfoYSyncAtt_, lfoYEnabledAtt_, lfoYLinkAtt_;
     std::unique_ptr<juce::SliderParameterAttachment> lfoYRateAtt_;
