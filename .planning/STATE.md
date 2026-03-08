@@ -3,11 +3,27 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Living Interface
 status: unknown
+stopped_at: Completed 38.2-01-PLAN.md — TDD RED stubs for custom CC routing, CustomCcRoutingTests.cpp created and registered in CMake
+last_updated: "2026-03-08T18:12:51.795Z"
+last_activity: 2026-03-07 — v1.8 milestone completion archived
+progress:
+  total_phases: 23
+  completed_phases: 17
+  total_plans: 42
+  completed_plans: 39
+  percent: 95
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.9
+milestone_name: Living Interface
+status: unknown
 stopped_at: "Completed 38-02-PLAN.md — UI: play flash fix, rec lane 3-state colors + clear, joy sticky offset, build passed"
 last_updated: "2026-03-08T00:09:29.605Z"
 last_activity: 2026-03-07 — v1.8 milestone completion archived
 progress:
-  total_phases: 21
+  [██████████] 95%
   completed_phases: 16
   total_plans: 37
   completed_plans: 37
@@ -176,6 +192,7 @@ v1.7 Visual + Gamepad   [███░░░░░░░] Phase 31+32+33.1 code c
 
 ### Roadmap Evolution
 
+- Phase 38.1 inserted after Phase 38: Modulation Polish and CC Routing (URGENT) — custom CC dropdown, BPM editable field, additive filter CC model
 - v1.5 ended at Phase 25; v1.6 starts at Phase 26
 - v1.6 roadmap: 5 phases (26-30), 16 requirements (14 feature + 2 distribution)
 
@@ -238,6 +255,8 @@ Key v1.6 design decisions (locked):
 - [Phase 38-quick-fixes-rec-lane-undo]: Lane-clear pending flags use same exchange pattern as deleteRequest_/resetRequest_ at top of LooperEngine::process()
 - [Phase 38-quick-fixes-rec-lane-undo]: LFO cross-mod Level tracking (case 10) was already correct from 38-01 — no UI change needed in 38-02
 - [Phase 38-quick-fixes-rec-lane-undo]: JoystickPad sticky offset: spring-damper suppressed for looperJoyMode && !mouseIsDown_ — cursor snaps to effective looper+offset position without ghost oscillation
+- [Phase 38.2-01]: Tests include ../Source/CustomCcRoutingHelpers.h (not yet created) — compile error is the TDD RED gate for Wave 0
+- [Phase 38.2-01]: ccDestToNumber and resolveFilterCcMode extracted to Source/CustomCcRoutingHelpers.h in Plan 02 to keep production logic unit-testable
 
 ### Pending Todos
 
@@ -249,6 +268,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-08T00:09:22.561Z
-Stopped at: Completed 38-02-PLAN.md — UI: play flash fix, rec lane 3-state colors + clear, joy sticky offset, build passed
+Last session: 2026-03-08T18:12:51.791Z
+Stopped at: Completed 38.2-01-PLAN.md — TDD RED stubs for custom CC routing, CustomCcRoutingTests.cpp created and registered in CMake
 Next step: Phases 34-37 (cross-LFO modulation, arp subdivision, arp trigger sources, looper fix) for v1.8 completion.
