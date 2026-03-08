@@ -203,9 +203,22 @@ PluginProcessor::createParameterLayout()
             "randomSubdiv3", "Random Subdiv Tension", subdivChoices, 8));
     }
 
-    // Random clock mode
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "randomClockSync", "Random Clock Sync", false));
+    // Random sync mode — 3-state: FREE / INT / DAW
+    addChoice("randomSyncMode", "Random Sync Mode",
+              juce::StringArray { "FREE", "INT", "DAW" }, 0);
+
+    // Arp step pattern (8 cells, ON=0 / TIE=1 / OFF=2)
+    {
+        const juce::StringArray kStepStates { "ON", "TIE", "OFF" };
+        for (int i = 0; i < 8; ++i)
+            addChoice("arpStepState" + juce::String(i),
+                      "Arp Step " + juce::String(i + 1) + " State",
+                      kStepStates, 0);
+    }
+
+    // Arp pattern length (1–8 steps, combo index 0=length1, index 7=length8)
+    addChoice("arpLength", "Arp Length",
+              juce::StringArray { "1","2","3","4","5","6","7","8" }, 7);
 
     // Free-running tempo for random triggers
     layout.add(std::make_unique<juce::AudioParameterFloat>(
