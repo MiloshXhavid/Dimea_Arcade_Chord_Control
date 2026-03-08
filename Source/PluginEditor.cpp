@@ -1128,7 +1128,17 @@ void JoystickPad::timerCallback()
     // ── Cursor display position — spring-damper ──────────────────────────────
     // While dragging: snap instantly so the cursor never lags behind the mouse.
     // On release: underdamped spring (ζ≈0.45) snaps back with visible overshoot.
-    if (mouseIsDown_)
+    // Exception: when looper is playing with joystick content and mouse is up,
+    // snap cursor to effective position (looper + offset) without spring oscillation.
+    const bool looperJoyMode = proc_.looperIsPlaying() && proc_.looperHasJoystickContent();
+    if (looperJoyMode && !mouseIsDown_)
+    {
+        displayCx_  = cx;  // cx already reflects looper + offset
+        displayCy_  = cy;
+        springVelX_ = 0.0f;
+        springVelY_ = 0.0f;
+    }
+    else if (mouseIsDown_)
     {
         displayCx_  = cx;
         displayCy_  = cy;
@@ -1352,8 +1362,21 @@ void JoystickPad::updateFromMouse(const juce::MouseEvent& e)
     // INV mode: physical stick X drives logical Y axis and vice versa.
     if (*proc_.apvts.getRawParameterValue("stickInvert") > 0.5f)
         std::swap(nx, ny);
-    proc_.joystickX.store(nx);
-    proc_.joystickY.store(ny);
+
+    // When looper is playing with joystick content: set sticky offset, not direct joystick.
+    // The audio thread adds this offset on top of looper playback (additive model).
+    if (proc_.looperIsPlaying() && proc_.looperHasJoystickContent())
+    {
+        looperOffsetX_ = nx;  // nx IS the offset (center = 0 = no offset, by construction)
+        looperOffsetY_ = ny;
+        proc_.looperJoyOffsetX_.store(nx, std::memory_order_relaxed);
+        proc_.looperJoyOffsetY_.store(ny, std::memory_order_relaxed);
+    }
+    else
+    {
+        proc_.joystickX.store(nx);
+        proc_.joystickY.store(ny);
+    }
     repaint();
 }
 
@@ -1375,12 +1398,18 @@ void JoystickPad::mouseDrag(const juce::MouseEvent& e)
 void JoystickPad::mouseUp(const juce::MouseEvent&)
 {
     mouseIsDown_ = false;
+    // Sticky offset model: do NOT clear looperJoyOffsetX_/Y_ on mouseUp.
+    // The offset persists until the user clicks center or double-clicks.
 }
 void JoystickPad::mouseDoubleClick(const juce::MouseEvent& /*e*/)
 {
-    // Double-click resets joystick to exact centre (0, 0)
+    // Double-click resets joystick to exact centre (0, 0), including sticky looper offset
     proc_.joystickX.store(0.0f);
     proc_.joystickY.store(0.0f);
+    looperOffsetX_ = 0.0f;
+    looperOffsetY_ = 0.0f;
+    proc_.looperJoyOffsetX_.store(0.0f, std::memory_order_relaxed);
+    proc_.looperJoyOffsetY_.store(0.0f, std::memory_order_relaxed);
     repaint();
 }
 
@@ -2540,10 +2569,42 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     loopRecGatesBtn_.setColour(juce::TextButton::buttonColourId, Clr::gateOn.darker(0.45f));
 
     loopRecJoyBtn_.onClick = [this] {
-        proc_.looperSetRecJoy(!proc_.looperIsRecJoy());
+        const bool isRecording = proc_.looperIsRecording();
+        const bool hasContent  = proc_.looperHasJoystickContent();
+        if (!isRecording && hasContent)
+        {
+            // Playing (not recording) + has content → clear lane
+            proc_.looperClearJoyLane();
+        }
+        else if (isRecording && proc_.looperIsRecJoy())
+        {
+            // Actively recording joy → stop recording, keep captured content
+            proc_.looperSetRecJoy(false);
+        }
+        else
+        {
+            // No content and not recording → toggle rec arm as before
+            proc_.looperSetRecJoy(!proc_.looperIsRecJoy());
+        }
     };
     loopRecGatesBtn_.onClick = [this] {
-        proc_.looperSetRecGates(!proc_.looperIsRecGates());
+        const bool isRecording = proc_.looperIsRecording();
+        const bool hasContent  = proc_.looperHasGateContent();
+        if (!isRecording && hasContent)
+        {
+            // Playing (not recording) + has content → clear lane
+            proc_.looperClearGateLane();
+        }
+        else if (isRecording && proc_.looperIsRecGates())
+        {
+            // Actively recording gates → stop recording, keep captured content
+            proc_.looperSetRecGates(false);
+        }
+        else
+        {
+            // No content and not recording → toggle rec arm as before
+            proc_.looperSetRecGates(!proc_.looperIsRecGates());
+        }
     };
     loopSyncBtn_.onClick = [this] {
         const bool newVal = !proc_.looperIsSyncToDaw();
@@ -2789,7 +2850,23 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     filterRecBtn_.setColour(juce::TextButton::buttonColourId, Clr::gateOn.darker(0.45f));
     filterRecBtn_.onClick = [this]
     {
-        proc_.looperSetRecFilter(!proc_.looperIsRecFilter());
+        const bool isRecording = proc_.looperIsRecording();
+        const bool hasContent  = proc_.looperHasFilterContent();
+        if (!isRecording && hasContent)
+        {
+            // Playing (not recording) + has content → clear lane
+            proc_.looperClearFilterLane();
+        }
+        else if (isRecording && proc_.looperIsRecFilter())
+        {
+            // Actively recording filter → stop recording, keep captured content
+            proc_.looperSetRecFilter(false);
+        }
+        else
+        {
+            // No content and not recording → toggle rec arm as before
+            proc_.looperSetRecFilter(!proc_.looperIsRecFilter());
+        }
     };
     addAndMakeVisible(filterRecBtn_);
 
@@ -4733,7 +4810,10 @@ void PluginEditor::timerCallback()
     //   2. "start rec by touch" armed → blink
     //   3. ARP armed for looper (DAW sync OFF only) → blink
     // Solid when playing, off when stopped (non-sync).
-    const bool syncArmed      = proc_.looperIsSyncToDaw() && !proc_.looperIsPlaying();
+    // Only flash when transport is actually running — stopped + sync-on should show OFF.
+    const bool syncArmed      = proc_.looperIsSyncToDaw()
+                             && !proc_.looperIsPlaying()
+                             && proc_.isDawPlaying();
     const bool arpArmedForLooper = proc_.isArpWaitingForPlay() && !proc_.looperIsSyncToDaw();
     if (syncArmed || proc_.looperIsRecWaitArmed() || arpArmedForLooper)
     {
@@ -5341,19 +5421,19 @@ void PluginEditor::timerCallback()
     // Visual: OFF=dark, ON+looper-not-recording=dim lit (armed/waiting), ON+recording=bright lit.
     {
         const bool isRecording = proc_.looperIsRecording();
-        auto setRecBtnBrightness = [&](juce::TextButton& btn, bool featureOn)
+        auto setRecBtnBrightness = [&](juce::TextButton& btn, bool featureOn, bool hasContent)
         {
             btn.setToggleState(false, juce::dontSendNotification);
-            if (!featureOn)
-                btn.setColour(juce::TextButton::buttonColourId, Clr::gateOff);
-            else if (isRecording)
-                btn.setColour(juce::TextButton::buttonColourId, Clr::gateOn);
+            if (isRecording && featureOn)
+                btn.setColour(juce::TextButton::buttonColourId, Clr::gateOn);               // bright
+            else if (featureOn || hasContent)
+                btn.setColour(juce::TextButton::buttonColourId, Clr::gateOn.darker(0.45f)); // subdued
             else
-                btn.setColour(juce::TextButton::buttonColourId, Clr::gateOn.darker(0.45f));
+                btn.setColour(juce::TextButton::buttonColourId, Clr::gateOff);              // off/dark
         };
-        setRecBtnBrightness(loopRecGatesBtn_, proc_.looperIsRecGates());
-        setRecBtnBrightness(loopRecJoyBtn_,   proc_.looperIsRecJoy());
-        setRecBtnBrightness(filterRecBtn_,    proc_.looperIsRecFilter());
+        setRecBtnBrightness(loopRecGatesBtn_, proc_.looperIsRecGates(), proc_.looperHasGateContent());
+        setRecBtnBrightness(loopRecJoyBtn_,   proc_.looperIsRecJoy(),   proc_.looperHasJoystickContent());
+        setRecBtnBrightness(filterRecBtn_,    proc_.looperIsRecFilter(), proc_.looperHasFilterContent());
         // filterModBtn_ uses DAW SYNC toggle style: buttonOnColourId drives the lit state.
         filterModBtn_.setToggleState(proc_.isFilterModActive(), juce::dontSendNotification);
     }

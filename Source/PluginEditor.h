@@ -165,6 +165,10 @@ private:
     float springVelX_ = 0.0f;   // spring velocity X (pixels/frame)
     float springVelY_ = 0.0f;   // spring velocity Y (pixels/frame)
 
+    // Phase 38: sticky mouse offset when looper is playing with joystick content
+    float looperOffsetX_ = 0.0f;
+    float looperOffsetY_ = 0.0f;
+
     // INV visual rotation — smootherstep ease-in-out (9 s) + spring overshoot settle
     bool  bgRotInvLast_      = false;  // previous INV state — detects toggle
     bool  bgRotInitialized_  = false;  // false = snap on first tick (preset load, no anim)
@@ -468,6 +472,10 @@ private:
     // Enabled toggle buttons — visible ON/OFF buttons with ButtonAttachment
     juce::TextButton lfoXEnabledBtn_, lfoYEnabledBtn_;
 
+    // Cursor-link toggle: when ON (lit), LFO output is added to joystick cursor/pitch.
+    // When OFF (dim), LFO runs and sends CC but does not move the cursor.
+    juce::TextButton lfoXLinkBtn_,    lfoYLinkBtn_;
+
     // ── LFO Recording buttons (Phase 22) ──────────────────────────────────────
     // One ARM + CLR pair per LFO panel. Not APVTS-backed (transient state).
     juce::TextButton lfoXArmBtn_,   lfoYArmBtn_;
@@ -533,7 +541,7 @@ private:
     std::unique_ptr<ComboAtt>  lfoXCcDestAtt_;
     std::unique_ptr<ComboAtt>  lfoXSisterAtt_;
     std::unique_ptr<SliderAtt> lfoXPhaseAtt_, lfoXLevelAtt_, lfoXDistAtt_;
-    std::unique_ptr<ButtonAtt> lfoXSyncAtt_, lfoXEnabledAtt_;
+    std::unique_ptr<ButtonAtt> lfoXSyncAtt_, lfoXEnabledAtt_, lfoXLinkAtt_;
     // Rate slider uses SliderParameterAttachment (swap on sync toggle)
     std::unique_ptr<juce::SliderParameterAttachment> lfoXRateAtt_;
 
@@ -542,7 +550,7 @@ private:
     std::unique_ptr<ComboAtt>  lfoYCcDestAtt_;
     std::unique_ptr<ComboAtt>  lfoYSisterAtt_;
     std::unique_ptr<SliderAtt> lfoYPhaseAtt_, lfoYLevelAtt_, lfoYDistAtt_;
-    std::unique_ptr<ButtonAtt> lfoYSyncAtt_, lfoYEnabledAtt_;
+    std::unique_ptr<ButtonAtt> lfoYSyncAtt_, lfoYEnabledAtt_, lfoYLinkAtt_;
     std::unique_ptr<juce::SliderParameterAttachment> lfoYRateAtt_;
 
     // LFO/gate slider drag-in-progress flags (prevent timerCallback overriding an active drag)
