@@ -3232,7 +3232,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     };
 
     // Sister dest: LFO X output → LFO Y parameter
-    lfoXSisterBox_.addItem("SISTER LFO X", 1);
+    lfoXSisterBox_.addItem("Sister LFO X", 1);
     lfoXSisterBox_.addItem("Rate",         2);
     lfoXSisterBox_.addItem("Phase",        3);
     lfoXSisterBox_.addItem("Level",        4);
@@ -3431,7 +3431,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     };
 
     // Sister dest: LFO Y output → LFO X parameter
-    lfoYSisterBox_.addItem("SISTER LFO Y", 1);
+    lfoYSisterBox_.addItem("Sister LFO Y", 1);
     lfoYSisterBox_.addItem("Rate",         2);
     lfoYSisterBox_.addItem("Phase",        3);
     lfoYSisterBox_.addItem("Level",        4);
