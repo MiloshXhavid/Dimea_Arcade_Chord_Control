@@ -3252,24 +3252,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addChildComponent(lfoXSisterAttenSlider_);
     lfoXSisterAttenAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoXSisterAtten", lfoXSisterAttenSlider_);
 
-    lfoXSisterBox_.onChange = [this]() {
-        const bool hasTarget = (lfoXSisterBox_.getSelectedId() != 1);
-        lfoXSisterAttenSlider_.setVisible(hasTarget);
-        if (hasTarget) {
-            lfoXSisterBox_.changeItemText(1, "None");
-            lfoXSisterBox_.changeItemText(2, "Rate");
-            lfoXSisterBox_.changeItemText(3, "Phase");
-            lfoXSisterBox_.changeItemText(4, "Level");
-            lfoXSisterBox_.changeItemText(5, "Dist");
-        } else {
-            lfoXSisterBox_.changeItemText(1, "Sister: None");
-            lfoXSisterBox_.changeItemText(2, "Sister: Rate");
-            lfoXSisterBox_.changeItemText(3, "Sister: Phase");
-            lfoXSisterBox_.changeItemText(4, "Sister: Level");
-            lfoXSisterBox_.changeItemText(5, "Sister: Dist");
-        }
-        resized();
-    };
+    lfoXSisterBox_.onChange = [this]() { resized(); };
     lfoXSisterBox_.onChange();  // sync visibility from saved APVTS state on load
 
     // Sync button
@@ -3468,24 +3451,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     addChildComponent(lfoYSisterAttenSlider_);
     lfoYSisterAttenAtt_ = std::make_unique<SliderAtt>(p.apvts, "lfoYSisterAtten", lfoYSisterAttenSlider_);
 
-    lfoYSisterBox_.onChange = [this]() {
-        const bool hasTarget = (lfoYSisterBox_.getSelectedId() != 1);
-        lfoYSisterAttenSlider_.setVisible(hasTarget);
-        if (hasTarget) {
-            lfoYSisterBox_.changeItemText(1, "None");
-            lfoYSisterBox_.changeItemText(2, "Rate");
-            lfoYSisterBox_.changeItemText(3, "Phase");
-            lfoYSisterBox_.changeItemText(4, "Level");
-            lfoYSisterBox_.changeItemText(5, "Dist");
-        } else {
-            lfoYSisterBox_.changeItemText(1, "Sister: None");
-            lfoYSisterBox_.changeItemText(2, "Sister: Rate");
-            lfoYSisterBox_.changeItemText(3, "Sister: Phase");
-            lfoYSisterBox_.changeItemText(4, "Sister: Level");
-            lfoYSisterBox_.changeItemText(5, "Sister: Dist");
-        }
-        resized();
-    };
+    lfoYSisterBox_.onChange = [this]() { resized(); };
     lfoYSisterBox_.onChange();  // sync visibility from saved APVTS state on load
 
     // Sync button
@@ -4084,13 +4050,25 @@ void PluginEditor::resized()
         // Row 1c: Sister dest ComboBox (left 50%) + attenuation slider (right 50%, when visible)
         {
             auto row = col.removeFromTop(22);
-            if (lfoXSisterAttenSlider_.isVisible())
+            const bool xHasTarget = (lfoXSisterBox_.getSelectedId() != 1);
+            lfoXSisterAttenSlider_.setVisible(xHasTarget);
+            if (xHasTarget)
             {
+                lfoXSisterBox_.changeItemText(1, "None");
+                lfoXSisterBox_.changeItemText(2, "Rate");
+                lfoXSisterBox_.changeItemText(3, "Phase");
+                lfoXSisterBox_.changeItemText(4, "Level");
+                lfoXSisterBox_.changeItemText(5, "Dist");
                 const int half = row.getWidth() / 2;
                 lfoXSisterAttenSlider_.setBounds(row.removeFromRight(half));
             }
             else
             {
+                lfoXSisterBox_.changeItemText(1, "Sister: None");
+                lfoXSisterBox_.changeItemText(2, "Sister: Rate");
+                lfoXSisterBox_.changeItemText(3, "Sister: Phase");
+                lfoXSisterBox_.changeItemText(4, "Sister: Level");
+                lfoXSisterBox_.changeItemText(5, "Sister: Dist");
                 lfoXSisterAttenSlider_.setBounds({});
             }
             lfoXSisterBox_.setBounds(row);
@@ -4195,13 +4173,25 @@ void PluginEditor::resized()
         // Row 1c: Sister dest ComboBox (left 50%) + attenuation slider (right 50%, when visible)
         {
             auto row = col.removeFromTop(22);
-            if (lfoYSisterAttenSlider_.isVisible())
+            const bool yHasTarget = (lfoYSisterBox_.getSelectedId() != 1);
+            lfoYSisterAttenSlider_.setVisible(yHasTarget);
+            if (yHasTarget)
             {
+                lfoYSisterBox_.changeItemText(1, "None");
+                lfoYSisterBox_.changeItemText(2, "Rate");
+                lfoYSisterBox_.changeItemText(3, "Phase");
+                lfoYSisterBox_.changeItemText(4, "Level");
+                lfoYSisterBox_.changeItemText(5, "Dist");
                 const int half = row.getWidth() / 2;
                 lfoYSisterAttenSlider_.setBounds(row.removeFromRight(half));
             }
             else
             {
+                lfoYSisterBox_.changeItemText(1, "Sister: None");
+                lfoYSisterBox_.changeItemText(2, "Sister: Rate");
+                lfoYSisterBox_.changeItemText(3, "Sister: Phase");
+                lfoYSisterBox_.changeItemText(4, "Sister: Level");
+                lfoYSisterBox_.changeItemText(5, "Sister: Dist");
                 lfoYSisterAttenSlider_.setBounds({});
             }
             lfoYSisterBox_.setBounds(row);
