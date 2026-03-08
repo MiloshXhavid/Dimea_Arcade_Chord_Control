@@ -296,6 +296,8 @@ private:
     juce::Font       pixelFont_ { 10.0f };
 
     void timerCallback() override;
+    void mouseDown(const juce::MouseEvent& e) override;
+    void updateRndSyncButtonAppearance();
 
     // ── Joystick ──────────────────────────────────────────────────────────────
     JoystickPad joystickPad_;
@@ -352,7 +354,6 @@ private:
     juce::Label    randomSubdivLabel_;
     juce::TextButton                                                 randomSyncButton_;
     juce::Slider                                                     randomFreeTempoKnob_;
-    std::unique_ptr<juce::ButtonParameterAttachment>                 randomSyncButtonAtt_;
     std::unique_ptr<juce::SliderParameterAttachment>                 randomFreeTempoKnobAtt_;
 
     // ── Joystick threshold ────────────────────────────────────────────────────
@@ -454,6 +455,12 @@ private:
     juce::Slider     arpGateTimeKnob_;
     juce::Label      arpGateTimeLabel_;
     juce::Rectangle<int> arpBlockBounds_;  // for drawing the panel in paint()
+
+    // Phase 45 additions
+    juce::ComboBox           arpLengthBox_;           // "1".."8" LEN combo
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> arpLengthAtt_;  // APVTS attachment for arpLength
+    juce::Rectangle<int>     arpStepRowABounds_;       // cells 0–3 row rect (set in resized)
+    juce::Rectangle<int>     arpStepRowBBounds_;       // cells 4–7 row rect (set in resized)
 
     // ── LFO panels ─────────────────────────────────────────────────────────────
     juce::ComboBox   lfoXShapeBox_,    lfoYShapeBox_;

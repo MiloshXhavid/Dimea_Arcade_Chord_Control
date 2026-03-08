@@ -2474,16 +2474,24 @@ PluginEditor::PluginEditor(PluginProcessor& p)
         }
     }
 
-    // Sync toggle — compact rectangular button like the looper mode buttons
-    randomSyncButton_.setButtonText("RND SYNC");
+    // RND SYNC — 3-state cycling button: FREE / INT / DAW
     randomSyncButton_.setName("round");
-    randomSyncButton_.setClickingTogglesState(true);
-    randomSyncButton_.setToggleState(true, juce::dontSendNotification);
-    randomSyncButton_.setTooltip("Sync  -  ON: triggers fire during DAW playback only  |  OFF: use the Free BPM clock");
+    randomSyncButton_.setClickingTogglesState(false);   // manual cycling, not JUCE toggle
+    randomSyncButton_.setTooltip("Sync Mode  -  FREE: stochastic Poisson intervals  |  INT: locked to internal free BPM  |  DAW: locked to DAW beat grid");
     styleButton(randomSyncButton_);
     addAndMakeVisible(randomSyncButton_);
-    randomSyncButtonAtt_ = std::make_unique<juce::ButtonParameterAttachment>(
-        *p.apvts.getParameter("randomClockSync"), randomSyncButton_);
+    // No ButtonParameterAttachment — drive manually via onClick + timerCallback
+    randomSyncButton_.onClick = [this]()
+    {
+        if (auto* param = dynamic_cast<juce::AudioParameterChoice*>(
+                proc_.apvts.getParameter("randomSyncMode")))
+        {
+            const int next = (param->getIndex() + 1) % 3;
+            param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(next)));
+            updateRndSyncButtonAppearance();
+        }
+    };
+    updateRndSyncButtonAppearance();  // set initial text + colour from current APVTS value
 
     // Free tempo knob
     randomFreeTempoKnob_.setSliderStyle(juce::Slider::RotaryVerticalDrag);
@@ -3084,7 +3092,8 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     styleCombo(arpSubdivBox_);
     addAndMakeVisible(arpSubdivBox_);
     styleLabel(arpSubdivLabel_, "RATE");
-    addAndMakeVisible(arpSubdivLabel_);
+    // Note: arpSubdivLabel_ is NOT added to the component tree (Phase 45 layout overhaul)
+    // but must remain declared for mode1Labels[] reference in timerCallback.
     arpSubdivAtt_ = std::make_unique<ComboAtt>(p.apvts, "arpSubdiv", arpSubdivBox_);
 
     arpOrderBox_.addItem("Up",       1);
@@ -3098,7 +3107,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     styleCombo(arpOrderBox_);
     addAndMakeVisible(arpOrderBox_);
     styleLabel(arpOrderLabel_, "ORDER");
-    addAndMakeVisible(arpOrderLabel_);
+    // Note: arpOrderLabel_ is NOT added to the component tree (Phase 45 layout overhaul)
     arpOrderAtt_ = std::make_unique<ComboAtt>(p.apvts, "arpOrder", arpOrderBox_);
 
     arpGateTimeKnob_.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -3110,10 +3119,17 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     arpGateTimeKnob_.setTooltip("Gate Length  -  note-on duration as a fraction of the ARP step (0 = held manually, 1 = full step)");
     addAndMakeVisible(arpGateTimeKnob_);
     styleLabel(arpGateTimeLabel_, "GATE LEN");
-    addAndMakeVisible(arpGateTimeLabel_);
+    // Note: arpGateTimeLabel_ is NOT added to the component tree (Phase 45 layout overhaul)
     arpGateTimeAtt_ = std::make_unique<SliderAtt>(p.apvts, "gateLength", arpGateTimeKnob_);
     arpGateTimeKnob_.onDragStart = [this] { gateDragging_ = true;  };
     arpGateTimeKnob_.onDragEnd   = [this] { gateDragging_ = false; };
+
+    // LEN combo — arpLength APVTS param (index 0=length 1 … index 7=length 8)
+    arpLengthBox_.addItemList({"1","2","3","4","5","6","7","8"}, 1);
+    arpLengthBox_.setTooltip("Arp Length  -  number of pattern steps to cycle (1–8)");
+    styleCombo(arpLengthBox_);
+    addAndMakeVisible(arpLengthBox_);
+    arpLengthAtt_ = std::make_unique<ComboAtt>(p.apvts, "arpLength", arpLengthBox_);
 
     // ── LFO X panel ───────────────────────────────────────────────────────────
     // Shape ComboBox
@@ -4004,22 +4020,21 @@ void PluginEditor::resized()
 
     // Arpeggiator block — bottom-left panel
     // Layout: [ARP ON/OFF button full-width]
-    //         [RATE label | ORDER label | GATE% label]
-    //         [RATE combo | ORDER combo | GATE slider]
+    //         [step row A: cells 0–3]
+    //         [step row B: cells 4–7]
+    //         [Rate combo | Order combo | LEN combo | Gate slider]
     {
         auto r = arpBlockBounds_;
-        r.removeFromTop(14);  // clearance for drawLfoPanel knockout label on top border
-        arpEnabledBtn_.setBounds(r.removeFromTop(22));
-        r.removeFromTop(4);
-        const int third = r.getWidth() / 3;
-        auto labelRow = r.removeFromTop(14);
-        arpSubdivLabel_.setBounds(labelRow.removeFromLeft(third));
-        arpOrderLabel_ .setBounds(labelRow.removeFromLeft(third));
-        arpGateTimeLabel_.setBounds(labelRow);
-        auto comboRow = r.removeFromTop(22);
-        arpSubdivBox_    .setBounds(comboRow.removeFromLeft(third).reduced(1, 0));
-        arpOrderBox_     .setBounds(comboRow.removeFromLeft(third).reduced(1, 0));
-        arpGateTimeKnob_ .setBounds(comboRow.reduced(1, 0));
+        r.removeFromTop(14);                              // header clearance — 70px remaining
+        arpEnabledBtn_.setBounds(r.removeFromTop(20));    // ARP ON/OFF — 50px remaining
+        arpStepRowABounds_ = r.removeFromTop(14);         // cells 0–3 — 36px remaining
+        arpStepRowBBounds_ = r.removeFromTop(14);         // cells 4–7 — 22px remaining
+        const int quarter = r.getWidth() / 4;             // controls row quarters
+        auto ctrlRow = r.removeFromTop(20);               // controls row
+        arpSubdivBox_ .setBounds(ctrlRow.removeFromLeft(quarter).reduced(1, 0));
+        arpOrderBox_  .setBounds(ctrlRow.removeFromLeft(quarter).reduced(1, 0));
+        arpLengthBox_ .setBounds(ctrlRow.removeFromLeft(quarter).reduced(1, 0));
+        arpGateTimeKnob_.setBounds(ctrlRow.reduced(1, 0));
     }
 
     // ── LFO X panel layout ─────────────────────────────────────────────────────
@@ -4470,6 +4485,69 @@ void PluginEditor::paint(juce::Graphics& g)
     drawLfoPanel(lfoYPanelBounds_,    "LFO Y");
     drawLfoPanel(looperPanelBounds_,  "LOOPER");
     drawLfoPanel(arpBlockBounds_,     "ARPEGGIATOR");
+
+    // ── Arp step grid ─────────────────────────────────────────────────────────
+    if (!arpStepRowABounds_.isEmpty())
+    {
+        const int arpLen = juce::jlimit(1, 8,
+            static_cast<int>(*proc_.apvts.getRawParameterValue("arpLength")) + 1);
+        const int currentStep = proc_.arpCurrentStep_.load(std::memory_order_relaxed);
+
+        // Cell rect helper: cellIndex 0–7 → Rectangle<int>
+        auto cellRect = [&](int idx) -> juce::Rectangle<int>
+        {
+            const auto& rowBounds = (idx < 4) ? arpStepRowABounds_ : arpStepRowBBounds_;
+            const int col = idx % 4;
+            const int cellW = rowBounds.getWidth() / 4;
+            return { rowBounds.getX() + col * cellW, rowBounds.getY(), cellW - 1, rowBounds.getHeight() };
+        };
+
+        for (int i = 0; i < 8; ++i)
+        {
+            const int state = static_cast<int>(
+                *proc_.apvts.getRawParameterValue("arpStepState" + juce::String(i)));
+            const bool active = (i < arpLen);
+            const float alpha = active ? 1.0f : 0.4f;
+            const auto cell = cellRect(i);
+
+            if (state == 0)  // ON
+            {
+                g.setColour(Clr::gateOn.withAlpha(alpha));
+                g.fillRect(cell);
+            }
+            else if (state == 1)  // TIE
+            {
+                g.setColour(Clr::gateOn.darker(0.5f).withAlpha(alpha));
+                g.fillRect(cell);
+                // Horizontal connecting bar (2px tall, centred vertically)
+                const int barY = cell.getCentreY() - 1;
+                g.setColour(Clr::gateOn.withAlpha(alpha));
+                g.fillRect(cell.getX(), barY, cell.getWidth() + 1, 2);
+            }
+            else  // OFF (state == 2)
+            {
+                g.setColour(Clr::gateOff.darker(0.2f).withAlpha(alpha));
+                g.fillRect(cell);
+                g.setColour(Clr::textDim.withAlpha(alpha));
+                g.drawRect(cell, 1);
+            }
+
+            // Active step highlight: bright 2px top border on the current step
+            if (i == currentStep && active)
+            {
+                g.setColour(juce::Colours::white.withAlpha(0.7f));
+                g.fillRect(cell.getX(), cell.getY(), cell.getWidth(), 2);
+            }
+        }
+
+        // 1px vertical separator between the two rows (visual grouping)
+        g.setColour(Clr::textDim.withAlpha(0.5f));
+        const int sepX = arpStepRowABounds_.getX() + arpStepRowABounds_.getWidth() / 2;
+        g.drawVerticalLine(sepX,
+            (float)arpStepRowABounds_.getY(),
+            (float)arpStepRowBBounds_.getBottom());
+    }
+
     drawLfoPanel(triggerBoxBounds_,    "TRIGGER");
     drawLfoPanel(modulationBoxBounds_, "MODULATION");
     drawLfoPanel(routingBoxBounds_,    "ROUTING");
@@ -5903,4 +5981,71 @@ void PluginEditor::timerCallback()
         chordNameLabel_.setText(computeChordName(pitches.data()), juce::dontSendNotification);
     }
 
+    // ── RND SYNC button appearance sync ──────────────────────────────────────
+    // Handles external state changes (DAW automation, preset load, gamepad toggle).
+    updateRndSyncButtonAppearance();
+
+    // ── Arp step grid repaint — triggers on current step change ──────────────
+    {
+        static int lastStep = -1;
+        const int curStep = proc_.arpCurrentStep_.load(std::memory_order_relaxed);
+        if (curStep != lastStep)
+        {
+            lastStep = curStep;
+            repaint(arpBlockBounds_);
+        }
+    }
+
+}
+
+// ── Step grid mouse hit-test ───────────────────────────────────────────────
+void PluginEditor::mouseDown(const juce::MouseEvent& e)
+{
+    // Only handle clicks within the arp step grid rows
+    const bool inRowA = arpStepRowABounds_.contains(e.getPosition());
+    const bool inRowB = arpStepRowBBounds_.contains(e.getPosition());
+    if (!inRowA && !inRowB)
+        return;
+
+    // Determine which cell was clicked
+    const auto& rowBounds = inRowA ? arpStepRowABounds_ : arpStepRowBBounds_;
+    const int rowOffset   = inRowA ? 0 : 4;
+    const int cellW       = rowBounds.getWidth() / 4;
+    const int col         = juce::jlimit(0, 3,
+        (e.getPosition().x - rowBounds.getX()) / cellW);
+    const int cellIndex   = rowOffset + col;
+
+    // Cycle state: ON(0) → TIE(1) → OFF(2) → ON(0)
+    if (auto* param = dynamic_cast<juce::AudioParameterChoice*>(
+            proc_.apvts.getParameter("arpStepState" + juce::String(cellIndex))))
+    {
+        const int next = (param->getIndex() + 1) % 3;
+        param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(next)));
+    }
+    repaint(arpStepRowABounds_.getUnion(arpStepRowBBounds_));
+}
+
+// ── RND SYNC button appearance helper ─────────────────────────────────────
+void PluginEditor::updateRndSyncButtonAppearance()
+{
+    const int mode = static_cast<int>(
+        *proc_.apvts.getRawParameterValue("randomSyncMode"));
+    if (mode == 1)  // INT
+    {
+        randomSyncButton_.setButtonText("INT");
+        randomSyncButton_.setColour(juce::TextButton::buttonColourId,   Clr::gateOn);
+        randomSyncButton_.setColour(juce::TextButton::buttonOnColourId, Clr::gateOn);
+    }
+    else if (mode == 2)  // DAW
+    {
+        randomSyncButton_.setButtonText("DAW");
+        randomSyncButton_.setColour(juce::TextButton::buttonColourId,   juce::Colours::cornflowerblue);
+        randomSyncButton_.setColour(juce::TextButton::buttonOnColourId, juce::Colours::cornflowerblue);
+    }
+    else  // FREE (mode == 0)
+    {
+        randomSyncButton_.setButtonText("FREE");
+        randomSyncButton_.setColour(juce::TextButton::buttonColourId,   Clr::gateOff);
+        randomSyncButton_.setColour(juce::TextButton::buttonOnColourId, Clr::gateOff);
+    }
 }
