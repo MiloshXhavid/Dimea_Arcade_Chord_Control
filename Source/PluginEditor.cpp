@@ -3232,11 +3232,11 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     };
 
     // Sister dest: LFO X output → LFO Y parameter
-    lfoXSisterBox_.addItem("Sister: None",  1);
-    lfoXSisterBox_.addItem("Sister: Rate",  2);
-    lfoXSisterBox_.addItem("Sister: Phase", 3);
-    lfoXSisterBox_.addItem("Sister: Level", 4);
-    lfoXSisterBox_.addItem("Sister: Dist",  5);
+    lfoXSisterBox_.addItem("Sister: None", 1);
+    lfoXSisterBox_.addItem("Rate",         2);
+    lfoXSisterBox_.addItem("Phase",        3);
+    lfoXSisterBox_.addItem("Level",        4);
+    lfoXSisterBox_.addItem("Dist",         5);
     styleCombo(lfoXSisterBox_);
     lfoXSisterBox_.setTooltip("LFO X Sister  -  route LFO X output to modulate LFO Y's selected parameter");
     addAndMakeVisible(lfoXSisterBox_);
@@ -3431,11 +3431,11 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     };
 
     // Sister dest: LFO Y output → LFO X parameter
-    lfoYSisterBox_.addItem("Sister: None",  1);
-    lfoYSisterBox_.addItem("Sister: Rate",  2);
-    lfoYSisterBox_.addItem("Sister: Phase", 3);
-    lfoYSisterBox_.addItem("Sister: Level", 4);
-    lfoYSisterBox_.addItem("Sister: Dist",  5);
+    lfoYSisterBox_.addItem("Sister: None", 1);
+    lfoYSisterBox_.addItem("Rate",         2);
+    lfoYSisterBox_.addItem("Phase",        3);
+    lfoYSisterBox_.addItem("Level",        4);
+    lfoYSisterBox_.addItem("Dist",         5);
     styleCombo(lfoYSisterBox_);
     lfoYSisterBox_.setTooltip("LFO Y Sister  -  route LFO Y output to modulate LFO X's selected parameter");
     addAndMakeVisible(lfoYSisterBox_);
@@ -4052,26 +4052,6 @@ void PluginEditor::resized()
             auto row = col.removeFromTop(22);
             const bool xHasTarget = (lfoXSisterBox_.getSelectedId() != 1);
             lfoXSisterAttenSlider_.setVisible(xHasTarget);
-            if (xHasTarget != lfoXSisterShrunk_)
-            {
-                lfoXSisterShrunk_ = xHasTarget;
-                if (xHasTarget)
-                {
-                    lfoXSisterBox_.changeItemText(2, "Rate");
-                    lfoXSisterBox_.changeItemText(3, "Phase");
-                    lfoXSisterBox_.changeItemText(4, "Level");
-                    lfoXSisterBox_.changeItemText(5, "Dist");
-                }
-                else
-                {
-                    lfoXSisterBox_.changeItemText(2, "Sister: Rate");
-                    lfoXSisterBox_.changeItemText(3, "Sister: Phase");
-                    lfoXSisterBox_.changeItemText(4, "Sister: Level");
-                    lfoXSisterBox_.changeItemText(5, "Sister: Dist");
-                }
-                lfoXSisterBox_.setSelectedId(lfoXSisterBox_.getSelectedId(),
-                                             juce::dontSendNotification);
-            }
             if (xHasTarget)
             {
                 const int half = row.getWidth() / 2;
@@ -4183,26 +4163,6 @@ void PluginEditor::resized()
             auto row = col.removeFromTop(22);
             const bool yHasTarget = (lfoYSisterBox_.getSelectedId() != 1);
             lfoYSisterAttenSlider_.setVisible(yHasTarget);
-            if (yHasTarget != lfoYSisterShrunk_)
-            {
-                lfoYSisterShrunk_ = yHasTarget;
-                if (yHasTarget)
-                {
-                    lfoYSisterBox_.changeItemText(2, "Rate");
-                    lfoYSisterBox_.changeItemText(3, "Phase");
-                    lfoYSisterBox_.changeItemText(4, "Level");
-                    lfoYSisterBox_.changeItemText(5, "Dist");
-                }
-                else
-                {
-                    lfoYSisterBox_.changeItemText(2, "Sister: Rate");
-                    lfoYSisterBox_.changeItemText(3, "Sister: Phase");
-                    lfoYSisterBox_.changeItemText(4, "Sister: Level");
-                    lfoYSisterBox_.changeItemText(5, "Sister: Dist");
-                }
-                lfoYSisterBox_.setSelectedId(lfoYSisterBox_.getSelectedId(),
-                                             juce::dontSendNotification);
-            }
             if (yHasTarget)
             {
                 const int half = row.getWidth() / 2;
