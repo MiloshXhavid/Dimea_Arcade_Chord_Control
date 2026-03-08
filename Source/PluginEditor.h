@@ -247,6 +247,112 @@ private:
     juce::Rectangle<float> noteRect(int note) const;
 };
 
+// ─── VelocityKnob ─────────────────────────────────────────────────────────────
+// Rotary slider with EMA-smoothed velocity-sensitive drag.
+// Slow drag (< 2 px/call) → 1× sensitivity; fast drag (> 10 px/call) → 3× sensitivity.
+// Shift+drag bypasses velocity and falls back to JUCE's built-in fine-tune mode.
+// Base sensitivity: 300 px for a full-range sweep at 1×.
+class VelocityKnob : public juce::Slider
+{
+public:
+    VelocityKnob() = default;
+
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        lastDragDist_ = 0.0f;
+        smoothedSpeed_ = 0.0f;
+        juce::Slider::mouseDown(e);
+    }
+
+    void mouseDrag(const juce::MouseEvent& e) override
+    {
+        if (e.mods.isShiftDown())
+        {
+            juce::Slider::mouseDrag(e);
+            lastDragDist_ = static_cast<float>(e.getDistanceFromDragStartY());
+            return;
+        }
+
+        const float cur   = static_cast<float>(e.getDistanceFromDragStartY());
+        const float delta = -(cur - lastDragDist_);   // negative Y = drag up = increase
+        lastDragDist_ = cur;
+        if (delta == 0.0f) return;
+
+        smoothedSpeed_ = kAlpha * std::abs(delta) + (1.0f - kAlpha) * smoothedSpeed_;
+        const float mult = juce::jlimit(1.0f, 3.0f,
+            1.0f + (smoothedSpeed_ - 2.0f) * (2.0f / 8.0f));
+
+        const double range = getMaximum() - getMinimum();
+        const double change = static_cast<double>(delta) * mult * range / kBasePx;
+        setValue(juce::jlimit(getMinimum(), getMaximum(), getValue() + change),
+                 juce::sendNotificationAsync);
+    }
+
+    void mouseUp(const juce::MouseEvent& e) override
+    {
+        smoothedSpeed_ = 0.0f;
+        juce::Slider::mouseUp(e);
+    }
+
+private:
+    static constexpr float kAlpha  = 0.25f;   // EMA smoothing factor
+    static constexpr float kBasePx = 300.0f;  // px for full range at 1×
+    float lastDragDist_  = 0.0f;
+    float smoothedSpeed_ = 0.0f;
+};
+
+// ─── VelocitySlider ───────────────────────────────────────────────────────────
+// Linear (horizontal) slider with the same EMA velocity-sensitive drag as VelocityKnob.
+// Used for LFO panel faders (Rate, Phase, Level, Dist, SisterAtten × 2).
+class VelocitySlider : public juce::Slider
+{
+public:
+    VelocitySlider() = default;
+
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        lastDragDist_ = 0.0f;
+        smoothedSpeed_ = 0.0f;
+        juce::Slider::mouseDown(e);
+    }
+
+    void mouseDrag(const juce::MouseEvent& e) override
+    {
+        if (e.mods.isShiftDown())
+        {
+            juce::Slider::mouseDrag(e);
+            lastDragDist_ = static_cast<float>(e.getDistanceFromDragStartX());
+            return;
+        }
+
+        const float cur   = static_cast<float>(e.getDistanceFromDragStartX());
+        const float delta = cur - lastDragDist_;    // positive X = drag right = increase
+        lastDragDist_ = cur;
+        if (delta == 0.0f) return;
+
+        smoothedSpeed_ = kAlpha * std::abs(delta) + (1.0f - kAlpha) * smoothedSpeed_;
+        const float mult = juce::jlimit(1.0f, 3.0f,
+            1.0f + (smoothedSpeed_ - 2.0f) * (2.0f / 8.0f));
+
+        const double range = getMaximum() - getMinimum();
+        const double change = static_cast<double>(delta) * mult * range / kBasePx;
+        setValue(juce::jlimit(getMinimum(), getMaximum(), getValue() + change),
+                 juce::sendNotificationAsync);
+    }
+
+    void mouseUp(const juce::MouseEvent& e) override
+    {
+        smoothedSpeed_ = 0.0f;
+        juce::Slider::mouseUp(e);
+    }
+
+private:
+    static constexpr float kAlpha  = 0.25f;
+    static constexpr float kBasePx = 300.0f;
+    float lastDragDist_  = 0.0f;
+    float smoothedSpeed_ = 0.0f;
+};
+
 // ─── PluginEditor ─────────────────────────────────────────────────────────────
 
 class PluginEditor : public juce::AudioProcessorEditor,
@@ -267,7 +373,7 @@ private:
     // Snaps drag values to only pitch classes present in the current scale.
     // scaleMask_ bit N = 1 means absolute pitch class N is in the scale (same
     // format as ScaleKeyboard::activeScaleMask_). transpose_ = globalTranspose.
-    class ScaleSnapSlider : public juce::Slider
+    class ScaleSnapSlider : public VelocityKnob
     {
     public:
         void setScaleInfo(uint16_t mask, int tr) { scaleMask_ = mask; transpose_ = tr; }
@@ -302,16 +408,16 @@ private:
     // ── Joystick ──────────────────────────────────────────────────────────────
     JoystickPad joystickPad_;
 
-    juce::Slider  joyXAttenKnob_, joyYAttenKnob_;
+    VelocityKnob  joyXAttenKnob_, joyYAttenKnob_;
     juce::Label   joyXAttenLabel_, joyYAttenLabel_;
 
     // ── Chord intervals ───────────────────────────────────────────────────────
-    juce::Slider    transposeKnob_;
+    VelocityKnob    transposeKnob_;
     ScaleSnapSlider thirdIntKnob_, fifthIntKnob_, tensionIntKnob_;
     juce::Label   transposeLabel_, thirdIntLabel_, fifthIntLabel_, tensionIntLabel_;
 
     // ── Octave offsets ────────────────────────────────────────────────────────
-    juce::Slider  rootOctKnob_, thirdOctKnob_, fifthOctKnob_, tensionOctKnob_;
+    VelocityKnob  rootOctKnob_, thirdOctKnob_, fifthOctKnob_, tensionOctKnob_;
     juce::Label   rootOctLabel_, thirdOctLabel_, fifthOctLabel_, tensionOctLabel_;
 
     // ── Touchplates ───────────────────────────────────────────────────────────
@@ -344,16 +450,16 @@ private:
     juce::Label    voiceChLabel_[4];         // "Root ch:", "Third ch:", etc.
     juce::ComboBox voiceChBox_[4];
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> voiceChAtt_[4];
-    juce::Slider   randomDensityKnob_;
+    VelocityKnob   randomDensityKnob_;
     juce::Label    randomDensityLabel_;
     juce::Label    randomProbabilityLabel_;
     std::array<juce::ComboBox, 4>                                    randomSubdivBox_;
     std::array<std::unique_ptr<juce::ComboBoxParameterAttachment>, 4> randomSubdivAtt_;
-    juce::Slider                                                     randomProbabilityKnob_;   // attaches to "randomProbability" APVTS param
+    VelocityKnob                                                     randomProbabilityKnob_;   // attaches to "randomProbability" APVTS param
     std::unique_ptr<juce::SliderParameterAttachment>                  randomProbabilityAtt_;
     juce::Label    randomSubdivLabel_;
     juce::TextButton                                                 randomSyncButton_;
-    juce::Slider                                                     randomFreeTempoKnob_;
+    VelocityKnob                                                     randomFreeTempoKnob_;
     std::unique_ptr<juce::SliderParameterAttachment>                 randomFreeTempoKnobAtt_;
 
     // ── Joystick threshold ────────────────────────────────────────────────────
@@ -412,8 +518,8 @@ private:
     juce::Rectangle<int> trigSelBounds_, randomBoxBounds_;
 
     // ── Filter (gamepad) ─────────────────────────────────────────────────────
-    juce::Slider filterXAttenKnob_,  filterYAttenKnob_;
-    juce::Slider filterXOffsetKnob_, filterYOffsetKnob_;
+    VelocityKnob filterXAttenKnob_,  filterYAttenKnob_;
+    VelocityKnob filterXOffsetKnob_, filterYOffsetKnob_;
     juce::Label  filterXAttenLabel_,  filterYAttenLabel_;
     juce::Label  filterXOffsetLabel_, filterYOffsetLabel_;
     juce::TextButton filterModBtn_;   // [FILTER MOD ON] / [FILTER MOD OFF]
@@ -452,7 +558,7 @@ private:
     juce::Label      arpSubdivLabel_;
     juce::ComboBox   arpOrderBox_;
     juce::Label      arpOrderLabel_;
-    juce::Slider     arpGateTimeKnob_;
+    VelocityKnob     arpGateTimeKnob_;
     juce::Label      arpGateTimeLabel_;
     juce::Rectangle<int> arpBlockBounds_;  // for drawing the panel in paint()
 
@@ -473,12 +579,12 @@ private:
     juce::String filterYCustomCcParamId_ { "filterYCustomCc" };
     juce::ComboBox   lfoXSisterBox_,   lfoYSisterBox_;
     bool             lfoXSisterShrunk_ = false, lfoYSisterShrunk_ = false;
-    juce::Slider     lfoXSisterAttenSlider_, lfoYSisterAttenSlider_;
-    juce::Slider     lfoXRateSlider_,  lfoYRateSlider_;
+    VelocitySlider   lfoXSisterAttenSlider_, lfoYSisterAttenSlider_;
+    VelocitySlider   lfoXRateSlider_,  lfoYRateSlider_;
     juce::Label      lfoXSyncSubdivLabel_, lfoYSyncSubdivLabel_;
-    juce::Slider     lfoXPhaseSlider_, lfoYPhaseSlider_;
-    juce::Slider     lfoXLevelSlider_, lfoYLevelSlider_;
-    juce::Slider     lfoXDistSlider_,  lfoYDistSlider_;
+    VelocitySlider   lfoXPhaseSlider_, lfoYPhaseSlider_;
+    VelocitySlider   lfoXLevelSlider_, lfoYLevelSlider_;
+    VelocitySlider   lfoXDistSlider_,  lfoYDistSlider_;
     juce::TextButton lfoXSyncBtn_,     lfoYSyncBtn_;
 
     // Panel bounds (set in resized(), drawn in paint())
