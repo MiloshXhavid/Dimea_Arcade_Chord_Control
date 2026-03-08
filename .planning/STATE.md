@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Living Interface
 status: unknown
-stopped_at: Completed 38.2-03-PLAN.md — custom CC UI labels wired, all 4 combos have Custom CC entry, VST3 build clean
-last_updated: "2026-03-08T18:57:51.571Z"
+stopped_at: Completed 44-38-3-01-PLAN.md
+last_updated: "2026-03-08T19:30:57.177Z"
 last_activity: 2026-03-07 — v1.8 milestone completion archived
 progress:
   total_phases: 25
-  completed_phases: 19
-  total_plans: 44
-  completed_plans: 44
+  completed_phases: 20
+  total_plans: 45
+  completed_plans: 45
 ---
 
 ---
@@ -278,6 +278,8 @@ Key v1.6 design decisions (locked):
 - [Phase 38.2-custom-cc-routing]: BUILD_TESTS=ON must be explicit in cmake configure — cache default was OFF, causing CustomCcRoutingTests.cpp to be excluded from vcxproj
 - [Phase 38.2-custom-cc-routing]: Custom CC combo item IDs: lfoX/Y use ID 20 (19 named CCs at 1-19); filterX/Y use ID 26 (25 named modes at 1-25)
 - [Phase 38.2-custom-cc-routing]: filterXCustomCcParamId_ / filterYCustomCcParamId_ strings swapped on INV toggle so physical labels write to the correct APVTS param after axis swap
+- [Phase 44-38-3]: APVTS param tests restructured to skip PluginProcessor instantiation — test target has no JUCE audio processor infrastructure; use inline constant checks instead
+- [Phase 44-38-3]: ATT label drawn inline via g.drawText inside paint() at slider left edge to avoid 34px-left overlap with combo box
 
 ### Pending Todos
 
@@ -289,6 +291,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-08T18:26:37.417Z
-Stopped at: Completed 38.2-03-PLAN.md — custom CC UI labels wired, all 4 combos have Custom CC entry, VST3 build clean
+Last session: 2026-03-08T19:30:52.421Z
+Stopped at: Completed 44-38-3-01-PLAN.md
 Next step: Phases 34-37 (cross-LFO modulation, arp subdivision, arp trigger sources, looper fix) for v1.8 completion.

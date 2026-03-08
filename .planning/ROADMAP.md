@@ -167,7 +167,7 @@ Plans:
 **Goal:** When a Sister LFO cross-modulation target is selected, shrink the Sister combo to half-width and show a bipolar attenuator slider (-1..+1) in the freed right half. "None" selected = full-width combo, slider hidden.
 **Requirements**: REQ-01, REQ-02, REQ-03, REQ-04, REQ-05, REQ-06, REQ-07, REQ-08
 **Depends on:** Phase 38.2
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 44-38-3-01-PLAN.md — Processor params + Editor slider construction/layout/paint + drawLinearSlider bipolar fill + Catch2 tests + UAT checkpoint
