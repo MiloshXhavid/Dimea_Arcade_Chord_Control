@@ -92,7 +92,7 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             const auto newSub = static_cast<RandomSubdiv>(anchorIdx);
             if (newSub != activeSubdiv_[v])
             {
-                if (p.randomClockSync && p.ppqPosition >= 0.0)
+                if (p.randomSyncMode >= 1 && p.ppqPosition >= 0.0)
                 {
                     const double newB = subdivBeatsFor(newSub);
                     prevSubdivIndex_[v] = static_cast<int64_t>(p.ppqPosition / newB);
@@ -109,7 +109,7 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             const auto newSub = static_cast<RandomSubdiv>(anchorIdx);
             if (newSub != activeSubdiv_[v])
             {
-                if (p.randomClockSync && p.ppqPosition >= 0.0)
+                if (p.randomSyncMode >= 1 && p.ppqPosition >= 0.0)
                 {
                     const double newB = subdivBeatsFor(newSub);
                     prevSubdivIndex_[v] = static_cast<int64_t>(p.ppqPosition / newB);
@@ -126,14 +126,14 @@ void TriggerSystem::processBlock(const ProcessParams& p)
     bool randomFired[4] = {};
     for (int v = 0; v < 4; ++v)
     {
-        const double effectiveBpm     = (!p.randomClockSync || !p.isDawPlaying)
-                                            ? static_cast<double>(p.randomFreeTempo)
-                                            : p.bpm;
+        const double effectiveBpm     = (p.randomSyncMode == 2 && p.isDawPlaying)
+                                            ? p.bpm
+                                            : static_cast<double>(p.randomFreeTempo);
         const double beats            = subdivBeatsFor(activeSubdiv_[v]);
         const double beatsPerSec      = effectiveBpm / 60.0;
         const double samplesPerSubdiv = (p.sampleRate / beatsPerSec) * beats;
 
-        if (!p.randomClockSync)
+        if (p.randomSyncMode == 0)
         {
             // RND SYNC OFF: countdown timer fires every effective-subdivision interval.
             // Population has already shifted activeSubdiv_[v] above.
@@ -276,7 +276,7 @@ void TriggerSystem::processBlock(const ProcessParams& p)
         {
             if (randomFired[v])
             {
-                if (!p.randomClockSync)
+                if (p.randomSyncMode == 0)
                 {
                     // SYNC OFF: Poisson interval already controls timing — trigger unconditionally
                     trigger = true;
@@ -302,7 +302,7 @@ void TriggerSystem::processBlock(const ProcessParams& p)
             }
             else if (padHeld && randomFired[v])
             {
-                if (!p.randomClockSync)
+                if (p.randomSyncMode == 0)
                 {
                     trigger = true;
                 }
@@ -342,7 +342,7 @@ void TriggerSystem::processBlock(const ProcessParams& p)
                     if (newSub != activeSubdiv_[v])
                     {
                         activeSubdiv_[v] = newSub;
-                        if (p.randomClockSync && p.ppqPosition >= 0.0)
+                        if (p.randomSyncMode >= 1 && p.ppqPosition >= 0.0)
                         {
                             const double newB = subdivBeatsFor(newSub);
                             prevSubdivIndex_[v] = static_cast<int64_t>(p.ppqPosition / newB);

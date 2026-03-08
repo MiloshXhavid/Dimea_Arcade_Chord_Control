@@ -747,7 +747,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             { const int d = gamepad_.consumeOptionDpadDelta(3); if (d) stepClampingParam(apvts, "fifthOctave",   0, 11, d); }
 
             // Mode 1 face-button arp dispatch (OPT1-01 through OPT1-04)
-            // Circle → toggle arpEnabled; Triangle → step arpSubdiv; Square → step arpOrder; Cross → toggle randomClockSync
+            // Circle → toggle arpEnabled; Triangle → step arpSubdiv; Square → step arpOrder; Cross → cycle randomSyncMode
             if (gamepad_.consumeArpCircle())
             {
                 auto* arpParam = dynamic_cast<juce::AudioParameterBool*>(
@@ -776,10 +776,13 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             { const int d = gamepad_.consumeArpOrderDelta(); if (d) stepWrappingParam(apvts, "arpOrder",  0, 6, d); }
             if (gamepad_.consumeRndSyncToggle())
             {
-                auto* rndParam = dynamic_cast<juce::AudioParameterBool*>(
-                    apvts.getParameter("randomClockSync"));
+                auto* rndParam = dynamic_cast<juce::AudioParameterChoice*>(
+                    apvts.getParameter("randomSyncMode"));
                 if (rndParam != nullptr)
-                    rndParam->setValueNotifyingHost(rndParam->get() ? 0.0f : 1.0f);
+                {
+                    const int next = (rndParam->getIndex() + 1) % 3;
+                    rndParam->setValueNotifyingHost(rndParam->convertTo0to1(static_cast<float>(next)));
+                }
             }
         }
         else if (optMode == 2)
@@ -1730,7 +1733,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         tp.ppqPosition  = -1.0;
         tp.isDawPlaying = false;
     }
-    tp.randomClockSync = (*apvts.getRawParameterValue("randomClockSync") > 0.5f);
+    tp.randomSyncMode = static_cast<int>(*apvts.getRawParameterValue("randomSyncMode"));
     tp.randomFreeTempo = *apvts.getRawParameterValue("randomFreeTempo");
 
     trigger_.processBlock(tp);

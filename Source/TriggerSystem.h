@@ -95,8 +95,8 @@ public:
         float          joystickThreshold = 0.015f;  // movement sensitivity (0.001..0.1)
         float          joystickGateTime  = 1.0f;   // seconds of stillness before gate closes
 
-        // Random clock mode
-        bool           randomClockSync  = false;   // true = DAW-gated, false = free tempo
+        // Random sync mode
+        int            randomSyncMode   = 0;       // 0=FREE (Poisson), 1=INT (internal BPM grid), 2=DAW (DAW grid)
         float          randomFreeTempo  = 120.0f;  // BPM for free mode (30..240)
     };
 
