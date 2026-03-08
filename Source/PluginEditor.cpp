@@ -2914,18 +2914,7 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     styleCombo(filterXModeBox_);
     addAndMakeVisible(filterXModeBox_);
     filterXModeAtt_ = std::make_unique<ComboAtt>(p.apvts, "filterXMode", filterXModeBox_);
-    filterXModeBox_.onChange = [this]
-    {
-        if (filterXModeBox_.getSelectedItemIndex() >= 4)  // LFO / Gate modes — drop MOD FIX to 0
-            if (auto* px = proc_.apvts.getParameter("filterXOffset"))
-                px->setValueNotifyingHost(0.5f);  // 0.5 = centre of -50..+50 = value 0
-    };
-    filterYModeBox_.onChange = [this]
-    {
-        if (filterYModeBox_.getSelectedItemIndex() >= 4)
-            if (auto* py = proc_.apvts.getParameter("filterYOffset"))
-                py->setValueNotifyingHost(0.5f);
-    };
+    // MOD FIX offset intentionally NOT reset on mode switch — value persists across destinations.
 
     // ── Filter Mod hint label (bottom-right) ─────────────────────────────────
     filterModHintLabel_.setText(

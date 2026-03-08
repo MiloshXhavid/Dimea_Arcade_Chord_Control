@@ -2177,10 +2177,13 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                             }
                             else
                             {
-                                // MOD FIX is the full normalized base: -50..+50 → 0..1. Stick ±0.5.
+                                // Additive: MOD FIX offsets around current Rate knob position.
+                                // At noon (offset=0) → no jump. ±50 → ±0.5 normalized shift.
                                 static const juce::NormalisableRange<float> kLfoRange(0.01f, 20.0f, 0.0f, 0.35f);
+                                const float base = apvts.getRawParameterValue(ParamID::lfoXRate)->load();
+                                const float norm = kLfoRange.convertTo0to1(base);
                                 const float actual = kLfoRange.convertFrom0to1(
-                                    juce::jlimit(0.0f, 1.0f, (xOffset + 50.0f) / 100.0f + stick * 0.5f));
+                                    juce::jlimit(0.0f, 1.0f, norm + (xOffset / 50.0f) * 0.5f + stick * 0.5f));
                                 lfoXRateDisplay_.store(actual, std::memory_order_relaxed);
                                 lfoXRateOverride_ = actual;
                             }
@@ -2282,9 +2285,12 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                             }
                             else
                             {
+                                // Additive: MOD FIX offsets around current Rate knob position.
                                 static const juce::NormalisableRange<float> kLfoRange(0.01f, 20.0f, 0.0f, 0.35f);
+                                const float base = apvts.getRawParameterValue(ParamID::lfoYRate)->load();
+                                const float norm = kLfoRange.convertTo0to1(base);
                                 const float actual = kLfoRange.convertFrom0to1(
-                                    juce::jlimit(0.0f, 1.0f, (yOffset + 50.0f) / 100.0f + stick * 0.5f));
+                                    juce::jlimit(0.0f, 1.0f, norm + (yOffset / 50.0f) * 0.5f + stick * 0.5f));
                                 lfoYRateDisplay_.store(actual, std::memory_order_relaxed);
                                 lfoYRateOverride_ = actual;
                             }
@@ -2400,45 +2406,134 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                         std::memory_order_relaxed);
             }
 
-            // Fix 7: free-rate LFO Freq display when filterMod is ON but no gamepad is active.
-            // Moving the MOD FIX offset knob with no gamepad still updates the slider visual.
+            // No-gamepad display tracking: when filterMod is ON but stick is idle (no gamepad or
+            // stick in deadzone), MOD FIX knob turns still update all LFO display atoms.
+            // Uses additive model: base APVTS value + (offset/50)*sensitivity. At noon (offset=0)
+            // effective == base, so switching modes never causes a jump.
             if (!liveGamepad && filterModActive_.load(std::memory_order_relaxed))
             {
                 const float xOffset = apvts.getRawParameterValue(ParamID::filterXOffset)->load();
                 const float yOffset = apvts.getRawParameterValue(ParamID::filterYOffset)->load();
                 static const juce::NormalisableRange<float> kLfoRange(0.01f, 20.0f, 0.0f, 0.35f);
 
-                // xMode == 4: X stick -> LFO-X Freq (free rate only)
-                if (xMode == 4 && !(*apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f))
+                // ── X mode ─────────────────────────────────────────────────────────────
+                switch (xMode)
                 {
-                    const float actual = kLfoRange.convertFrom0to1(
-                        juce::jlimit(0.0f, 1.0f, (xOffset + 50.0f) / 100.0f));
-                    lfoXRateDisplay_.store(actual, std::memory_order_relaxed);
-                    lfoXRateOverride_ = actual;
+                    case 4:  // X -> LFO-X Freq
+                        if (!(*apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f))
+                        {
+                            const float base = apvts.getRawParameterValue(ParamID::lfoXRate)->load();
+                            const float norm = kLfoRange.convertTo0to1(base);
+                            const float actual = kLfoRange.convertFrom0to1(
+                                juce::jlimit(0.0f, 1.0f, norm + (xOffset / 50.0f) * 0.5f));
+                            lfoXRateDisplay_.store(actual, std::memory_order_relaxed);
+                            lfoXRateOverride_ = actual;
+                        }
+                        break;
+                    case 5:  // X -> LFO-X Phase
+                    {
+                        const float base   = apvts.getRawParameterValue(ParamID::lfoXPhase)->load();
+                        const float actual = juce::jlimit(0.0f, 360.0f, base + (xOffset / 50.0f) * 180.0f);
+                        lfoXPhaseDisplay_.store(actual, std::memory_order_relaxed);
+                        lfoXPhaseOverride_ = actual;
+                        break;
+                    }
+                    case 6:  // X -> LFO-X Level
+                    {
+                        const float base   = apvts.getRawParameterValue(ParamID::lfoXLevel)->load();
+                        const float actual = juce::jlimit(0.0f, 1.0f, base + (xOffset / 50.0f) * 0.5f);
+                        lfoXLevelDisplay_.store(actual, std::memory_order_relaxed);
+                        lfoXLevelOverride_ = actual;
+                        break;
+                    }
+                    case 8:  // X -> LFO-Y Freq (cross-axis)
+                        if (!(*apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f))
+                        {
+                            const float base = apvts.getRawParameterValue(ParamID::lfoYRate)->load();
+                            const float norm = kLfoRange.convertTo0to1(base);
+                            const float actual = kLfoRange.convertFrom0to1(
+                                juce::jlimit(0.0f, 1.0f, norm + (xOffset / 50.0f) * 0.5f));
+                            lfoYRateDisplay_.store(actual, std::memory_order_relaxed);
+                            lfoYRateOverride_ = actual;
+                        }
+                        break;
+                    case 9:  // X -> LFO-Y Phase (cross-axis)
+                    {
+                        const float base   = apvts.getRawParameterValue(ParamID::lfoYPhase)->load();
+                        const float actual = juce::jlimit(0.0f, 360.0f, base + (xOffset / 50.0f) * 180.0f);
+                        lfoYPhaseDisplay_.store(actual, std::memory_order_relaxed);
+                        lfoYPhaseOverride_ = actual;
+                        break;
+                    }
+                    case 10: // X -> LFO-Y Level (cross-axis)
+                    {
+                        const float base   = apvts.getRawParameterValue(ParamID::lfoYLevel)->load();
+                        const float actual = juce::jlimit(0.0f, 1.0f, base + (xOffset / 50.0f) * 0.5f);
+                        lfoYLevelDisplay_.store(actual, std::memory_order_relaxed);
+                        lfoYLevelOverride_ = actual;
+                        break;
+                    }
+                    default: break;
                 }
-                // xMode == 8: X stick -> LFO-Y Freq (cross-axis, free rate only)
-                if (xMode == 8 && !(*apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f))
+
+                // ── Y mode ─────────────────────────────────────────────────────────────
+                switch (yMode)
                 {
-                    const float actual = kLfoRange.convertFrom0to1(
-                        juce::jlimit(0.0f, 1.0f, (xOffset + 50.0f) / 100.0f));
-                    lfoYRateDisplay_.store(actual, std::memory_order_relaxed);
-                    lfoYRateOverride_ = actual;
-                }
-                // yMode == 4: Y stick -> LFO-Y Freq (free rate only)
-                if (yMode == 4 && !(*apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f))
-                {
-                    const float actual = kLfoRange.convertFrom0to1(
-                        juce::jlimit(0.0f, 1.0f, (yOffset + 50.0f) / 100.0f));
-                    lfoYRateDisplay_.store(actual, std::memory_order_relaxed);
-                    lfoYRateOverride_ = actual;
-                }
-                // yMode == 8: Y stick -> LFO-X Freq (cross-axis, free rate only)
-                if (yMode == 8 && !(*apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f))
-                {
-                    const float actual = kLfoRange.convertFrom0to1(
-                        juce::jlimit(0.0f, 1.0f, (yOffset + 50.0f) / 100.0f));
-                    lfoXRateDisplay_.store(actual, std::memory_order_relaxed);
-                    lfoXRateOverride_ = actual;
+                    case 4:  // Y -> LFO-Y Freq
+                        if (!(*apvts.getRawParameterValue(ParamID::lfoYSync) > 0.5f))
+                        {
+                            const float base = apvts.getRawParameterValue(ParamID::lfoYRate)->load();
+                            const float norm = kLfoRange.convertTo0to1(base);
+                            const float actual = kLfoRange.convertFrom0to1(
+                                juce::jlimit(0.0f, 1.0f, norm + (yOffset / 50.0f) * 0.5f));
+                            lfoYRateDisplay_.store(actual, std::memory_order_relaxed);
+                            lfoYRateOverride_ = actual;
+                        }
+                        break;
+                    case 5:  // Y -> LFO-Y Phase
+                    {
+                        const float base   = apvts.getRawParameterValue(ParamID::lfoYPhase)->load();
+                        const float actual = juce::jlimit(0.0f, 360.0f, base + (yOffset / 50.0f) * 180.0f);
+                        lfoYPhaseDisplay_.store(actual, std::memory_order_relaxed);
+                        lfoYPhaseOverride_ = actual;
+                        break;
+                    }
+                    case 6:  // Y -> LFO-Y Level
+                    {
+                        const float base   = apvts.getRawParameterValue(ParamID::lfoYLevel)->load();
+                        const float actual = juce::jlimit(0.0f, 1.0f, base + (yOffset / 50.0f) * 0.5f);
+                        lfoYLevelDisplay_.store(actual, std::memory_order_relaxed);
+                        lfoYLevelOverride_ = actual;
+                        break;
+                    }
+                    case 8:  // Y -> LFO-X Freq (cross-axis)
+                        if (!(*apvts.getRawParameterValue(ParamID::lfoXSync) > 0.5f))
+                        {
+                            const float base = apvts.getRawParameterValue(ParamID::lfoXRate)->load();
+                            const float norm = kLfoRange.convertTo0to1(base);
+                            const float actual = kLfoRange.convertFrom0to1(
+                                juce::jlimit(0.0f, 1.0f, norm + (yOffset / 50.0f) * 0.5f));
+                            lfoXRateDisplay_.store(actual, std::memory_order_relaxed);
+                            lfoXRateOverride_ = actual;
+                        }
+                        break;
+                    case 9:  // Y -> LFO-X Phase (cross-axis)
+                    {
+                        const float base   = apvts.getRawParameterValue(ParamID::lfoXPhase)->load();
+                        const float actual = juce::jlimit(0.0f, 360.0f, base + (yOffset / 50.0f) * 180.0f);
+                        lfoXPhaseDisplay_.store(actual, std::memory_order_relaxed);
+                        lfoXPhaseOverride_ = actual;
+                        break;
+                    }
+                    case 10: // Y -> LFO-X Level (cross-axis)
+                    {
+                        const float base   = apvts.getRawParameterValue(ParamID::lfoXLevel)->load();
+                        const float actual = juce::jlimit(0.0f, 1.0f, base + (yOffset / 50.0f) * 0.5f);
+                        lfoXLevelDisplay_.store(actual, std::memory_order_relaxed);
+                        lfoXLevelOverride_ = actual;
+                        break;
+                    }
+                    default: break;
                 }
             }
         }
