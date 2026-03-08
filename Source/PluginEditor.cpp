@@ -4028,8 +4028,9 @@ void PluginEditor::resized()
         auto r = arpBlockBounds_;
         r.removeFromTop(14);                              // header clearance — 70px remaining
         arpEnabledBtn_.setBounds(r.removeFromTop(20));    // ARP ON/OFF — 50px remaining
-        arpStepRowABounds_ = r.removeFromTop(14);         // cells 0–3 — 36px remaining
-        arpStepRowBBounds_ = r.removeFromTop(14);         // cells 4–7 — 22px remaining
+        arpStepRowABounds_ = r.removeFromTop(13);         // cells 0–3
+        r.removeFromTop(1);                               // 1px gap — background shows through
+        arpStepRowBBounds_ = r.removeFromTop(13);         // cells 4–7
         const int quarter = r.getWidth() / 4;             // controls row quarters
         auto ctrlRow = r.removeFromTop(20);               // controls row
         arpSubdivBox_ .setBounds(ctrlRow.removeFromLeft(quarter).reduced(1, 0));
@@ -4548,10 +4549,6 @@ void PluginEditor::paint(juce::Graphics& g)
             (float)arpStepRowABounds_.getY(),
             (float)arpStepRowBBounds_.getBottom());
 
-        // 2px horizontal separator between row A and row B
-        g.setColour(juce::Colours::white.withAlpha(0.25f));
-        g.fillRect(arpStepRowABounds_.getX(), arpStepRowABounds_.getBottom(),
-                   arpStepRowABounds_.getWidth(), 2);
     }
 
     drawLfoPanel(triggerBoxBounds_,    "TRIGGER");
