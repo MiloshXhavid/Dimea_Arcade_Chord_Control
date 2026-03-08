@@ -341,6 +341,28 @@ Full details: `.planning/milestones/v1.8-ROADMAP.md`
   7. When filterXMode or filterYMode is set to an LFO Freq target, the LFO Rate slider is the primary base value — MOD FIX adds a normalized offset on top of it (same additive pattern as Phase and Level targets already use). The LFO Rate slider visually tracks the combined value (base + MOD FIX + stick) whenever filterModOn is true, not only when a gamepad is active. Moving MOD FIX with no gamepad connected immediately updates the displayed rate. The fix applies to all four Freq cases: X→LFO-X, X→LFO-Y (cross), Y→LFO-Y, Y→LFO-X (cross).
 **Plans**: 1 plan
 
+### Phase 38.1: Modulation Polish and CC Routing (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 38
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 38.1 to break down)
+
+### Phase 38.2: Custom CC Routing (INSERTED)
+
+**Goal:** Allow users to assign any arbitrary MIDI CC number (0–127) to the LFO CC Dest and Left Stick X/Y Mode dropdowns, instead of being limited to the predefined named list.
+**Depends on:** Phase 38.1
+**Plans:** 4 plans
+
+Plans:
+- [ ] 38.2-01-PLAN.md — Wave 0: failing Catch2 test stubs for CC-CUSTOM-01/02/03 + CMakeLists registration
+- [ ] 38.2-02-PLAN.md — Processor: CustomCcRoutingHelpers.h, 4 APVTS params, StringArray extensions, kFilterCcNums[] OOB guards
+- [ ] 38.2-03-PLAN.md — Editor: 4 inline Label members, onChange show/hide, resized() row-split, timerCallback "CC [n]" sync, INV swap extension
+- [ ] 38.2-04-PLAN.md — Build + install + human smoke test (5 scenarios: custom entry, MIDI routing, preset round-trip, INV swap, all 4 combos)
+
 #### Phase 39: Knob UX — Velocity Drag & Visual Indicators
 **Goal**: Knob interaction feels professional — slow drag gives fine control, fast drag sweeps broadly, hovering shows a subtle highlight, and octave/interval buttons display 12 subdivision dots instead of the red ring indicator.
 **Depends on**: Phase 38
