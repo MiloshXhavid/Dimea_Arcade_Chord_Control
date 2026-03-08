@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Living Interface
 status: unknown
-stopped_at: Completed 45-01-PLAN.md — 10 new APVTS params, randomSyncMode 3-state, arp step gating, migration shim, build clean
-last_updated: "2026-03-08T21:39:23.128Z"
+stopped_at: Completed 45-02-PLAN.md — arp step grid UI, LEN combo, RND SYNC 3-state, build clean
+last_updated: "2026-03-08T21:46:37.479Z"
 last_activity: 2026-03-07 — v1.8 milestone completion archived
 progress:
   total_phases: 26
-  completed_phases: 20
+  completed_phases: 21
   total_plans: 47
-  completed_plans: 46
+  completed_plans: 47
 ---
 
 ---
@@ -299,6 +299,7 @@ Key v1.6 design decisions (locked):
 - [Phase 45]: randomSyncMode==0=FREE, ==1=INT, ==2=DAW replaces randomClockSync bool; old bool true maps to INT(1)
 - [Phase 45]: arpLength APVTS choice index+1=actual length; arpStepState0..7 read as patStep=arpStep_%arpLen
 - [Phase 45]: TIE isTie=stepState==1&&arpActivePitch_>=0; OFF sends immediate noteOff+continue; ON uses existing note-on path
+- [Phase 45]: arpLengthAtt_ declared with full type in header (not ComboAtt alias) — using alias not yet visible at member declaration site
 
 ### Pending Todos
 
@@ -310,6 +311,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-08T21:39:16.998Z
-Stopped at: Completed 45-01-PLAN.md — 10 new APVTS params, randomSyncMode 3-state, arp step gating, migration shim, build clean
+Last session: 2026-03-08T21:46:34.235Z
+Stopped at: Completed 45-02-PLAN.md — arp step grid UI, LEN combo, RND SYNC 3-state, build clean
 Next step: Phases 34-37 (cross-LFO modulation, arp subdivision, arp trigger sources, looper fix) for v1.8 completion.
