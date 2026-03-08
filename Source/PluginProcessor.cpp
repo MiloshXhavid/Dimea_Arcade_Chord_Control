@@ -1841,13 +1841,23 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             arpNoteOffRemaining_ -= beatsThisBlock;
             if (arpNoteOffRemaining_ <= 0.0)
             {
-                const int ch = arpActiveCh_;
-                if (noteCount_[ch - 1][arpActivePitch_] > 0 &&
-                    --noteCount_[ch - 1][arpActivePitch_] == 0)
-                    midi.addEvent(juce::MidiMessage::noteOff(ch, arpActivePitch_, (uint8_t)0), 0);
-                arpActivePitch_ = -1;
-                arpActiveVoice_ = -1;
-                arpCurrentVoice_.store(-1, std::memory_order_relaxed);
+                // Peek at the upcoming step state — if TIE, suppress noteOff and keep
+                // arpActivePitch_ alive so the step loop can recognise isTie correctly.
+                const int peekLen = juce::jlimit(1, 8,
+                    static_cast<int>(*apvts.getRawParameterValue("arpLength")) + 1);
+                const int peekState = static_cast<int>(
+                    *apvts.getRawParameterValue("arpStepState" + juce::String(arpStep_ % peekLen)));
+
+                if (peekState != 1)  // not TIE — fire noteOff normally
+                {
+                    const int ch = arpActiveCh_;
+                    if (noteCount_[ch - 1][arpActivePitch_] > 0 &&
+                        --noteCount_[ch - 1][arpActivePitch_] == 0)
+                        midi.addEvent(juce::MidiMessage::noteOff(ch, arpActivePitch_, (uint8_t)0), 0);
+                    arpActivePitch_ = -1;
+                    arpActiveVoice_ = -1;
+                    arpCurrentVoice_.store(-1, std::memory_order_relaxed);
+                }
                 arpNoteOffRemaining_ = 0.0;
             }
         }
