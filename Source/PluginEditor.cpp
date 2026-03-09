@@ -1611,13 +1611,123 @@ void JoystickPad::paint(juce::Graphics& g)
         const float pop = proc_.apvts.getRawParameterValue("randomPopulation")->load();
         const int visCount = (int)std::floor((float)starfield_.size() * (pop - 1.0f) / 63.0f);
         const int count    = juce::jmin(visCount, (int)starfield_.size());
+
+        const float warpT = (warpRamp_ > 0.0f)
+            ? (warpRamp_ * warpRamp_ * (3.0f - 2.0f * warpRamp_))
+            : 0.0f;
+        const float vpX = (warpT > 0.0f) ? displayCx_ / b.getWidth()  : 0.5f;
+        const float vpY = (warpT > 0.0f) ? displayCy_ / b.getHeight() : 0.5f;
+        const juce::Colour nearTint = juce::Colour(0xFFAADDFF);
+        const juce::Colour farTint  = juce::Colour(0xFFFFF8F0);
+
         for (int i = 0; i < count; ++i)
         {
             const auto& s = starfield_[i];
-            g.setColour(s.c);
-            g.fillEllipse(s.x * b.getWidth()  - s.r,
-                          s.y * b.getHeight() - s.r,
-                          s.r * 2.0f, s.r * 2.0f);
+
+            if (warpT <= 0.0f)
+            {
+                // Original: draw as dot
+                g.setColour(s.c);
+                g.fillEllipse(s.x * b.getWidth()  - s.r,
+                              s.y * b.getHeight() - s.r,
+                              s.r * 2.0f, s.r * 2.0f);
+            }
+            else
+            {
+                const float sx = s.x * b.getWidth();
+                const float sy = s.y * b.getHeight();
+                const float dx = sx - vpX * b.getWidth();
+                const float dy = sy - vpY * b.getHeight();
+                const float distToVp = std::sqrt(dx * dx + dy * dy)
+                                       / juce::jmin(b.getWidth(), b.getHeight());
+
+                const float mag  = std::sqrt(dx * dx + dy * dy);
+                const float dirX = (mag > 0.5f) ? dx / mag : 0.0f;
+                const float dirY = (mag > 0.5f) ? dy / mag : 0.0f;
+
+                const float tintBlend = juce::jlimit(0.0f, 1.0f, (distToVp - 0.3f) / 0.4f);
+                const float tintStr   = (tintBlend < 0.5f) ? (warpT * 0.30f) : (warpT * 0.20f);
+                const juce::Colour tgt = nearTint.interpolatedWith(farTint, tintBlend);
+                const juce::Colour dc  = s.c.interpolatedWith(tgt, tintStr);
+
+                const float ambientStreakLen = s.r * warpT * 6.0f;
+
+                if (ambientStreakLen < 1.0f)
+                {
+                    g.setColour(dc);
+                    g.fillEllipse(sx - s.r, sy - s.r, s.r * 2.0f, s.r * 2.0f);
+                }
+                else
+                {
+                    const float tailX = sx - dirX * ambientStreakLen;
+                    const float tailY = sy - dirY * ambientStreakLen;
+                    juce::Graphics::ScopedSaveState ss(g);
+                    juce::ColourGradient grad(
+                        dc.withAlpha(0.15f), tailX, tailY,
+                        dc,                  sx,    sy,
+                        false);
+                    g.setGradientFill(grad);
+                    g.drawLine(tailX, tailY, sx, sy, s.r * 1.5f);
+                }
+            }
+        }
+    }
+
+    // ── Warp star draw pass — Layer 3.5 (Phase 42) ───────────────────────────
+    if (warpRamp_ > 0.0f && !warpStars_.empty())
+    {
+        const float warpT  = warpRamp_ * warpRamp_ * (3.0f - 2.0f * warpRamp_);
+        const float vpX    = displayCx_ / b.getWidth();
+        const float vpY    = displayCy_ / b.getHeight();
+        const float pop    = proc_.apvts.getRawParameterValue("randomPopulation")->load();
+        const int   capaci = juce::jmin(128, (int)(pop * 2.0f));
+        const int   drawN  = juce::jmin(capaci, (int)warpStars_.size());
+
+        const juce::Colour nearClr = juce::Colour(0xFFAADDFF);   // blue-white
+        const juce::Colour farClr  = juce::Colour(0xFFFFF8F0);   // warm white
+
+        for (int i = 0; i < drawN; ++i)
+        {
+            const auto& ws = warpStars_[i];
+            if (ws.dist < 0.001f) continue;   // not yet spawned
+
+            const float px = vpX + std::sin(ws.angle) * ws.dist;
+            const float py = vpY - std::cos(ws.angle) * ws.dist;
+
+            // Skip if outside normalized pad bounds
+            if (px < -0.05f || px > 1.05f || py < -0.05f || py > 1.05f) continue;
+
+            // Doppler color blend based on distance from VP
+            const float distBlend = juce::jlimit(0.0f, 1.0f, (ws.dist - 0.3f) / 0.4f);
+            const juce::Colour headClr = nearClr.interpolatedWith(farClr, distBlend);
+
+            const float streakLen = ws.speed * 400.0f * warpT;
+            const float strokeW   = (ws.dist > 0.6f) ? 1.5f : 1.0f;
+
+            // Head pixel position (outer, bright end)
+            const float hx = px * b.getWidth();
+            const float hy = py * b.getHeight();
+            // Tail pixel position (inner end, toward VP)
+            const float tx = hx - std::sin(ws.angle) * streakLen;
+            const float ty = hy + std::cos(ws.angle) * streakLen;
+
+            if (streakLen < 0.5f)
+            {
+                // Very short: draw as a small dot
+                g.setColour(headClr.withAlpha(warpT * 0.7f));
+                g.fillEllipse(hx - 0.8f, hy - 0.8f, 1.6f, 1.6f);
+            }
+            else
+            {
+                // Draw as gradient line: tail dim → head bright
+                juce::Graphics::ScopedSaveState ss(g);
+                juce::ColourGradient grad(
+                    headClr.withAlpha(0.15f), tx, ty,
+                    headClr,                  hx, hy,
+                    false);   // linear, not radial
+                g.setGradientFill(grad);
+                g.drawLine(tx, ty, hx, hy, strokeW);
+            }
         }
     }
 
