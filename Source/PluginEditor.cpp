@@ -1073,11 +1073,13 @@ void JoystickPad::resized()
             s.c = juce::Colour((uint8_t)242, (uint8_t)245, (uint8_t)255, alf);
         else
             s.c = juce::Colour((uint8_t)190, (uint8_t)215, (uint8_t)255, alf);
-        // Random direction, slow speed (normalized units/frame)
-        const float angle = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+        // Phase 43.2: store baseAngle + speed instead of baking into vx/vy
         const float speed = 0.00008f + rng.nextFloat() * 0.00012f;  // ~0.03–0.08 px/frame @400px
-        s.vx = std::cos(angle) * speed;
-        s.vy = std::sin(angle) * speed;
+        s.baseAngle    = (rng.nextFloat() - 0.5f) * (juce::degreesToRadians(30.0f));  // ±15°
+        s.speed        = speed;
+        s.twinklePhase = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+        s.fadeIn       = 0;
+        s.vx = 0.0f; s.vy = 0.0f;  // no longer used
         starfield_.push_back(s);
     }
     // Foreground layer — brighter dots, faster drift
@@ -1093,16 +1095,47 @@ void JoystickPad::resized()
             s.c = juce::Colour((uint8_t)248, (uint8_t)250, (uint8_t)255, alf);
         else
             s.c = juce::Colour((uint8_t)200, (uint8_t)220, (uint8_t)255, alf);
-        // Random direction, faster speed for depth parallax
-        const float angle = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+        // Phase 43.2: store baseAngle + speed instead of baking into vx/vy
         const float speed = 0.00022f + rng.nextFloat() * 0.00028f;  // ~0.09–0.20 px/frame @400px
-        s.vx = std::cos(angle) * speed;
-        s.vy = std::sin(angle) * speed;
+        s.baseAngle    = (rng.nextFloat() - 0.5f) * (juce::degreesToRadians(30.0f));  // ±15°
+        s.speed        = speed;
+        s.twinklePhase = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+        s.fadeIn       = 0;
+        s.vx = 0.0f; s.vy = 0.0f;  // no longer used
         starfield_.push_back(s);
     }
     // Shuffle to random order — Population knob reveals stars in mixed size/brightness order
     for (int i = (int)starfield_.size() - 1; i > 0; --i)
         std::swap(starfield_[i], starfield_[(int)(rng.nextFloat() * (i + 1))]);
+
+    // ── Phase 43.2: Init nebula blobs ─────────────────────────────────────────
+    {
+        static const juce::Colour kNebColours[3] = {
+            juce::Colour(0xFF18B060),  // teal
+            juce::Colour(0xFF3020A0),  // violet
+            juce::Colour(0xFF602090),  // deep purple
+        };
+        juce::Random nebRng(0xC0FFEE4320LL);
+        for (int i = 0; i < 3; ++i)
+        {
+            auto& nb   = nebulae_[i];
+            nb.x       = nebRng.nextFloat();
+            nb.y       = nebRng.nextFloat();
+            nb.rx      = 80.0f + nebRng.nextFloat() * 100.0f;  // 80–180px
+            nb.ry      = 60.0f + nebRng.nextFloat() * 80.0f;   // 60–140px
+            nb.vx      = (nebRng.nextFloat() - 0.5f) * 0.000015f;  // full pad crossing ~90s
+            nb.vy      = (nebRng.nextFloat() - 0.5f) * 0.000015f;
+            nb.alpha   = 0.04f + nebRng.nextFloat() * 0.03f;   // 0.04–0.07
+            nb.colour  = kNebColours[i];
+        }
+    }
+
+    // Phase 43.2: Shooting star — randomize initial delay so first streak isn't instant
+    {
+        juce::Random ssInitRng(0xFACEFEED43ULL);
+        shootingStar_.timerTicks = 720.0f + ssInitRng.nextFloat() * 1080.0f;
+        shootingStar_.active     = false;
+    }
 
     // Bug 1 fix: snap cursor to pad center on resize so it does not render at (0,0)
     // until the first timerCallback fires with valid dimensions.
@@ -1281,16 +1314,99 @@ void JoystickPad::timerCallback()
         }
     }
 
-    // ── Animate starfield positions ───────────────────────────────────────────
-    for (auto& s : starfield_)
+    // ── Phase 43.2: Drift heading update (joystick steering) ─────────────────
     {
-        s.x += s.vx;
-        s.y += s.vy;
-        // Wrap around edges (normalized 0..1)
-        if (s.x < 0.0f) s.x += 1.0f;
-        if (s.x > 1.0f) s.x -= 1.0f;
-        if (s.y < 0.0f) s.y += 1.0f;
-        if (s.y > 1.0f) s.y -= 1.0f;
+        const float padW  = (float)getWidth();
+        const float padCx = padW * 0.5f;
+        const float deflX = juce::jlimit(-1.0f, 1.0f,
+                                (displayCx_ - padCx) / (padW * 0.5f));
+        constexpr float kTurnRate = 0.004f;  // rad/tick at full deflection (~15°/s at 60 Hz)
+        driftHeading_ += kTurnRate * deflX;
+        // No fmod needed — cos/sin handle unlimited accumulation correctly
+    }
+
+    // ── Phase 43.2: Animate starfield (unified heading + parallax + respawn) ──
+    {
+        static juce::Random respawnRng(0xC0FFEE43ULL);
+        for (auto& s : starfield_)
+        {
+            // Phase 42 large-star freeze (warpRamp_ == 0.0f when Phase 42 not active)
+            if (warpRamp_ > 0.0f && s.r > 1.2f)
+                continue;
+
+            const float depthMult = (s.r > 1.4f) ? 1.0f : (s.r > 0.8f) ? 0.6f : 0.3f;
+            const float effAngle  = driftHeading_ + s.baseAngle;
+            s.x += std::cos(effAngle) * s.speed * depthMult;
+            s.y += std::sin(effAngle) * s.speed * depthMult;
+
+            // Respawn with fade-in when star exits pad (replaces torus wrap)
+            if (s.x < 0.0f || s.x > 1.0f || s.y < 0.0f || s.y > 1.0f)
+            {
+                s.x = respawnRng.nextFloat();
+                s.y = respawnRng.nextFloat();
+                s.twinklePhase = respawnRng.nextFloat() * juce::MathConstants<float>::twoPi;
+                s.fadeIn = 30;  // ~0.5s fade-in at 60 Hz
+            }
+            if (s.fadeIn > 0)
+                --s.fadeIn;
+
+            // Advance twinkle phase: derive frequency from r (0.031–0.087 rad/tick = 0.3–0.8 Hz)
+            s.twinklePhase = std::fmod(
+                s.twinklePhase + (0.031f + s.r * 0.035f),
+                juce::MathConstants<float>::twoPi);
+        }
+    }
+
+    // ── Phase 43.2: Shooting star tick ────────────────────────────────────────
+    {
+        static juce::Random ssRng(0xBABEFACE43ULL);
+        constexpr int kSsDurationTicks = 18;  // ~0.3s at 60 Hz
+        constexpr float kSsProgressPerTick = 1.0f / kSsDurationTicks;
+
+        if (!shootingStar_.active)
+        {
+            // Count down to next spawn (only when warp off)
+            if (warpRamp_ < 0.01f)
+            {
+                shootingStar_.timerTicks -= 1.0f;
+                if (shootingStar_.timerTicks <= 0.0f)
+                {
+                    shootingStar_.active   = true;
+                    shootingStar_.progress = 0.0f;
+                    shootingStar_.x        = ssRng.nextFloat();
+                    shootingStar_.y        = ssRng.nextFloat();
+                    shootingStar_.angle    = ssRng.nextFloat() * juce::MathConstants<float>::twoPi;
+                    // Randomize next interval: 12–30s = 720–1800 ticks at 60 Hz
+                    shootingStar_.timerTicks = 720.0f + ssRng.nextFloat() * 1080.0f;
+                }
+            }
+            else
+            {
+                // Warp active — reset timer so it doesn't spawn during warp
+                shootingStar_.timerTicks = 720.0f + ssRng.nextFloat() * 1080.0f;
+            }
+        }
+        else
+        {
+            shootingStar_.progress += kSsProgressPerTick;
+            if (shootingStar_.progress >= 1.0f)
+            {
+                shootingStar_.active   = false;
+                shootingStar_.progress = 1.0f;
+            }
+        }
+    }
+
+    // ── Phase 43.2: Nebula blob tick ──────────────────────────────────────────
+    for (auto& nb : nebulae_)
+    {
+        nb.x += nb.vx;
+        nb.y += nb.vy;
+        // Torus wrap (normalized 0..1)
+        if (nb.x < -0.3f) nb.x += 1.6f;
+        if (nb.x >  1.3f) nb.x -= 1.6f;
+        if (nb.y < -0.3f) nb.y += 1.6f;
+        if (nb.y >  1.3f) nb.y -= 1.6f;
     }
 
     // ── Space background fly-through scroll (0.15px/frame) ──────────────────
