@@ -1,8 +1,10 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
+#include <thread>
 
 // SDL2 forward declarations (avoid including SDL headers in headers)
 struct _SDL_GameController;
@@ -277,7 +279,18 @@ private:
     bool virtuallyConnected_ = false;
 
     bool sdlInitialised_    = false;  // guard: SdlContext::release() only if acquire() succeeded
-    bool pendingReopenTick_ = false;  // deferred BT open: set on SDL_CONTROLLERDEVICEADDED, consumed after event loop
+
+    std::atomic<bool> pendingReopenTick_ { false };  // deferred BT open: set on SDL_CONTROLLERDEVICEADDED, consumed after event loop
+    std::atomic<bool> sdlReady_          { false };  // set from init thread when SDL_Init completes
+    std::thread       sdlInitThread_;               // background SDL init (avoids blocking DAW launch)
+
+    // Deferred SDL init: the background thread is not spawned until kSdlInitDelayMs after
+    // construction. This prevents SDL's DirectInput/XInput device scan from racing with
+    // Ableton's WASAPI/ASIO audio init (both enumerate Windows HID devices concurrently,
+    // which can soft-deadlock Ableton at the "Initializing audio inputs and outputs" phase).
+    static constexpr int kSdlInitDelayMs = 4000;
+    bool sdlThreadSpawned_ = false;
+    std::chrono::steady_clock::time_point constructTime_;
 
     // ── UI visualization state ────────────────────────────────────────────────
     std::atomic<uint32_t> buttonHeldMask_ {0};

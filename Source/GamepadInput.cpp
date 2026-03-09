@@ -10,24 +10,27 @@ GamepadInput::GamepadInput()
 {
     for (auto& a : voiceTrig_)    a.store(false);
 
-    // Acquire the process-level SDL singleton.
-    // SdlContext sets SDL hints (JOYSTICK_THREAD, BACKGROUND_EVENTS) before
-    // calling SDL_Init on the first instance — no per-instance hint/init needed.
-    sdlInitialised_ = SdlContext::acquire();
+    // Record construction time so timerCallback() can defer SDL init by kSdlInitDelayMs.
+    // Deferring prevents SDL's DirectInput/XInput HID device scan from racing with
+    // Ableton's WASAPI/ASIO audio init — both enumerate the Windows HID tree concurrently,
+    // which can soft-deadlock Ableton at "Initializing audio inputs and outputs".
+    constructTime_ = std::chrono::steady_clock::now();
 
-    if (!sdlInitialised_)
-    {
-        DBG("GamepadInput: SdlContext::acquire() failed — no gamepad support");
-        return;
-    }
-
-    tryOpenController();
+    // Start the timer immediately so the plugin is responsive at 60 Hz.
+    // timerCallback() gates SDL usage on sdlReady_ and gates thread spawn on
+    // sdlThreadSpawned_ + the kSdlInitDelayMs elapsed window.
     startTimerHz(60);
 }
 
 GamepadInput::~GamepadInput()
 {
     stopTimer();
+
+    // Ensure the background SDL init thread has finished before we clean up.
+    // (If SDL_Init is still running, closeController/SDL_Quit would be unsafe.)
+    if (sdlInitThread_.joinable())
+        sdlInitThread_.join();
+
     closeController();
     if (sdlInitialised_)
         SdlContext::release();
@@ -100,6 +103,44 @@ bool GamepadInput::triggerPressed(int16_t axisValue) const
 
 void GamepadInput::timerCallback()
 {
+    // Deferred SDL init: wait kSdlInitDelayMs after construction before spawning the
+    // background thread.  This ensures SDL's DirectInput/XInput HID scan does not race
+    // with Ableton's WASAPI/ASIO audio init, which also scans the Windows HID tree and
+    // can soft-deadlock the DAW startup if both run concurrently.
+    if (!sdlThreadSpawned_)
+    {
+        const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - constructTime_).count();
+        if (elapsedMs < kSdlInitDelayMs)
+            return;
+
+        sdlThreadSpawned_ = true;
+        sdlInitThread_ = std::thread([this]
+        {
+            sdlInitialised_ = SdlContext::acquire();
+
+            if (!sdlInitialised_)
+            {
+                DBG("GamepadInput: SdlContext::acquire() failed — no gamepad support");
+            }
+            else
+            {
+                // Queue controller open for the timer thread (main thread).
+                // Do NOT call tryOpenController() here — its callbacks (onConnectionChange,
+                // onConnectionChangeUI) must fire on the main thread, not from here.
+                pendingReopenTick_.store(true, std::memory_order_release);
+            }
+
+            // Signal timer that SDL is ready.
+            sdlReady_.store(true, std::memory_order_release);
+        });
+        return;  // SDL not ready this tick; will start polling on the next tick after init completes
+    }
+
+    // SDL not ready yet (init is running on background thread) — skip this tick.
+    if (!sdlReady_.load(std::memory_order_acquire))
+        return;
+
     const uint32_t now = SDL_GetTicks();
 
     // Debounce helper: returns true on a confirmed state transition
@@ -120,29 +161,36 @@ void GamepadInput::timerCallback()
     {
         if (ev.type == SDL_CONTROLLERDEVICEADDED)
         {
-            // Guard: only queue a reconnect if no controller is currently open.
-            // BT reconnect fires multiple ADDED events; the first one is sufficient.
-            // Defer by one tick so SDL_GameControllerOpen() is not called during
+            // Queue a reconnect. If a stale controller handle is still open (BT reconnect
+            // where REMOVED was never fired or is delayed), close it first so
+            // tryOpenController() starts from a clean state. A delayed REMOVED event
+            // arriving later will be harmlessly ignored (controller_ == nullptr).
+            // Defer the open by one tick so SDL_GameControllerOpen() is not called during
             // active BT enumeration (avoids crash on some BT stacks).
-            if (!controller_)
-                pendingReopenTick_ = true;
+            if (controller_)
+                closeController();  // clear stale handle + fire disconnect callbacks
+            pendingReopenTick_.store(true, std::memory_order_relaxed);
         }
         else if (ev.type == SDL_CONTROLLERDEVICEREMOVED)
         {
             // Guard: only close if the removed device matches our open controller.
             // Prevents closing the wrong device or a null controller handle.
-            if (controller_ &&
-                SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller_)) == ev.cdevice.which)
+            // SDL_GameControllerGetJoystick() can return nullptr on BT reconnect
+            // (SDL's joystick thread may invalidate the handle concurrently).
+            // If joy is null the handle is already invalid — close unconditionally.
+            if (controller_)
             {
-                closeController();
+                SDL_Joystick* joy = SDL_GameControllerGetJoystick(controller_);
+                if (joy == nullptr || SDL_JoystickInstanceID(joy) == ev.cdevice.which)
+                    closeController();
             }
         }
     }
 
     // Deferred open: one tick after ADDED event, BT enumeration has settled.
-    if (pendingReopenTick_ && !controller_)
+    if (pendingReopenTick_.load(std::memory_order_relaxed) && !controller_)
     {
-        pendingReopenTick_ = false;
+        pendingReopenTick_.store(false, std::memory_order_relaxed);
         tryOpenController();
     }
 
@@ -188,13 +236,21 @@ void GamepadInput::timerCallback()
     }
 
     // ── Right stick → pitch joystick (returns to center when released) ──────────
-    // No sample-and-hold: when the stick enters the dead zone, pitchX/Y return to 0
-    // so the UI and pitch computation reflect the stick's actual resting position.
+    // Rescaling applied (same as left stick): value is 0 inside the dead zone and ramps
+    // smoothly to ±1 at stick extreme, eliminating the cursor jump when the stick first
+    // exits the dead zone.
     {
+        const float dz = deadZone_.load(std::memory_order_relaxed);
+        auto rescaleRight = [dz](float raw) -> float {
+            const float av = std::abs(raw);
+            if (av < dz) return 0.0f;
+            const float sign = (raw > 0.0f) ? 1.0f : -1.0f;
+            return sign * (av - dz) / (1.0f - dz);
+        };
         const float rawX =  normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTX));
         const float rawY = -normaliseAxis(SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTY));
-        pitchX_.store(rawX, std::memory_order_relaxed);
-        pitchY_.store(rawY, std::memory_order_relaxed);
+        pitchX_.store(rescaleRight(rawX), std::memory_order_relaxed);
+        pitchY_.store(rescaleRight(rawY), std::memory_order_relaxed);
     }
 
     // ── Left stick → filter (deadzone rescaling, no sample-and-hold) ────────
