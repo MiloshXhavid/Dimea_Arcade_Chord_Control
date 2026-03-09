@@ -462,7 +462,11 @@ Plans:
   5. 2–3 soft nebula blobs (purple/teal, alpha ~0.05) drift extremely slowly across the pad
   6. Background hue shifts ±8° over a 120s cycle — subliminal
   7. All living-space effects crossfade out as warp ramps in — no overlap
-**Plans**: 1 plan
+**Plans**: 2 plans
+
+Plans:
+- [ ] 43.2-01-PLAN.md — StarDot struct + new members + resized() generation + timerCallback animation (heading, parallax, respawn, twinkle, shooting star, nebulae)
+- [ ] 43.2-02-PLAN.md — paint() draw passes (hue drift, nebulae, twinkle+fade-in stars, shooting star) + build + install + UAT checkpoint
 
 #### Phase 43.1: Mini Mode (INSERTED)
 **Goal**: 3-state window toggle — Full UI, Mini (pad-only at current scale), Maxi (pad-only fills display). Starfield, warp, and cursor run in both compact states.
