@@ -2591,10 +2591,10 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     logoImage_ = juce::ImageCache::getFromMemory(BinaryData::DimeaLogo_png,
                                                  BinaryData::DimeaLogo_pngSize);
 
-    scaleFactor_ = (float)juce::jlimit(0.75, 2.0, proc_.savedUiScale_.load());
+    scaleFactor_ = (float)juce::jlimit(0.75, 1.0, proc_.savedUiScale_.load());
     setSize(juce::roundToInt(1120.0f * scaleFactor_),
             juce::roundToInt(840.0f  * scaleFactor_));
-    setResizeLimits(840, 630, 2240, 1680);                            // 0.75x min, 2.0x max
+    setResizeLimits(840, 630, 1120, 840);                             // 0.75x min, 1.0x max
     getConstrainer()->setFixedAspectRatio(1120.0 / 840.0);           // lock 4:3
     setResizable(true, false);                                        // host resize; no JUCE corner handle
 

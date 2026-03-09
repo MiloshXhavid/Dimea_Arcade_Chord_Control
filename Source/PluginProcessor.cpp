@@ -2746,7 +2746,7 @@ void PluginProcessor::setStateInformation(const void* data, int size)
             newParam->setAttribute("id", "randomSyncMode");
             newParam->setAttribute("value", wasSync ? 1.0 : 0.0);  // INT=1, FREE=0
         }
-        savedUiScale_.store(juce::jlimit(0.75, 2.0,
+        savedUiScale_.store(juce::jlimit(0.75, 1.0,
             xml->getDoubleAttribute("uiScaleFactor", 1.0)));
         apvts.replaceState(juce::ValueTree::fromXml(*xml));
     }
