@@ -255,6 +255,12 @@ private:
 // Slow drag (< 2 px/call) → 1× sensitivity; fast drag (> 10 px/call) → 3× sensitivity.
 // Shift+drag bypasses velocity and falls back to JUCE's built-in fine-tune mode.
 // Base sensitivity: 300 px for a full-range sweep at 1×.
+//
+// dragAccumValue_ accumulates the floating-point drag position independently of the
+// APVTS parameter value. This is critical for AudioParameterInt knobs (e.g. octave,
+// interval, transpose) where the parameter snaps to integers on every update. Without
+// this accumulator, getValue() returns the already-snapped integer and small per-event
+// deltas never accumulate past the 0.5 threshold, making drag appear to do nothing.
 class VelocityKnob : public juce::Slider
 {
 public:
@@ -265,6 +271,7 @@ public:
         lastDragDist_ = 0.0f;
         smoothedSpeed_ = 0.0f;
         juce::Slider::mouseDown(e);
+        dragAccumValue_ = getValue();   // seed accumulator from current (pre-drag) value
     }
 
     void mouseDrag(const juce::MouseEvent& e) override
@@ -273,6 +280,7 @@ public:
         {
             juce::Slider::mouseDrag(e);
             lastDragDist_ = static_cast<float>(e.getDistanceFromDragStartY());
+            dragAccumValue_ = getValue();   // re-sync so direction change is seamless
             return;
         }
 
@@ -287,8 +295,8 @@ public:
 
         const double range = getMaximum() - getMinimum();
         const double change = static_cast<double>(delta) * mult * range / kBasePx;
-        setValue(juce::jlimit(getMinimum(), getMaximum(), getValue() + change),
-                 juce::sendNotificationAsync);
+        dragAccumValue_ = juce::jlimit(getMinimum(), getMaximum(), dragAccumValue_ + change);
+        setValue(dragAccumValue_, juce::sendNotificationSync);
     }
 
     void mouseUp(const juce::MouseEvent& e) override
@@ -300,8 +308,9 @@ public:
 private:
     static constexpr float kAlpha  = 0.25f;   // EMA smoothing factor
     static constexpr float kBasePx = 300.0f;  // px for full range at 1×
-    float lastDragDist_  = 0.0f;
-    float smoothedSpeed_ = 0.0f;
+    float  lastDragDist_  = 0.0f;
+    float  smoothedSpeed_ = 0.0f;
+    double dragAccumValue_ = 0.0;  // float accumulator — avoids integer-snap regression
 };
 
 // ─── VelocitySlider ───────────────────────────────────────────────────────────

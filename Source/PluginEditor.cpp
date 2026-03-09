@@ -205,6 +205,10 @@ void PixelLookAndFeel::drawButtonBackground(juce::Graphics& g,
         g.fillEllipse(eb);
         g.setColour(isOn ? Clr::highlight : Clr::accent.brighter(0.5f));
         g.drawEllipse(eb.reduced(0.75f), 2.0f);
+        // State label — drawn last so it appears over the ellipse body
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 8.5f, juce::Font::bold));
+        g.setColour(Clr::text);
+        g.drawText(button.getButtonText(), eb.toNearestInt(), juce::Justification::centred, false);
     }
     else if (button.getName() == "lrtoggle")
     {
@@ -2624,9 +2628,8 @@ PluginEditor::PluginEditor(PluginProcessor& p)
     }
 
     // RND SYNC — 3-state cycling button: FREE / INT / DAW
-    randomSyncButton_.setName("round");
     randomSyncButton_.setClickingTogglesState(false);   // manual cycling, not JUCE toggle
-    randomSyncButton_.setTooltip("Sync Mode  -  FREE: stochastic Poisson intervals  |  INT: locked to internal free BPM  |  DAW: locked to DAW beat grid");
+    randomSyncButton_.setTooltip("Sync Mode  -  Poison: stochastic Poisson intervals  |  Loop Sync: locked to internal free BPM  |  DAW Sync: locked to DAW beat grid");
     styleButton(randomSyncButton_);
     addAndMakeVisible(randomSyncButton_);
     // No ButtonParameterAttachment — drive manually via onClick + timerCallback
@@ -6182,22 +6185,30 @@ void PluginEditor::updateRndSyncButtonAppearance()
 {
     const int mode = static_cast<int>(
         *proc_.apvts.getRawParameterValue("randomSyncMode"));
-    if (mode == 1)  // INT
+    if (mode == 1)  // Loop Sync (internal free BPM)
     {
-        randomSyncButton_.setButtonText("INT");
-        randomSyncButton_.setColour(juce::TextButton::buttonColourId,   Clr::gateOn);
-        randomSyncButton_.setColour(juce::TextButton::buttonOnColourId, Clr::gateOn);
+        // Dim green — same hue as active REC GATES / REC JOY buttons in the looper box.
+        randomSyncButton_.setButtonText("Loop Sync");
+        randomSyncButton_.setColour(juce::TextButton::buttonColourId,   Clr::gateOn.darker(0.45f));
+        randomSyncButton_.setColour(juce::TextButton::buttonOnColourId, Clr::gateOn.darker(0.45f));
+        randomSyncButton_.setToggleState(false, juce::dontSendNotification);
     }
-    else if (mode == 2)  // DAW
+    else if (mode == 2)  // DAW Sync
     {
-        randomSyncButton_.setButtonText("DAW");
-        randomSyncButton_.setColour(juce::TextButton::buttonColourId,   juce::Colours::cornflowerblue);
-        randomSyncButton_.setColour(juce::TextButton::buttonOnColourId, juce::Colours::cornflowerblue);
+        // Match the looper's DAW SYNC button exactly:
+        //   fill = Clr::accent (drawButtonBackground uses accent.brighter(0.3f) when isOn=true)
+        //   ring = Clr::highlight (bright pink-red) — drawn automatically by drawButtonBackground
+        //          when isOn=true, identical to how the looper DAW SYNC button renders.
+        randomSyncButton_.setButtonText("DAW Sync");
+        randomSyncButton_.setColour(juce::TextButton::buttonColourId,   Clr::accent);
+        randomSyncButton_.setColour(juce::TextButton::buttonOnColourId, Clr::highlight);
+        randomSyncButton_.setToggleState(true, juce::dontSendNotification);
     }
-    else  // FREE (mode == 0)
+    else  // Poison (mode == 0, stochastic Poisson intervals)
     {
-        randomSyncButton_.setButtonText("FREE");
+        randomSyncButton_.setButtonText("Poison");
         randomSyncButton_.setColour(juce::TextButton::buttonColourId,   Clr::gateOff);
         randomSyncButton_.setColour(juce::TextButton::buttonOnColourId, Clr::gateOff);
+        randomSyncButton_.setToggleState(false, juce::dontSendNotification);
     }
 }
