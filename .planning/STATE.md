@@ -4,13 +4,13 @@ milestone: v1.9
 milestone_name: Living Interface
 status: in-progress
 stopped_at: Completed 43-01-PLAN.md — resize infrastructure + scaleFactor_ persistence wired, build clean
-last_updated: "2026-03-09T22:58:46.862Z"
+last_updated: "2026-03-09T23:27:45.859Z"
 last_activity: 2026-03-07 — v1.8 milestone completion archived
 progress:
   total_phases: 27
-  completed_phases: 25
+  completed_phases: 26
   total_plans: 56
-  completed_plans: 55
+  completed_plans: 56
   percent: 95
 ---
 
@@ -400,6 +400,7 @@ Key v1.6 design decisions (locked):
 - [Phase 43-resizable-ui]: uiScaleFactor persisted as XML attribute on root element (not PARAM child) — apvts.replaceState ignores it, scale factor is not an automatable parameter
 - [Phase 43-resizable-ui]: scaleFactor_ derived from getWidth()/1120.0f in resized() — single source of truth; constructor reads savedUiScale_ only for initial setSize
 - [Phase 43-resizable-ui]: setResizable(true, false) — host-driven resize only, no JUCE corner handle; setResizeLimits/setFixedAspectRatio/setResizable mandatory order respected
+- [Phase 43]: Phase 43 scale range changed to 0.75x-1.0x after UAT - upscaling deferred
 
 ### Pending Todos
 
