@@ -1314,7 +1314,7 @@ void JoystickPad::timerCallback()
         }
     }
 
-    // ── Phase 43.2: Drift heading update (joystick steering) ─────────────────
+    // ── Phase 43.2: Drift heading update (joystick steering, INV-aware) ───────
     {
         const float padW  = (float)getWidth();
         const float padCx = padW * 0.5f;
@@ -1322,7 +1322,12 @@ void JoystickPad::timerCallback()
                                 (displayCx_ - padCx) / (padW * 0.5f));
         constexpr float kTurnRate = 0.004f;  // rad/tick at full deflection (~15°/s at 60 Hz)
         driftHeading_ += kTurnRate * deflX;
-        // No fmod needed — cos/sin handle unlimited accumulation correctly
+
+        // Keep apparent flight direction fixed while INV rotation animates:
+        // screen direction = driftHeading_ - bgRotRad, so compensate each tick's delta.
+        const float bgRotRad = bgRotAngle_ * juce::MathConstants<float>::pi / 180.0f;
+        driftHeading_ += bgRotRad - bgRotPrev_;
+        bgRotPrev_ = bgRotRad;
     }
 
     // ── Phase 43.2: Animate starfield (unified heading + parallax + respawn) ──
@@ -1702,6 +1707,15 @@ void JoystickPad::paint(juce::Graphics& g)
         }
     }
 
+    // ── Layers 3 + 3.5: co-rotate with background so stars move with the photo ─
+    {
+        juce::Graphics::ScopedSaveState ss(g);
+        if (bgRotAngle_ != 0.0f)
+        {
+            const float rad = bgRotAngle_ * juce::MathConstants<float>::pi / 180.0f;
+            g.addTransform(juce::AffineTransform::rotation(-rad, b.getCentreX(), b.getCentreY()));
+        }
+
     // ── Layer 3: Starfield (count driven by randomPopulation 1-64) ───────────
     if (!starfield_.empty())
     {
@@ -1758,6 +1772,8 @@ void JoystickPad::paint(juce::Graphics& g)
             g.drawLine(tx, ty, hx, hy, 1.2f);
         }
     }
+
+    } // end layers 3+3.5 rotation scope (ScopedSaveState ss)
 
     // ── Layer 4: Joystick range circle — cyan glow, BPM-breathing ────────────
     {

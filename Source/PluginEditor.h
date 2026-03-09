@@ -192,8 +192,9 @@ private:
     int  livePitch_[4]     = { 60, 64, 67, 70 };  // cached from proc_ atomics in timerCallback
 
     // Phase 43.2: Living Space
-    float warpRamp_ = 0.0f;  // 0 = idle, 1 = full warp (Phase 42 will drive this; safe default = 0)
+    float warpRamp_    = 0.0f;  // 0 = idle, 1 = full warp (Phase 42 will drive this; safe default = 0)
     float driftHeading_ = -juce::MathConstants<float>::halfPi;  // starts upward (forward flight)
+    float bgRotPrev_   = 0.0f;  // bgRotAngle_ (radians) from previous tick — for heading compensation
 
     struct NebulaBlob { float x, y, rx, ry, vx, vy, alpha; juce::Colour colour; };
     std::array<NebulaBlob, 3> nebulae_ {};
