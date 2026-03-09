@@ -40,11 +40,11 @@ static int snapIntervalToScale(int iv, uint16_t mask, int transpose)
 }
 
 // ─── Chord name helper ───────────────────────────────────────────────────────
-// Thin JUCE wrapper around computeChordNameStr (see ChordNameHelper.h).
+// Smart JUCE wrapper: passes ChordNameContext for scale-aware voice inference.
 
-static juce::String computeChordName(const int pitches[4])
+static juce::String computeChordName(const int pitches[4], const ChordNameContext& ctx)
 {
-    return juce::String(computeChordNameStr(pitches));
+    return juce::String(computeChordNameSmart(pitches, ctx));
 }
 
 // ─── PixelLookAndFeel implementation ─────────────────────────────────────────
@@ -6132,8 +6132,36 @@ void PluginEditor::timerCallback()
     // transpose all reflect immediately.  Label::setText is a no-op when the
     // text hasn't changed, so there is no unnecessary repaint cost.
     {
+        // Build scale context for smart chord inference.
+        // customPatBuf declared before if/else so ctx.scalePattern pointer stays valid.
+        int customPatBuf[12]; int customPatSz = 0;
+        ChordNameContext ctx;
+        ctx.voiceMask = proc_.getCurrentVoiceMask();
+
+        const int scalePresetIdx = static_cast<int>(
+            *proc_.apvts.getRawParameterValue("scalePreset"));
+        const bool useCustom = (*proc_.apvts.getRawParameterValue("useCustomScale") > 0.5f);
+
+        if (useCustom)
+        {
+            bool customNotes[12];
+            for (int i = 0; i < 12; ++i)
+                customNotes[i] = (*proc_.apvts.getRawParameterValue(
+                                     "scaleNote" + juce::String(i)) > 0.5f);
+            ScaleQuantizer::buildCustomPattern(customNotes, customPatBuf, customPatSz);
+            ctx.scalePattern = customPatBuf;
+            ctx.scaleSize    = customPatSz;
+        }
+        else
+        {
+            const auto preset = static_cast<ScalePreset>(scalePresetIdx);
+            ctx.scalePattern  = ScaleQuantizer::getScalePattern(preset);
+            ctx.scaleSize     = ScaleQuantizer::getScaleSize(preset);
+        }
+
         const auto pitches = proc_.getCurrentPitches();
-        chordNameLabel_.setText(computeChordName(pitches.data()), juce::dontSendNotification);
+        chordNameLabel_.setText(computeChordName(pitches.data(), ctx),
+                                juce::dontSendNotification);
     }
 
     // ── RND SYNC button appearance sync ──────────────────────────────────────
