@@ -1585,13 +1585,15 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         if (hash != lastChordParamHash_)
         {
             lastChordParamHash_ = hash;
-            displayPitches_ = heldPitch_;
+            displayPitches_   = heldPitch_;
+            displayVoiceMask_ = 0xF;
         }
     }
 
     const bool arpOn = (*apvts.getRawParameterValue(ParamID::arpEnabled) > 0.5f);
 
     bool anyNoteOnThisBlock = false;
+    pendingVoiceMask_ = 0;
 
     TriggerSystem::ProcessParams tp;
     tp.onNote = [&](int voice, int pitch, bool isOn, int sampleOff)
@@ -1606,7 +1608,11 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             // joystick-position changes — those would cause the label to track
             // the joystick rest position rather than the last played chord.
             if (src[voice] != TriggerSource::Joystick)
-                displayPitches_ = heldPitch_;
+            {
+                pendingVoiceMask_ |= (uint8_t)(1 << voice);
+                displayPitches_    = heldPitch_;
+                displayVoiceMask_  = pendingVoiceMask_;
+            }
 
             // Activate "start rec by touch" before recordGate so the triggering
             // note-on is captured. activateRecordingNow() is a no-op unless armed.
@@ -2025,8 +2031,10 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
             if (noteCount_[ch - 1][pitch]++ == 0)
                 midi.addEvent(juce::MidiMessage::noteOn(ch, pitch, (uint8_t)100), 0);
             voiceTriggerFlash_[voice].fetch_add(1, std::memory_order_relaxed);
-            arpActivePitch_  = pitch;
-            arpActiveVoice_  = voice;
+            arpActivePitch_   = pitch;
+            displayPitches_   = heldPitch_;
+            displayVoiceMask_ = 0xF;   // arp: full chord always known, no inference
+            arpActiveVoice_   = voice;
             arpCurrentVoice_.store(voice, std::memory_order_relaxed);
             arpNoteOffRemaining_ = gateBeats;
         }

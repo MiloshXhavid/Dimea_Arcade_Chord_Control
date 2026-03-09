@@ -167,6 +167,7 @@ public:
 
     // Pitches for chord-name display: snapshotted on TouchPlate/Random triggers only.
     std::array<int,4> getCurrentPitches() const { return displayPitches_; }
+    uint8_t getCurrentVoiceMask() const { return displayVoiceMask_; }
 
     // Arp current voice for pad highlight (audio thread writes, UI reads)
     // -1 = no arp note sounding; 0-3 = voice currently being arped
@@ -351,6 +352,15 @@ private:
     // any chord-shaping parameter changes (transpose, intervals, octaves, scale).
     // Read by the UI timer for the chord-name label.
     std::array<int, 4> displayPitches_ {60, 64, 67, 70};
+
+    // Voice mask snapshotted alongside displayPitches_.
+    // Bit v = 1 means voice v produced a real note-on in the trigger event.
+    // Default 0xF = all voices real (used for param-change and arp snapshots).
+    uint8_t displayVoiceMask_ {0xF};
+
+    // Accumulates voice note-ons within a processBlock; written to displayVoiceMask_ at
+    // the trigger snapshot site (Site 2). Reset to 0 at top of processBlock.
+    uint8_t pendingVoiceMask_ = 0;
 
     // Hash of chord-shaping APVTS params — changes here update the display even
     // without a trigger.  Joystick & LFO are intentionally excluded.
