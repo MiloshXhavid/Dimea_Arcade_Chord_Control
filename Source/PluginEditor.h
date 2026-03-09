@@ -133,7 +133,15 @@ private:
         juce::Colour color;
     };
 
-    struct StarDot { float x, y, r, vx, vy; juce::Colour c; };
+    struct StarDot {
+        float x, y, r;
+        float vx = 0.0f, vy = 0.0f;  // legacy — unused after Phase 43.2 (direction computed inline)
+        juce::Colour c;
+        float baseAngle    = 0.0f;   // per-star direction variation (±15° from driftHeading_)
+        float speed        = 0.0f;   // normalized units/frame (magnitude)
+        float twinklePhase = 0.0f;   // 0..2π sine phase offset for brightness flicker
+        uint8_t fadeIn     = 0;      // counts DOWN from 30 on respawn; 0 = fully visible
+    };
 
     PluginProcessor& proc_;
     void updateFromMouse(const juce::MouseEvent& e);
@@ -182,6 +190,23 @@ private:
 
     // Phase 40: crosshair visualization
     int  livePitch_[4]     = { 60, 64, 67, 70 };  // cached from proc_ atomics in timerCallback
+
+    // Phase 43.2: Living Space
+    float warpRamp_ = 0.0f;  // 0 = idle, 1 = full warp (Phase 42 will drive this; safe default = 0)
+    float driftHeading_ = -juce::MathConstants<float>::halfPi;  // starts upward (forward flight)
+
+    struct NebulaBlob { float x, y, rx, ry, vx, vy, alpha; juce::Colour colour; };
+    std::array<NebulaBlob, 3> nebulae_ {};
+
+    struct ShootingStar {
+        float x      = 0.5f;   // normalized start X
+        float y      = 0.5f;   // normalized start Y
+        float angle  = 0.0f;   // direction radians
+        float progress = 1.0f; // 0..1; 1.0 = not active (complete/waiting)
+        float timerTicks  = 0.0f; // ticks until next spawn
+        bool  active   = false;
+    };
+    ShootingStar shootingStar_ {};
 };
 
 // ─── TouchPlate ───────────────────────────────────────────────────────────────
