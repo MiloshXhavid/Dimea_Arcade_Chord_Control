@@ -425,21 +425,6 @@ Plans:
 - [x] 41-01-PLAN.md — ChordNameHelper smart overload + PluginProcessor mask + TDD tests (completed 2026-03-09)
 - [x] 41-02-PLAN.md — PluginEditor wiring + build + install + UAT checkpoint (completed 2026-03-09)
 
-#### Phase 42: Warp Space Effect
-**Goal**: When the looper enters playback mode, the joystick pad background transforms into a cinematic warp tunnel with 4000ms ease-in ramp.
-**Depends on**: Phase 31 (starfield foundation)
-**Success Criteria**:
-  1. Looper play start → Z-velocity ramps to full warp over 4000ms smooth ease-in
-  2. At full warp: stars drawn as stretched lines (length ∝ speed); long edge streaks, short center dashes
-  3. Tunnel perspective: dim small at center → bright large at edge; vanishing point at center
-  4. Center axis stars shift to blue-white (#aaddff); peripheral stars warm white — radial Doppler blend
-  5. Looper stop → ramps back down over 4000ms; no sudden cut
-  6. Cursor and all UI on top; warp strictly behind joystick pad bounds
-**Plans**: 2 plans
-
-Plans:
-- [ ] 42-01-PLAN.md — WarpStar struct + warpRamp_ member + timerCallback ramp/freeze/animation + resized() init
-- [ ] 42-02-PLAN.md — paint() warp star draw pass + ambient star elongation + build + install + UAT checkpoint
 
 #### Phase 43: Resizable UI
 **Goal**: Plugin window resizes proportionally from 0.75x to 2.0x with locked aspect ratio — remembered across sessions.
@@ -453,7 +438,7 @@ Plans:
 
 #### Phase 43.2: Living Space (INSERTED)
 **Goal**: Make the joystick pad feel alive in idle (non-warp) mode — pilot floating through space. All effects extremely subtle, active only when warp is off.
-**Depends on**: Phase 42 (warp foundation)
+**Depends on**: Phase 31 (starfield foundation)
 **Success Criteria**:
   1. Stars drift in a unified heading that accumulates from joystick input — banking right rotates heading clockwise; releasing the joystick holds the new heading (no snap back). Full 360° rotation possible.
   2. Stars twinkle independently at ±10% brightness — imperceptible on a single frame, felt over time
