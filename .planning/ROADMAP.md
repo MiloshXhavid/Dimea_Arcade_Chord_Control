@@ -468,6 +468,9 @@ Plans:
   5. Plugin always opens in Full view (mode not persisted)
 **Plans**: 1 plan
 
+Plans:
+- [ ] 43.1-01-PLAN.md — WindowMode state machine, applyWindowMode(), resized() dispatch, overlay/header buttons, gamepad 5-state cycle + UAT checkpoint
+
 ## Progress
 
 | Phase | Milestone | Status | Completed |
