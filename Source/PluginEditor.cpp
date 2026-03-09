@@ -1137,12 +1137,11 @@ void JoystickPad::resized()
         shootingStar_.active     = false;
     }
 
-    // Bug 1 fix: snap cursor to pad center on resize so it does not render at (0,0)
-    // until the first timerCallback fires with valid dimensions.
-    displayCx_  = getWidth()  * 0.5f;
-    displayCy_  = getHeight() * 0.5f;
-    springVelX_ = 0.0f;
-    springVelY_ = 0.0f;
+    // Reset spring velocity on resize — prevents ghost cursor motion artifact
+    springVelX_ = springVelY_ = 0.0f;
+    // Snap displayCx_/Cy_ to current logical joystick position in new pixel space:
+    displayCx_ = getWidth()  * 0.5f + proc_.joystickX.load() * (getWidth()  * 0.45f);
+    displayCy_ = getHeight() * 0.5f - proc_.joystickY.load() * (getHeight() * 0.45f);
 }
 
 void JoystickPad::resetGlowPhase() { glowPhase_ = 0.0f; }
@@ -3961,23 +3960,28 @@ void PluginEditor::resized()
     pixelLaf_.setScaleFactor(scaleFactor_);
     proc_.savedUiScale_.store((double)scaleFactor_);
 
-    auto area = getLocalBounds().reduced(8);
-    area.removeFromTop(28);   // header bar
-    area.removeFromBottom(60); // footer instructions
+    // Scale helper — multiplies any integer pixel constant by scaleFactor_
+    auto sc = [this](int px) -> int {
+        return juce::jmax(1, juce::roundToInt((float)px * scaleFactor_));
+    };
+
+    auto area = getLocalBounds().reduced(sc(8));
+    area.removeFromTop(sc(28));   // header bar
+    area.removeFromBottom(sc(60)); // footer instructions
     const int rowH   = area.getHeight();
 
     // Fixed left column width (448px = same as at 920px window width)
     constexpr int kLeftColW = 448;
-    auto left = area.removeFromLeft(kLeftColW);
-    area.removeFromLeft(8);  // gap between left column and LFO panels
+    auto left = area.removeFromLeft(sc(kLeftColW));
+    area.removeFromLeft(sc(8));  // gap between left column and LFO panels
 
     // LFO X panel column (150px — matches half of joystick pad width)
-    auto lfoXCol = area.removeFromLeft(150);
-    area.removeFromLeft(4);
+    auto lfoXCol = area.removeFromLeft(sc(150));
+    area.removeFromLeft(sc(4));
 
     // LFO Y panel column (150px)
-    auto lfoYCol = area.removeFromLeft(150);
-    area.removeFromLeft(8);  // wider gap between LFO Y and right column (visual division)
+    auto lfoYCol = area.removeFromLeft(sc(150));
+    area.removeFromLeft(sc(8));  // wider gap between LFO Y and right column (visual division)
 
     // Remaining right area (joystick + knobs + pads)
     auto right = area;
@@ -4001,15 +4005,15 @@ void PluginEditor::resized()
         const int rPanelW = right.getWidth();
 
         // Box top 4px below the separator line (separator at colBottom+9, box at colBottom+14)
-        const int boxTop = colBottom + 14;
-        const int boxBot = getLocalBounds().reduced(8).getBottom();
+        const int boxTop = colBottom + sc(14);
+        const int boxBot = getLocalBounds().reduced(sc(8)).getBottom();
         routingBoxBounds_ = juce::Rectangle<int>(rPanelX, boxTop, rPanelW, juce::jmax(0, boxBot - boxTop));
 
         routingLabel_.setBounds(0, 0, 0, 0);  // hidden — box knockout title serves as label
 
         // Single row: [routingModeBox_ | voiceChBox_[0..3]] with 8px header clearance
-        constexpr int comboH = 18;
-        const int ry = boxTop + 8;
+        const int comboH = sc(18);
+        const int ry = boxTop + sc(8);
         const int modeW = rPanelW * 2 / 5;        // ~40% for mode combo
         const int voiceW = rPanelW - modeW - 2;   // remaining for 4 voice combos
         routingModeBox_.setBounds(rPanelX, ry, modeW, comboH);
@@ -4021,55 +4025,55 @@ void PluginEditor::resized()
             voiceChLabel_[v].setBounds(0, 0, 0, 0);
 
         // Status labels — second row inside routing box, below the dropdowns
-        const int labelY = ry + comboH + 2;
-        constexpr int labelH = 14;
-        constexpr int kBattW = 30;   // reserved pixels for battery icon
+        const int labelY = ry + comboH + sc(2);
+        const int labelH = sc(14);
+        const int kBattW = sc(30);   // reserved pixels for battery icon
         gamepadStatusLabel_.setBounds(rPanelX,             labelY, modeW - kBattW, labelH);
         optionLabel_.setBounds       (rPanelX + modeW + 2, labelY, voiceW,         labelH);
     }
 
     // Reference Y values — mirror left-column anchors (same constants as left column below)
     //   kArpH=84, kLooperArpGap=14, kLooperSectionH=138, kTrigLooperGap=14, kTrigRndH=160
-    const int modTopY  = colBottom - 84 - 14 - 130;   // == looperPanelBounds_.getY() (looper drawn box top)
-    const int trigTopY = modTopY - 8 - 14 - 160;       // == twoBoxY in left column (modTopY = looperSectionY+8, so -8 corrects)
+    const int modTopY  = colBottom - sc(84) - sc(14) - sc(130);   // == looperPanelBounds_.getY() (looper drawn box top)
+    const int trigTopY = modTopY - sc(8) - sc(14) - sc(160);       // == twoBoxY in left column (modTopY = looperSectionY+8, so -8 corrects)
 
     // ── TRIGGER Box — top aligned with RANDOM PARAMS top ─────────────────────
     {
-        constexpr int kTrigBoxH = 160;   // == kTrigRndH — matches left-column twoBox height
+        const int kTrigBoxH = sc(160);   // == kTrigRndH — matches left-column twoBox height
         auto trigBox = juce::Rectangle<int>(right.getX(), trigTopY, right.getWidth(), kTrigBoxH);
         triggerBoxBounds_ = trigBox;
 
-        trigBox.removeFromTop(8);   // clearance for "TRIGGER" knockout label
+        trigBox.removeFromTop(sc(8));   // clearance for "TRIGGER" knockout label
 
         // Touchplates + HOLD / SUB-OCT buttons
         {
-            auto row = trigBox.removeFromTop(70);
-            const int pw = (row.getWidth() - 9) / 4;
+            auto row = trigBox.removeFromTop(sc(70));
+            const int pw = (row.getWidth() - sc(9)) / 4;
             juce::Component* pads[4] = { &padRoot_, &padThird_, &padFifth_, &padTension_ };
             for (int v = 0; v < 4; ++v)
             {
                 auto b = row.removeFromLeft(pw);
                 pads[v]->setBounds(b);
-                auto holdStrip = b.removeFromTop(18).reduced(2, 2);
+                auto holdStrip = b.removeFromTop(sc(18)).reduced(sc(2), sc(2));
                 auto holdLeft  = holdStrip.removeFromLeft(holdStrip.getWidth() / 2);
                 padHoldBtn_[v]   .setBounds(holdLeft);
                 padSubOctBtn_[v] .setBounds(holdStrip);
-                if (v < 3) row.removeFromLeft(3);
+                if (v < 3) row.removeFromLeft(sc(3));
             }
         }
 
-        trigBox.removeFromTop(3);
+        trigBox.removeFromTop(sc(3));
 
         // Global ALL pad
-        padAll_.setBounds(trigBox.removeFromTop(32));
+        padAll_.setBounds(trigBox.removeFromTop(sc(32)));
 
-        trigBox.removeFromTop(18);  // clear space for "QUANTIZE TRIGGER" label above buttons
+        trigBox.removeFromTop(sc(18));  // clear space for "QUANTIZE TRIGGER" label above buttons
 
         // Quantize trigger — [Off][Live][Post][subdiv]
         {
-            auto qRow = trigBox.removeFromTop(18);
-            constexpr int kDropW = 52;
-            constexpr int kGap   = 2;
+            auto qRow = trigBox.removeFromTop(sc(18));
+            const int kDropW = sc(52);
+            const int kGap   = sc(2);
             const int btnW = (qRow.getWidth() - kDropW - 3 * kGap) / 3;
             quantizeOffBtn_ .setBounds(qRow.removeFromLeft(btnW)); qRow.removeFromLeft(kGap);
             quantizeLiveBtn_.setBounds(qRow.removeFromLeft(btnW)); qRow.removeFromLeft(kGap);
@@ -4080,100 +4084,100 @@ void PluginEditor::resized()
 
     // ── MODULATION Box — top aligned with LOOPER top ──────────────────────────
     {
-        constexpr int kModH = 228;  // extends to colBottom == arpBlockBounds_.getBottom()
+        const int kModH = sc(228);  // extends to colBottom == arpBlockBounds_.getBottom()
         auto modBox = juce::Rectangle<int>(right.getX(), modTopY, right.getWidth(), kModH);
         modulationBoxBounds_ = modBox;
 
-        modBox.removeFromTop(8);   // clearance for "MODULATION" knockout label
+        modBox.removeFromTop(sc(8));   // clearance for "MODULATION" knockout label
 
         // Row 1: [GAMEPAD ON][FILTER MOD][REC FILTER][PANIC]
         {
-            auto row = modBox.removeFromTop(20);
-            const int bW = (row.getWidth() - 3 * 4) / 4;
-            gamepadActiveBtn_.setBounds(row.removeFromLeft(bW)); row.removeFromLeft(4);
-            filterModBtn_    .setBounds(row.removeFromLeft(bW)); row.removeFromLeft(4);
-            filterRecBtn_    .setBounds(row.removeFromLeft(bW)); row.removeFromLeft(4);
+            auto row = modBox.removeFromTop(sc(20));
+            const int bW = (row.getWidth() - 3 * sc(4)) / 4;
+            gamepadActiveBtn_.setBounds(row.removeFromLeft(bW)); row.removeFromLeft(sc(4));
+            filterModBtn_    .setBounds(row.removeFromLeft(bW)); row.removeFromLeft(sc(4));
+            filterRecBtn_    .setBounds(row.removeFromLeft(bW)); row.removeFromLeft(sc(4));
             panicBtn_        .setBounds(row);
         }
 
-        modBox.removeFromTop(3);
+        modBox.removeFromTop(sc(3));
 
         // Row 2: 12px clearance for painted "LEFT X" / "LEFT Y" labels above combo boxes
         {
-            modBox.removeFromTop(12);
+            modBox.removeFromTop(sc(12));
             filterXModeLabel_.setBounds(0, 0, 0, 0);
             filterYModeLabel_.setBounds(0, 0, 0, 0);
         }
 
         // Row 3: filterXModeBox_ | filterYModeBox_ (with optional custom labels)
         {
-            auto comboRow = modBox.removeFromTop(22);
+            auto comboRow = modBox.removeFromTop(sc(22));
             const int hw = comboRow.getWidth() / 2;
-            auto xHalf = comboRow.removeFromLeft(hw).reduced(1, 0);
-            auto yHalf = comboRow.reduced(1, 0);
+            auto xHalf = comboRow.removeFromLeft(hw).reduced(sc(1), 0);
+            auto yHalf = comboRow.reduced(sc(1), 0);
             if (filterXCustomCcLabel_.isVisible())
-                filterXCustomCcLabel_.setBounds(xHalf.removeFromRight(50));
+                filterXCustomCcLabel_.setBounds(xHalf.removeFromRight(sc(50)));
             else
                 filterXCustomCcLabel_.setBounds({});
             filterXModeBox_.setBounds(xHalf);
             if (filterYCustomCcLabel_.isVisible())
-                filterYCustomCcLabel_.setBounds(yHalf.removeFromRight(50));
+                filterYCustomCcLabel_.setBounds(yHalf.removeFromRight(sc(50)));
             else
                 filterYCustomCcLabel_.setBounds({});
             filterYModeBox_.setBounds(yHalf);
         }
 
-        modBox.removeFromTop(3);
+        modBox.removeFromTop(sc(3));
 
         // CUTOFF | RESONANCE knob groups — 2-row layout per side:
         // Top row:    [MOD Atten] [Base]   — side-by-side
         // Bottom row: [SEMITONE]           — under the Atten column
         {
             auto row = modBox;
-            const int colW = (row.getWidth() - 3) / 2;
+            const int colW = (row.getWidth() - sc(3)) / 2;
             const int rowH = row.getHeight() / 2;   // ~80px per row
 
             // Left X — CUTOFF
             {
-                auto col = row.removeFromLeft(colW); row.removeFromLeft(3);
+                auto col = row.removeFromLeft(colW); row.removeFromLeft(sc(3));
                 filterCutGroupBounds_ = col;
-                const int halfW = (col.getWidth() - 2) / 2;
+                const int halfW = (col.getWidth() - sc(2)) / 2;
                 auto topRow = col.removeFromTop(rowH);
                 auto botRow = col;
 
                 // Top row: Atten X (left) | Base X (right)
-                auto attenCol = topRow.removeFromLeft(halfW); topRow.removeFromLeft(2);
+                auto attenCol = topRow.removeFromLeft(halfW); topRow.removeFromLeft(sc(2));
                 auto baseCol  = topRow;
-                filterXAttenLabel_ .setBounds(attenCol.removeFromTop(14)); filterXAttenKnob_ .setBounds(attenCol);
-                filterXOffsetLabel_.setBounds(baseCol.removeFromTop(14));  filterXOffsetKnob_.setBounds(baseCol);
+                filterXAttenLabel_ .setBounds(attenCol.removeFromTop(sc(14))); filterXAttenKnob_ .setBounds(attenCol);
+                filterXOffsetLabel_.setBounds(baseCol.removeFromTop(sc(14)));  filterXOffsetKnob_.setBounds(baseCol);
 
                 // Bottom row: Semitone X — centered in the full X-side width
-                joyXAttenLabel_.setBounds(botRow.removeFromTop(14)); joyXAttenKnob_.setBounds(botRow);
+                joyXAttenLabel_.setBounds(botRow.removeFromTop(sc(14))); joyXAttenKnob_.setBounds(botRow);
             }
 
             // Left Y — RESONANCE
             {
                 auto col = row;
                 filterResGroupBounds_ = col;
-                const int halfW = (col.getWidth() - 2) / 2;
+                const int halfW = (col.getWidth() - sc(2)) / 2;
                 auto topRow = col.removeFromTop(rowH);
                 auto botRow = col;
 
                 // Top row: Atten Y (left) | Base Y (right)
-                auto attenCol = topRow.removeFromLeft(halfW); topRow.removeFromLeft(2);
+                auto attenCol = topRow.removeFromLeft(halfW); topRow.removeFromLeft(sc(2));
                 auto baseCol  = topRow;
-                filterYAttenLabel_ .setBounds(attenCol.removeFromTop(14)); filterYAttenKnob_ .setBounds(attenCol);
-                filterYOffsetLabel_.setBounds(baseCol.removeFromTop(14));  filterYOffsetKnob_.setBounds(baseCol);
+                filterYAttenLabel_ .setBounds(attenCol.removeFromTop(sc(14))); filterYAttenKnob_ .setBounds(attenCol);
+                filterYOffsetLabel_.setBounds(baseCol.removeFromTop(sc(14)));  filterYOffsetKnob_.setBounds(baseCol);
 
                 // Bottom row: Semitone Y — centered in the full Y-side width
-                joyYAttenLabel_.setBounds(botRow.removeFromTop(14)); joyYAttenKnob_.setBounds(botRow);
+                joyYAttenLabel_.setBounds(botRow.removeFromTop(sc(14))); joyYAttenKnob_.setBounds(botRow);
             }
         }
 
         // X / Y sub-panel bounds — each half from below the button row to box bottom
         // (8 header + 20 btn row + 3 gap = 31px consumed above)
         {
-            const int subTop = modTopY + 31;
+            const int subTop = modTopY + sc(31);
             const int subBot = modTopY + kModH;
             const int halfW  = right.getWidth() / 2;
             modXSubBounds_ = juce::Rectangle<int>(right.getX(),          subTop, halfW,                    subBot - subTop);
@@ -4185,9 +4189,9 @@ void PluginEditor::resized()
     {
         // LFO box top = area.getY() + 4 (lfoXEnabledBtn Y=area.getY()+14, panel expanded -10)
         // Quantizer bottom = area.getY() + 4 + 308 (left col starts at area.getY(), +4 offset, +308 height)
-        const int padTopY  = right.getY() + 4;          // == lfoXPanelBounds_.getY()
-        const int padBotY  = right.getY() + 4 + 308;    // == quantizerBoxBounds_.getBottom()
-        const int padH     = padBotY - padTopY;          // == 308
+        const int padTopY  = right.getY() + sc(4);          // == lfoXPanelBounds_.getY()
+        const int padBotY  = right.getY() + sc(4) + sc(308);    // == quantizerBoxBounds_.getBottom()
+        const int padH     = padBotY - padTopY;          // == 308 scaled
         const int padSize  = juce::jmin(right.getWidth(), padH);
         const int padX     = right.getX() + (right.getWidth() - padSize) / 2;
         joystickPad_.setBounds(padX, padTopY, padSize, padSize);
@@ -4197,124 +4201,124 @@ void PluginEditor::resized()
 
     // ── QUANTIZER box ─────────────────────────────────────────────────────────
     // Scale preset + keyboard + 8 knobs in two 2×2 sub-panels (INTERVAL | OCTAVE)
-    left.removeFromTop(4);  // align QUANTIZER top with LFO X panel top (lfoXPanelBounds_.getY() = area.getY()+4)
+    left.removeFromTop(sc(4));  // align QUANTIZER top with LFO X panel top (lfoXPanelBounds_.getY() = area.getY()+4)
     {
-        constexpr int kQuantizerH = 308;
+        const int kQuantizerH = sc(308);
         auto qBox = left.removeFromTop(kQuantizerH);
         quantizerBoxBounds_ = qBox;
 
-        qBox.removeFromTop(8);   // clearance for "QUANTIZER" knockout label on top border
+        qBox.removeFromTop(sc(8));   // clearance for "QUANTIZER" knockout label on top border
 
         // Scale preset label + combo — single row
         {
-            auto scaleRow = qBox.removeFromTop(22);
-            scalePresetLabel_.setBounds(scaleRow.removeFromLeft(84));
+            auto scaleRow = qBox.removeFromTop(sc(22));
+            scalePresetLabel_.setBounds(scaleRow.removeFromLeft(sc(84)));
             scalePresetBox_  .setBounds(scaleRow);
         }
-        qBox.removeFromTop(4);
+        qBox.removeFromTop(sc(4));
 
         // Scale keyboard — taller now that label+combo share one row (saves 22px)
-        scaleKeys_.setBounds(qBox.removeFromTop(106));
-        qBox.removeFromTop(8);   // gap between keyboard and sub-panels
+        scaleKeys_.setBounds(qBox.removeFromTop(sc(106)));
+        qBox.removeFromTop(sc(8));   // gap between keyboard and sub-panels
 
         // Two sub-panels side by side: INTERVAL (left) | OCTAVE (right)
-        const int subW = (qBox.getWidth() - 4) / 2;
+        const int subW = (qBox.getWidth() - sc(4)) / 2;
         intervalSubBounds_ = qBox.removeFromLeft(subW);
-        qBox.removeFromLeft(4);
+        qBox.removeFromLeft(sc(4));
         octaveSubBounds_ = qBox;
 
         // INTERVAL SELECT — 2×2: [Transpose | 3rd] top, [5th | Tension] bottom
         {
             auto r = intervalSubBounds_;
-            r.removeFromTop(14);  // sub-panel title drawn in paint()
-            r.removeFromTop(2);   // gap below title
+            r.removeFromTop(sc(14));  // sub-panel title drawn in paint()
+            r.removeFromTop(sc(2));   // gap below title
             const int hw = r.getWidth() / 2;
 
-            auto row1 = r.removeFromTop(70);
+            auto row1 = r.removeFromTop(sc(70));
             auto c1 = row1.removeFromLeft(hw);
-            transposeLabel_.setBounds(c1.removeFromTop(14)); transposeKnob_.setBounds(c1);
-            thirdIntLabel_ .setBounds(row1.removeFromTop(14)); thirdIntKnob_.setBounds(row1);
+            transposeLabel_.setBounds(c1.removeFromTop(sc(14))); transposeKnob_.setBounds(c1);
+            thirdIntLabel_ .setBounds(row1.removeFromTop(sc(14))); thirdIntKnob_.setBounds(row1);
 
-            r.removeFromTop(4);
+            r.removeFromTop(sc(4));
 
             auto c3 = r.removeFromLeft(hw);
-            fifthIntLabel_   .setBounds(c3.removeFromTop(14)); fifthIntKnob_.setBounds(c3);
-            tensionIntLabel_ .setBounds(r.removeFromTop(14));  tensionIntKnob_.setBounds(r);
+            fifthIntLabel_   .setBounds(c3.removeFromTop(sc(14))); fifthIntKnob_.setBounds(c3);
+            tensionIntLabel_ .setBounds(r.removeFromTop(sc(14)));  tensionIntKnob_.setBounds(r);
         }
 
         // OCTAVE SELECT — 2×2: [Root | 3rd] top, [5th | Tension] bottom
         {
             auto r = octaveSubBounds_;
-            r.removeFromTop(14);  // sub-panel title drawn in paint()
-            r.removeFromTop(2);   // gap below title
+            r.removeFromTop(sc(14));  // sub-panel title drawn in paint()
+            r.removeFromTop(sc(2));   // gap below title
             const int hw = r.getWidth() / 2;
 
-            auto row1 = r.removeFromTop(70);
+            auto row1 = r.removeFromTop(sc(70));
             auto c1 = row1.removeFromLeft(hw);
-            rootOctLabel_   .setBounds(c1.removeFromTop(14)); rootOctKnob_.setBounds(c1);
-            thirdOctLabel_  .setBounds(row1.removeFromTop(14)); thirdOctKnob_.setBounds(row1);
+            rootOctLabel_   .setBounds(c1.removeFromTop(sc(14))); rootOctKnob_.setBounds(c1);
+            thirdOctLabel_  .setBounds(row1.removeFromTop(sc(14))); thirdOctKnob_.setBounds(row1);
 
-            r.removeFromTop(4);
+            r.removeFromTop(sc(4));
 
             auto c3 = r.removeFromLeft(hw);
-            fifthOctLabel_   .setBounds(c3.removeFromTop(14)); fifthOctKnob_.setBounds(c3);
-            tensionOctLabel_ .setBounds(r.removeFromTop(14));  tensionOctKnob_.setBounds(r);
+            fifthOctLabel_   .setBounds(c3.removeFromTop(sc(14))); fifthOctKnob_.setBounds(c3);
+            tensionOctLabel_ .setBounds(r.removeFromTop(sc(14)));  tensionOctKnob_.setBounds(r);
         }
     }
 
-    left.removeFromTop(6);
+    left.removeFromTop(sc(6));
 
     // ── ARP / LOOPER / TRIGGER SELECTION — all anchored from the bottom up ─────
     // Arp block: anchored to bottom of left column
-    constexpr int kArpH = 84;
+    const int kArpH = sc(84);
     arpBlockBounds_ = juce::Rectangle<int>(
         left.getX(), left.getBottom() - kArpH, left.getWidth(), kArpH);
 
     // Looper: fixed height, anchored just above ARP
-    constexpr int kLooperSectionH = 138;  // 14px header clearance + 124px controls
-    constexpr int kLooperArpGap   = 14;   // gives ~4px between looper panel bottom and arp top
+    const int kLooperSectionH = sc(138);  // 14px header clearance + 124px controls
+    const int kLooperArpGap   = sc(14);   // gives ~4px between looper panel bottom and arp top
     const int looperSectionY = arpBlockBounds_.getY() - kLooperArpGap - kLooperSectionH;
     {
         auto section = juce::Rectangle<int>(left.getX(), looperSectionY, left.getWidth(), kLooperSectionH);
-        section.removeFromTop(14);  // clearance for "LOOPER" knockout label
+        section.removeFromTop(sc(14));  // clearance for "LOOPER" knockout label
 
         // Buttons row 1: PLAY / REC / RST / DEL
-        auto btnRow = section.removeFromTop(36);
-        const int bw = btnRow.getWidth() / 4 - 2;
-        loopPlayBtn_  .setBounds(btnRow.removeFromLeft(bw)); btnRow.removeFromLeft(2);
-        loopRecBtn_   .setBounds(btnRow.removeFromLeft(bw)); btnRow.removeFromLeft(2);
-        loopResetBtn_ .setBounds(btnRow.removeFromLeft(bw)); btnRow.removeFromLeft(2);
+        auto btnRow = section.removeFromTop(sc(36));
+        const int bw = btnRow.getWidth() / 4 - sc(2);
+        loopPlayBtn_  .setBounds(btnRow.removeFromLeft(bw)); btnRow.removeFromLeft(sc(2));
+        loopRecBtn_   .setBounds(btnRow.removeFromLeft(bw)); btnRow.removeFromLeft(sc(2));
+        loopResetBtn_ .setBounds(btnRow.removeFromLeft(bw)); btnRow.removeFromLeft(sc(2));
         loopDeleteBtn_.setBounds(btnRow.removeFromLeft(bw));
 
-        section.removeFromTop(2);
+        section.removeFromTop(sc(2));
 
         // Buttons row 2: REC GATES / REC JOY / REC TOUCH / DAW SYNC (four columns)
         {
-            auto row2 = section.removeFromTop(28);
-            const int bw4 = (row2.getWidth() - 6) / 4;
-            loopRecGatesBtn_.setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(2);
-            loopRecJoyBtn_  .setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(2);
-            loopRecWaitBtn_ .setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(2);
+            auto row2 = section.removeFromTop(sc(28));
+            const int bw4 = (row2.getWidth() - sc(6)) / 4;
+            loopRecGatesBtn_.setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(sc(2));
+            loopRecJoyBtn_  .setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(sc(2));
+            loopRecWaitBtn_ .setBounds(row2.removeFromLeft(bw4)); row2.removeFromLeft(sc(2));
             loopSyncBtn_    .setBounds(row2);
         }
 
-        section.removeFromTop(4);
+        section.removeFromTop(sc(4));
 
         looperPositionBarBounds_ = {};  // replaced by perimeter bar — no strip layout needed
-        section.removeFromTop(8);       // preserve 8px gap so controls below keep their position
+        section.removeFromTop(sc(8));   // preserve 8px gap so controls below keep their position
 
         // Subdiv + length: narrow combo for time sig, slider for bars
         {
-            auto ctrlRow = section.removeFromTop(46);
-            const int subdivW = 58;  // enough for "11/8" + arrow
+            auto ctrlRow = section.removeFromTop(sc(46));
+            const int subdivW = sc(58);  // enough for "11/8" + arrow
 
             auto col1 = ctrlRow.removeFromLeft(subdivW);
-            loopSubdivLabel_.setBounds(col1.removeFromTop(14));
-            loopSubdivBox_  .setBounds(col1.removeFromTop(22));
+            loopSubdivLabel_.setBounds(col1.removeFromTop(sc(14)));
+            loopSubdivBox_  .setBounds(col1.removeFromTop(sc(22)));
 
-            ctrlRow.removeFromLeft(6);
-            loopLengthLabel_.setBounds(ctrlRow.removeFromTop(14));
-            loopLengthKnob_.setBounds(ctrlRow.removeFromTop(22));
+            ctrlRow.removeFromLeft(sc(6));
+            loopLengthLabel_.setBounds(ctrlRow.removeFromTop(sc(14)));
+            loopLengthKnob_.setBounds(ctrlRow.removeFromTop(sc(22)));
         }
 
         // Looper panel bounds — spans all looper controls (play row → subdiv/length row)
@@ -4322,13 +4326,13 @@ void PluginEditor::resized()
             const int looperTop    = loopPlayBtn_.getY();
             const int looperBottom = juce::jmax(loopLengthKnob_.getBottom(), loopSubdivBox_.getBottom());
             looperPanelBounds_ = juce::Rectangle<int>(
-                left.getX(), looperTop - 6, left.getWidth(), looperBottom - looperTop + 10);
+                left.getX(), looperTop - sc(6), left.getWidth(), looperBottom - looperTop + sc(10));
         }
     }
 
     // TRIGGER SELECTION + RANDOM PARAMS: anchored just above LOOPER
-    constexpr int kTrigRndH      = 160;
-    constexpr int kTrigLooperGap = 14;  // keeps LOOPER knockout label clear of box border
+    const int kTrigRndH      = sc(160);
+    const int kTrigLooperGap = sc(14);  // keeps LOOPER knockout label clear of box border
     const int twoBoxY = looperSectionY - kTrigLooperGap - kTrigRndH;
     {
         auto twoBoxRow = juce::Rectangle<int>(left.getX(), twoBoxY, left.getWidth(), kTrigRndH);
@@ -4344,55 +4348,55 @@ void PluginEditor::resized()
         // TRIGGER SELECTION: 4 stacked rows — [trigger source combo | subdiv combo]
         {
             auto r = trigArea;
-            r.removeFromTop(14);  // panel label clearance
+            r.removeFromTop(sc(14));  // panel label clearance
             const int trigW = (r.getWidth() * 2) / 3;
             for (int v = 0; v < 4; ++v)
             {
-                trigSrcLabel_[v].setBounds(r.removeFromTop(10));
-                auto row = r.removeFromTop(22);
+                trigSrcLabel_[v].setBounds(r.removeFromTop(sc(10)));
+                auto row = r.removeFromTop(sc(22));
                 trigSrc_[v]         .setBounds(row.removeFromLeft(trigW));
-                row.removeFromLeft(4);
+                row.removeFromLeft(sc(4));
                 randomSubdivBox_[v] .setBounds(row);
-                if (v < 3) r.removeFromTop(4);
+                if (v < 3) r.removeFromTop(sc(4));
             }
         }
 
         // RANDOM PARAMS: [Pop | Prob] top row, [RND SYNC | FREE BPM + Tempo label] bottom row
         {
             auto r = rndArea;
-            r.removeFromTop(14);  // panel label clearance
+            r.removeFromTop(sc(14));  // panel label clearance
             const int hw = r.getWidth() / 2;
 
             // Row 1: Population (left) | Probability (right) — label above, knob below (matches Transpose size)
-            auto row1 = r.removeFromTop(70);
+            auto row1 = r.removeFromTop(sc(70));
             {
                 auto leftHalf = row1.removeFromLeft(hw);
-                randomDensityLabel_.setBounds(leftHalf.removeFromTop(14).reduced(2, 0));
-                randomDensityKnob_ .setBounds(leftHalf.reduced(2, 0));
+                randomDensityLabel_.setBounds(leftHalf.removeFromTop(sc(14)).reduced(sc(2), 0));
+                randomDensityKnob_ .setBounds(leftHalf.reduced(sc(2), 0));
             }
             {
                 auto rightHalf = row1;
-                randomProbabilityLabel_.setBounds(rightHalf.removeFromTop(14).reduced(2, 0));
-                randomProbabilityKnob_ .setBounds(rightHalf.reduced(2, 0));
+                randomProbabilityLabel_.setBounds(rightHalf.removeFromTop(sc(14)).reduced(sc(2), 0));
+                randomProbabilityKnob_ .setBounds(rightHalf.reduced(sc(2), 0));
             }
 
-            r.removeFromTop(4);
+            r.removeFromTop(sc(4));
 
             // Row 2: RND SYNC (CLR-style, centred on knob) | FREE BPM knob (right)
             // BPM label sits below the knob. Row height matches population knob row (70px).
-            auto row2 = r.removeFromTop(70);
+            auto row2 = r.removeFromTop(sc(70));
             auto syncHalf = row2.removeFromLeft(hw);
             auto freeTempoHalf = row2;
             // Knob takes the top portion, BPM label below it.
-            const auto knobBounds = freeTempoHalf.removeFromTop(freeTempoHalf.getHeight() - 14).reduced(2, 0);
+            const auto knobBounds = freeTempoHalf.removeFromTop(freeTempoHalf.getHeight() - sc(14)).reduced(sc(2), 0);
             randomFreeTempoKnob_.setBounds(knobBounds);
-            bpmDisplayLabel_.setBounds(freeTempoHalf.reduced(2, 0));
+            bpmDisplayLabel_.setBounds(freeTempoHalf.reduced(sc(2), 0));
             // CLR-style button vertically centred on the tempo knob
-            constexpr int btnH = 22;
+            const int btnH = sc(22);
             const int btnY = knobBounds.getCentreY() - btnH / 2;
-            randomSyncButton_.setBounds(syncHalf.getX() + 2, btnY, syncHalf.getWidth() - 4, btnH);
-            randomSubdivLabel_.setBounds(syncHalf.getX() + 2, btnY + btnH + 2,
-                                         syncHalf.getWidth() - 4, 12);
+            randomSyncButton_.setBounds(syncHalf.getX() + sc(2), btnY, syncHalf.getWidth() - sc(4), btnH);
+            randomSubdivLabel_.setBounds(syncHalf.getX() + sc(2), btnY + btnH + sc(2),
+                                         syncHalf.getWidth() - sc(4), sc(12));
         }
     }
 
@@ -4403,47 +4407,47 @@ void PluginEditor::resized()
     //         [Rate combo | Order combo | LEN combo | Gate slider]
     {
         auto r = arpBlockBounds_;
-        r.removeFromTop(14);                              // header clearance — 70px remaining
-        arpEnabledBtn_.setBounds(r.removeFromTop(20));    // ARP ON/OFF — 50px remaining
-        arpStepRowABounds_ = r.removeFromTop(13);         // cells 0–3
-        r.removeFromTop(1);                               // 1px gap — background shows through
-        arpStepRowBBounds_ = r.removeFromTop(13);         // cells 4–7
-        const int quarter = r.getWidth() / 4;             // controls row quarters
-        auto ctrlRow = r.removeFromTop(20);               // controls row
-        arpSubdivBox_ .setBounds(ctrlRow.removeFromLeft(quarter).reduced(1, 0));
-        arpOrderBox_  .setBounds(ctrlRow.removeFromLeft(quarter).reduced(1, 0));
-        arpLengthBox_ .setBounds(ctrlRow.removeFromLeft(quarter).reduced(1, 0));
-        arpGateTimeKnob_.setBounds(ctrlRow.reduced(1, 0));
+        r.removeFromTop(sc(14));                              // header clearance — 70px remaining
+        arpEnabledBtn_.setBounds(r.removeFromTop(sc(20)));    // ARP ON/OFF — 50px remaining
+        arpStepRowABounds_ = r.removeFromTop(sc(13));         // cells 0–3
+        r.removeFromTop(sc(1));                               // 1px gap — background shows through
+        arpStepRowBBounds_ = r.removeFromTop(sc(13));         // cells 4–7
+        const int quarter = r.getWidth() / 4;                 // controls row quarters
+        auto ctrlRow = r.removeFromTop(sc(20));               // controls row
+        arpSubdivBox_ .setBounds(ctrlRow.removeFromLeft(quarter).reduced(sc(1), 0));
+        arpOrderBox_  .setBounds(ctrlRow.removeFromLeft(quarter).reduced(sc(1), 0));
+        arpLengthBox_ .setBounds(ctrlRow.removeFromLeft(quarter).reduced(sc(1), 0));
+        arpGateTimeKnob_.setBounds(ctrlRow.reduced(sc(1), 0));
     }
 
     // ── LFO X panel layout ─────────────────────────────────────────────────────
     {
         auto col = lfoXCol;
 
-        col.removeFromTop(14);  // clear header area
+        col.removeFromTop(sc(14));  // clear header area
 
         // Row 0: ON button — full width (bigger than before; JOY moved to Row 6)
-        lfoXEnabledBtn_.setBounds(col.removeFromTop(26));
-        col.removeFromTop(4);
+        lfoXEnabledBtn_.setBounds(col.removeFromTop(sc(26)));
+        col.removeFromTop(sc(4));
 
         // Row 1: Shape ComboBox (full width)
-        lfoXShapeBox_.setBounds(col.removeFromTop(22));
-        col.removeFromTop(4);
+        lfoXShapeBox_.setBounds(col.removeFromTop(sc(22)));
+        col.removeFromTop(sc(4));
 
         // Row 1b: CC Dest ComboBox (with optional custom label)
         {
-            auto row = col.removeFromTop(22);
+            auto row = col.removeFromTop(sc(22));
             if (lfoXCustomCcLabel_.isVisible())
-                lfoXCustomCcLabel_.setBounds(row.removeFromRight(60));
+                lfoXCustomCcLabel_.setBounds(row.removeFromRight(sc(60)));
             else
                 lfoXCustomCcLabel_.setBounds({});
             lfoXCcDestBox_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 1c: Sister dest ComboBox (left 50%) + attenuation slider (right 50%, when visible)
         {
-            auto row = col.removeFromTop(22);
+            auto row = col.removeFromTop(sc(22));
             const bool xHasTarget = (lfoXSisterBox_.getSelectedId() != 1);
             lfoXSisterAttenSlider_.setVisible(xHasTarget);
             if (xHasTarget)
@@ -4455,61 +4459,61 @@ void PluginEditor::resized()
                 lfoXSisterAttenSlider_.setBounds({});
             lfoXSisterBox_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 2: Rate slider (left 34px = label, right 40px = sync subdiv label when active)
         {
-            auto row = col.removeFromTop(18);
-            row.removeFromLeft(34);
-            lfoXSyncSubdivLabel_.setBounds(row.removeFromRight(40));
+            auto row = col.removeFromTop(sc(18));
+            row.removeFromLeft(sc(34));
+            lfoXSyncSubdivLabel_.setBounds(row.removeFromRight(sc(40)));
             lfoXRateSlider_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 3: Phase slider
         {
-            auto row = col.removeFromTop(18);
-            row.removeFromLeft(34);
+            auto row = col.removeFromTop(sc(18));
+            row.removeFromLeft(sc(34));
             lfoXPhaseSlider_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 4: Level slider
         {
-            auto row = col.removeFromTop(18);
-            row.removeFromLeft(34);
+            auto row = col.removeFromTop(sc(18));
+            row.removeFromLeft(sc(34));
             lfoXLevelSlider_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 5: Distortion slider
         {
-            auto row = col.removeFromTop(18);
-            row.removeFromLeft(34);
+            auto row = col.removeFromTop(sc(18));
+            row.removeFromLeft(sc(34));
             lfoXDistSlider_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 6: SYNC button (left half) + JOY cursor-link toggle (right half)
         // Waveform visualiser moves to the new space below the REC button.
         {
-            auto row = col.removeFromTop(22);
-            const int btnW = (row.getWidth() - 4) / 2;
+            auto row = col.removeFromTop(sc(22));
+            const int btnW = (row.getWidth() - sc(4)) / 2;
             lfoXSyncBtn_.setBounds(row.removeFromLeft(btnW));
-            row.removeFromLeft(4);
+            row.removeFromLeft(sc(4));
             lfoXLinkBtn_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 7: REC button (wider, ~70%) + CLR (remaining ~30%)
         {
-            auto row = col.removeFromTop(26);
+            auto row = col.removeFromTop(sc(26));
             const int clrW = row.getWidth() / 3;
-            lfoXArmBtn_ .setBounds(row.removeFromLeft(row.getWidth() - clrW - 3));
-            row.removeFromLeft(3);
+            lfoXArmBtn_ .setBounds(row.removeFromLeft(row.getWidth() - clrW - sc(3)));
+            row.removeFromLeft(sc(3));
             lfoXClearBtn_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Oscilloscope: fills remaining space down to quantizer bottom (spaceship style)
         {
@@ -4531,30 +4535,30 @@ void PluginEditor::resized()
     {
         auto col = lfoYCol;
 
-        col.removeFromTop(14);  // clear header area
+        col.removeFromTop(sc(14));  // clear header area
 
         // Row 0: ON button — full width (bigger than before; JOY moved to Row 6)
-        lfoYEnabledBtn_.setBounds(col.removeFromTop(26));
-        col.removeFromTop(4);
+        lfoYEnabledBtn_.setBounds(col.removeFromTop(sc(26)));
+        col.removeFromTop(sc(4));
 
         // Row 1: Shape ComboBox (full width)
-        lfoYShapeBox_.setBounds(col.removeFromTop(22));
-        col.removeFromTop(4);
+        lfoYShapeBox_.setBounds(col.removeFromTop(sc(22)));
+        col.removeFromTop(sc(4));
 
         // Row 1b: CC Dest ComboBox (with optional custom label)
         {
-            auto row = col.removeFromTop(22);
+            auto row = col.removeFromTop(sc(22));
             if (lfoYCustomCcLabel_.isVisible())
-                lfoYCustomCcLabel_.setBounds(row.removeFromRight(60));
+                lfoYCustomCcLabel_.setBounds(row.removeFromRight(sc(60)));
             else
                 lfoYCustomCcLabel_.setBounds({});
             lfoYCcDestBox_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 1c: Sister dest ComboBox (left 50%) + attenuation slider (right 50%, when visible)
         {
-            auto row = col.removeFromTop(22);
+            auto row = col.removeFromTop(sc(22));
             const bool yHasTarget = (lfoYSisterBox_.getSelectedId() != 1);
             lfoYSisterAttenSlider_.setVisible(yHasTarget);
             if (yHasTarget)
@@ -4566,61 +4570,61 @@ void PluginEditor::resized()
                 lfoYSisterAttenSlider_.setBounds({});
             lfoYSisterBox_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 2: Rate slider (left 34px = label, right 40px = sync subdiv label when active)
         {
-            auto row = col.removeFromTop(18);
-            row.removeFromLeft(34);
-            lfoYSyncSubdivLabel_.setBounds(row.removeFromRight(40));
+            auto row = col.removeFromTop(sc(18));
+            row.removeFromLeft(sc(34));
+            lfoYSyncSubdivLabel_.setBounds(row.removeFromRight(sc(40)));
             lfoYRateSlider_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 3: Phase slider
         {
-            auto row = col.removeFromTop(18);
-            row.removeFromLeft(34);
+            auto row = col.removeFromTop(sc(18));
+            row.removeFromLeft(sc(34));
             lfoYPhaseSlider_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 4: Level slider
         {
-            auto row = col.removeFromTop(18);
-            row.removeFromLeft(34);
+            auto row = col.removeFromTop(sc(18));
+            row.removeFromLeft(sc(34));
             lfoYLevelSlider_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 5: Distortion slider
         {
-            auto row = col.removeFromTop(18);
-            row.removeFromLeft(34);
+            auto row = col.removeFromTop(sc(18));
+            row.removeFromLeft(sc(34));
             lfoYDistSlider_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 6: SYNC button (left half) + JOY cursor-link toggle (right half)
         // Waveform visualiser moves to the new space below the REC button.
         {
-            auto row = col.removeFromTop(22);
-            const int btnW = (row.getWidth() - 4) / 2;
+            auto row = col.removeFromTop(sc(22));
+            const int btnW = (row.getWidth() - sc(4)) / 2;
             lfoYSyncBtn_.setBounds(row.removeFromLeft(btnW));
-            row.removeFromLeft(4);
+            row.removeFromLeft(sc(4));
             lfoYLinkBtn_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Row 7: REC button (wider, ~70%) + CLR (remaining ~30%)
         {
-            auto row = col.removeFromTop(26);
+            auto row = col.removeFromTop(sc(26));
             const int clrW = row.getWidth() / 3;
-            lfoYArmBtn_ .setBounds(row.removeFromLeft(row.getWidth() - clrW - 3));
-            row.removeFromLeft(3);
+            lfoYArmBtn_ .setBounds(row.removeFromLeft(row.getWidth() - clrW - sc(3)));
+            row.removeFromLeft(sc(3));
             lfoYClearBtn_.setBounds(row);
         }
-        col.removeFromTop(4);
+        col.removeFromTop(sc(4));
 
         // Oscilloscope: fills remaining space down to quantizer bottom (spaceship style)
         {
@@ -4648,7 +4652,7 @@ void PluginEditor::resized()
         const int gpY = loopDeleteBtn_.getY();
         // Chord display: fixed height, bottom anchored at randomBoxBounds_ bottom (same
         // reference as before the LFO redesign). Independent of LFO panel size.
-        constexpr int kChordH = 64;
+        const int kChordH = sc(64);
         chordNameLabel_.setBounds(chordX, randomBoxBounds_.getBottom() - kChordH,
                                   chordW, kChordH);
         gamepadDisplay_.setBounds(chordX, gpY,
@@ -4658,15 +4662,15 @@ void PluginEditor::resized()
         // Threshold slider: centred under right joystick (rsX=78%, rsY=bY(0.70))
         {
             const int bodyOffsetPx = gamepadActiveBtn_.getY() - gpY;
-            const int bodyHPx      = arpBlockBounds_.getBottom() - (gpY + bodyOffsetPx) - 4;
+            const int bodyHPx      = arpBlockBounds_.getBottom() - (gpY + bodyOffsetPx) - sc(4);
             const float rsR        = juce::jmin(chordW * 0.065f, bodyHPx * 0.115f) * 1.6f;
             const int rsX_abs      = chordX + juce::roundToInt(chordW * 0.78f);
             const int rsY_abs      = gpY + bodyOffsetPx + juce::roundToInt(bodyHPx * 0.70f);
 
-            constexpr int kTrackH  = 7;
+            const int kTrackH  = sc(7);
             const int sliderW      = juce::roundToInt(chordW * 0.26f);
             const int sliderX      = rsX_abs - sliderW / 2;
-            const int sliderY      = rsY_abs + (int)rsR + 4;
+            const int sliderY      = rsY_abs + (int)rsR + sc(4); (void)sliderY;
 
             // Align vertical center of threshold track with vertical center of gate length knob
             const int alignedY = arpGateTimeKnob_.getY()
@@ -4674,6 +4678,9 @@ void PluginEditor::resized()
             thresholdSlider_.setBounds(sliderX, alignedY, sliderW, kTrackH);
         }
     }
+
+    // Persist scale factor so getStateInformation can write it back
+    proc_.savedUiScale_.store((double)scaleFactor_);
 
     (void)rowH;
 }
@@ -4812,7 +4819,7 @@ void PluginEditor::paint(juce::Graphics& g)
         g.drawRoundedRectangle(fb.reduced(0.5f), 7.0f, 1.5f);
 
         // Measure title text width
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::bold));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f * scaleFactor_, juce::Font::bold));
         const int textW = g.getCurrentFont().getStringWidth(title) + 10;
         const int textH = 12;
         const int textX = (int)(fb.getCentreX()) - textW / 2;
@@ -4845,7 +4852,7 @@ void PluginEditor::paint(juce::Graphics& g)
         g.drawRoundedRectangle(fb.reduced(0.5f), 7.0f, 1.5f);
 
         // Knockout header label (left-aligned for narrow panels) — white, 12pt bold like scale preset
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 12.0f, juce::Font::bold));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 12.0f * scaleFactor_, juce::Font::bold));
         const int textW = g.getCurrentFont().getStringWidth(title) + 10;
         const int textH = 14;
         const int textX = (int)fb.getX() + 6;
@@ -5003,7 +5010,7 @@ void PluginEditor::paint(juce::Graphics& g)
         g.fillRoundedRectangle(fb, 4.0f);
         g.setColour(Clr::accent.withAlpha(0.35f));
         g.drawRoundedRectangle(fb.reduced(0.25f), 4.0f, 0.75f);
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 10.5f, juce::Font::bold));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 10.5f * scaleFactor_, juce::Font::bold));
         g.setColour(Clr::text.withAlpha(0.85f));
         g.drawText(title, (int)fb.getX(), (int)fb.getY() + 2, (int)fb.getWidth(), 12,
                    juce::Justification::centred);
@@ -5063,7 +5070,7 @@ void PluginEditor::paint(juce::Graphics& g)
         // "Y" label just above the line (left end) — marks the Y-axis (Joystick Y) knobs
         // "X" label just below the line (left end) — marks the X-axis (Joystick X) knobs
         // In INV mode the axes are swapped so the labels must reflect that.
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 8.5f, juce::Font::bold));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 8.5f * scaleFactor_, juce::Font::bold));
         g.setColour(Clr::highlight.withAlpha(0.70f));
         {
             const bool invOn = *proc_.apvts.getRawParameterValue("stickInvert") > 0.5f;
@@ -5216,7 +5223,7 @@ void PluginEditor::paint(juce::Graphics& g)
         };
 
         // Compute label exclusion zone — mirrors drawLfoPanel constants for "LOOPER"
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 12.0f, juce::Font::bold));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 12.0f * scaleFactor_, juce::Font::bold));
         const int labelW = g.getCurrentFont().getStringWidth("LOOPER") + 10;
         const int labelH = 14;
         const int labelX = (int)b.getX() + 6;
@@ -5290,7 +5297,7 @@ void PluginEditor::paint(juce::Graphics& g)
 
     // Labels above controls — uses drawAbove helper (draws 12px above the component)
     g.setColour(Clr::textDim.brighter(0.2f));
-    g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
+    g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f * scaleFactor_, juce::Font::plain));
     auto drawAbove = [&](juce::Component& c, const juce::String& t)
     {
         if (c.isVisible())
@@ -5299,7 +5306,7 @@ void PluginEditor::paint(juce::Graphics& g)
     };
     // "LEFT X" / "LEFT Y" — labels follow their component's position.
     // Physical bounds swap in timerCallback (INV toggle) handles visual exchange.
-    g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 8.5f, juce::Font::bold));
+    g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 8.5f * scaleFactor_, juce::Font::bold));
     g.setColour(Clr::highlight.withAlpha(0.70f));
     if (filterYModeBox_.isVisible())
         g.drawText("LEFT Y", filterYModeBox_.getX(), filterYModeBox_.getY() - 12,
@@ -5314,7 +5321,7 @@ void PluginEditor::paint(juce::Graphics& g)
         const int labelX = quantizeOffBtn_.getX();
         const int labelW = quantizeSubdivBox_.getRight() - labelX;
         g.setColour(Clr::text);  // white like scale preset
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f * scaleFactor_, juce::Font::plain));
         g.drawText("QUANTIZE TRIGGER", labelX, quantizeOffBtn_.getY() - 13, labelW, 12,
                    juce::Justification::left);
     }
@@ -5335,7 +5342,7 @@ void PluginEditor::paint(juce::Graphics& g)
 
         footer.removeFromTop(5);
 
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f * scaleFactor_, juce::Font::plain));
         g.setColour(Clr::textDim.withAlpha(0.8f));
 
         // 3 rows × 2 columns — each column is half the footer width so long text fits
@@ -5364,7 +5371,7 @@ void PluginEditor::paint(juce::Graphics& g)
         const int rw = dividerX2_ - rx - 4;  // constrained to LFO columns only
         int ry = getHeight() - 55;  // identical to first left-footer row Y
 
-        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f, juce::Font::plain));
+        g.setFont(juce::Font(juce::Font::getDefaultSansSerifFontName(), 9.5f * scaleFactor_, juce::Font::plain));
         g.setColour(Clr::textDim.withAlpha(0.8f));  // same white as left footer
 
         const juce::String hintRows[] = {
@@ -5390,15 +5397,16 @@ void PluginEditor::paintOverChildren(juce::Graphics& g)
     {
         const auto& kb = randomFreeTempoKnob_.getBounds();
         // Centre the dot in the knob's bounding box
-        const float dotX = (float)kb.getCentreX() - 4.0f;
-        const float dotY = (float)kb.getCentreY() - 4.0f;
+        const float dotSize = 8.0f * scaleFactor_;
+        const float dotX = (float)kb.getCentreX() - dotSize * 0.5f;
+        const float dotY = (float)kb.getCentreY() - dotSize * 0.5f;
         // Dim grey at beat=0, bright cyan at beat=1.0
         const juce::Colour offClr = juce::Colour(0xFF2A3050);
         const juce::Colour onClr  = juce::Colour(0xFF00E5FF);  // bright cyan
         const juce::Colour dotClr = offClr.interpolatedWith(onClr, beatPulse_)
                                           .withAlpha(0.3f + 0.7f * beatPulse_);
         g.setColour(dotClr);
-        g.fillEllipse(dotX, dotY, 8.0f, 8.0f);
+        g.fillEllipse(dotX, dotY, dotSize, dotSize);
     }
 }
 
