@@ -416,7 +416,10 @@ Plans:
   2. Vertical line to X axis: fifth note name on left side, tension note name on right — both update in real time
   3. Lines at ~30% alpha in voice accent color; not rendered when cursor is at center or pad inactive
   4. Note names reflect quantized pitches (post-scale quantization)
-**Plans**: 1 plan
+**Plans**: 1/1 plans complete
+
+Plans:
+- [x] 40-01-PLAN.md — livePitch_ atomics + crosshairVisible APVTS param + JoystickPad crosshair paint/toggle + UAT checkpoint (completed 2026-03-09)
 
 #### Phase 41: Smart Chord Display
 **Goal**: The chord display always shows the current chord quality built from the root up — inferring the third from scale when Voice 1 is not triggered — and only updating on an active trigger.
@@ -461,4 +464,4 @@ Plans:
 | 26–30 | v1.6 | Complete | 2026-03-03 |
 | 31–33.1 | v1.7 | Complete | 2026-03-05 |
 | 34–37, 44 | v1.8 | Complete | 2026-03-07 |
-| 38–43 | v1.9 | Planned | — |
+| 38–43 | v1.9 | In Progress (Phase 40 complete) | — |

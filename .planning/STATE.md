@@ -3,6 +3,22 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Living Interface
 status: in-progress
+stopped_at: Completed 40-01-PLAN.md — pitch axis crosshair UAT approved, Phase 40 complete
+last_updated: "2026-03-09T01:05:00.000Z"
+last_activity: 2026-03-09 — Phase 40 pitch axis crosshair (livePitch_ atomics, right-click toggle, crosshair paint) UAT approved
+progress:
+  total_phases: 26
+  completed_phases: 23
+  total_plans: 50
+  completed_plans: 50
+  percent: 100
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.9
+milestone_name: Living Interface
+status: in-progress
 stopped_at: Completed 39-02-PLAN.md — build+install+UAT approved, Phase 39 complete
 last_updated: "2026-03-08T23:57:28.548Z"
 last_activity: 2026-03-07 — v1.8 milestone completion archived
@@ -335,6 +351,11 @@ Key v1.6 design decisions (locked):
 - [Phase 45]: TIE suppression checks upcoming step at (arpStep_+1)%arpLen — not the current step; arpStep wraps at arpLen (not seqLen) for pattern index
 - [Phase 39-01]: VelocityKnob/VelocitySlider defined before PluginEditor in header; ScaleSnapSlider rebased to VelocityKnob; isDotMode check uses interval==1.0 guard; hover ring drawn last for correct z-order
 - [Phase 39-02]: Build and install handled by cmake post-build step; all 4 UAT success criteria (velocity drag, EMA smoothing, hover ring, 12-dot indicators) approved by human tester 2026-03-09
+- [Phase 40]: livePitch_ stores placed after chordP.joystickX/Y std::clamp lines — uses fully LFO-resolved position, identical to note-on pitch computation
+- [Phase 40]: crosshairVisible APVTS bool follows same inline addBool pattern as stickSwap/stickInvert — no ParamID namespace entry needed
+- [Phase 40]: Note name uses manual octave formula (midiNote/12 - 1) rather than JUCE getMidiNoteName — matches C4=60 convention not JUCE's C5=60
+- [Phase 40]: Faint Clr::accent dot (0.15 alpha, 4px radius) at cursor position when crosshair OFF — discoverability hint
+- [Phase 40]: kCollisionR=20px label suppression prevents note name labels from overlapping cursor sprite at close range
 
 ### Pending Todos
 
@@ -346,6 +367,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T00:25:00.000Z
-Stopped at: Completed 39-02-PLAN.md — build+install+UAT approved, Phase 39 complete
-Next step: Continue v1.9 Living Interface — next phase after Phase 39.
+Last session: 2026-03-09T01:05:00.000Z
+Stopped at: Completed 40-01-PLAN.md — pitch axis crosshair UAT approved, Phase 40 complete
+Next step: Continue v1.9 Living Interface — next phase after Phase 40 (Phase 41: Smart Chord Display).
