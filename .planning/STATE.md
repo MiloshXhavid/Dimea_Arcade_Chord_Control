@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Living Interface
 status: in-progress
-stopped_at: Completed 43.2-02-PLAN.md — living space draw passes (hue drift, nebulae, twinkle, shooting star) + INV co-rotation, UAT approved
-last_updated: "2026-03-09T20:17:06.898Z"
+stopped_at: Completed 43-01-PLAN.md — resize infrastructure + scaleFactor_ persistence wired, build clean
+last_updated: "2026-03-09T22:58:46.862Z"
 last_activity: 2026-03-07 — v1.8 milestone completion archived
 progress:
-  total_phases: 28
+  total_phases: 27
   completed_phases: 25
   total_plans: 56
-  completed_plans: 54
+  completed_plans: 55
   percent: 95
 ---
 
@@ -397,6 +397,9 @@ Key v1.6 design decisions (locked):
 - [Phase 41 extra fixes]: phaseResetPending_ in LfoEngine resets phase/sampleCount/totalCycles on LFO ON button click
 - [Phase 43.2-living-space]: baseAngle stores ±15° variation relative to driftHeading_; vx/vy kept as legacy 0.0f padding; parallax by r threshold (1.4/0.8); ShootingStar timer seeded 720-1800 ticks in resized()
 - [Phase 43.2-living-space]: INV co-rotation wraps starfield+shooting star in ScopedSaveState with bgRotAngle_; driftHeading_ compensated each tick to keep flight path stable during 12s INV animation
+- [Phase 43-resizable-ui]: uiScaleFactor persisted as XML attribute on root element (not PARAM child) — apvts.replaceState ignores it, scale factor is not an automatable parameter
+- [Phase 43-resizable-ui]: scaleFactor_ derived from getWidth()/1120.0f in resized() — single source of truth; constructor reads savedUiScale_ only for initial setSize
+- [Phase 43-resizable-ui]: setResizable(true, false) — host-driven resize only, no JUCE corner handle; setResizeLimits/setFixedAspectRatio/setResizable mandatory order respected
 
 ### Pending Todos
 
@@ -408,6 +411,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T20:13:17.540Z
-Stopped at: Completed 43.2-02-PLAN.md — living space draw passes (hue drift, nebulae, twinkle, shooting star) + INV co-rotation, UAT approved
+Last session: 2026-03-09T22:58:46.857Z
+Stopped at: Completed 43-01-PLAN.md — resize infrastructure + scaleFactor_ persistence wired, build clean
 Next step: Phase 41 verification + proceed to next phase.
