@@ -3,8 +3,8 @@ project(ChordJoystick VERSION 1.9.0)
 
 # Generate Inno Setup installer script from template (single version source of truth)
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/installer/DimaChordJoystick-Setup.iss.in"
-    "${CMAKE_CURRENT_SOURCE_DIR}/installer/DimaChordJoystick-Setup.iss"
+    "${CMAKE_CURRENT_SOURCE_DIR}/installer/DimeaArcade-ChordControl-Setup.iss.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/installer/DimeaArcade-ChordControl-Setup.iss"
     @ONLY
 )
 

@@ -1,0 +1,35 @@
+; DimeaArcade-ChordControl-Setup.iss  (generated — edit DimeaArcade-ChordControl-Setup.iss.in instead)
+; Inno Setup 6.7.1 installer for Arcade Chord Control (BETA-Test) VST3 v1.9.0
+; Place this file in the installer/ subdirectory of the project root.
+
+[Setup]
+AppName=Arcade Chord Control (BETA-Test)
+AppVersion=1.9.0
+AppPublisher=Dimea Arcade
+AppPublisherURL=https://www.dimea.com
+AppComments=v1.9.0 - Living Interface: resizable UI (0.75x-2.0x), Mini/Maxi window modes, pitch axis crosshair with real-time note names, smart chord display, velocity-sensitive knob drag, 12-dot interval indicators, custom CC routing (0-127) for LFO and joystick targets, arpeggiator 8-step pattern grid (ON/TIE/OFF), sister LFO attenuation slider, living space starfield with parallax/shooting stars/nebulae, rec lane individual undo.
+OutputBaseFilename=DimeaArcade-ChordControl-v1.9.0-Setup
+OutputDir=Output
+DefaultDirName={commoncf64}\VST3\Arcade Chord Control (BETA-Test).vst3
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=dialog
+DisableDirPage=yes
+Compression=lzma
+SolidCompression=yes
+UninstallDisplayName=Arcade Chord Control (BETA-Test) VST3
+
+[Files]
+; Copies the entire .vst3 bundle (directory tree) to the standard VST3 system path.
+; Source ends in \* so Inno Setup recurses into the directory.
+; DestDir creates Arcade Chord Control (BETA-Test).vst3\ at the destination.
+Source: "..\build\ChordJoystick_artefacts\Release\VST3\Arcade Chord Control (BETA-Test).vst3\*"; \
+    DestDir: "{commoncf64}\VST3\Arcade Chord Control (BETA-Test).vst3"; \
+    Flags: ignoreversion recursesubdirs createallsubdirs
+
+[UninstallDelete]
+; Ensure the whole .vst3 bundle directory is removed on uninstall.
+Type: filesandordirs; Name: "{commoncf64}\VST3\Arcade Chord Control (BETA-Test).vst3"
+
+[Messages]
+WelcomeLabel1=Welcome to Arcade Chord Control by Dimea Arcade%nVisit us at www.dimea.com
+WelcomeLabel2=This installer will place the VST3 plugin in your system VST3 folder.%n%nNote: Windows may show a SmartScreen security warning during installation. This is expected for independently published software. Click "More info" and then "Run anyway" to continue.%n%nFor support or feedback: dimitri.daehler@dimea.com
