@@ -124,8 +124,11 @@ public:
     void timerCallback()  override;
     void resized()        override;
     void resetGlowPhase();  // called by PluginEditor::timerCallback() on beat
+    bool hitTest(int x, int y) override;
+    void setOverlayPassThrough(juce::Rectangle<int> r) { overlayPassThrough_ = r; }
 
 private:
+    juce::Rectangle<int> overlayPassThrough_;
     struct JoyParticle
     {
         float x, y;       // pixel position within pad

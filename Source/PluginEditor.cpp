@@ -1567,6 +1567,13 @@ void JoystickPad::updateFromMouse(const juce::MouseEvent& e)
     repaint();
 }
 
+bool JoystickPad::hitTest(int x, int y)
+{
+    if (!overlayPassThrough_.isEmpty() && overlayPassThrough_.contains(x, y))
+        return false;  // let click fall through to PluginEditor for overlay button
+    return true;
+}
+
 void JoystickPad::mouseDown(const juce::MouseEvent& e)
 {
     mouseIsDown_ = true;
@@ -4006,6 +4013,15 @@ void PluginEditor::applyWindowMode(WindowMode newMode)
         targetH = sq;
     }
 
+    // Punch a hit-test hole in joystickPad_ so overlay button clicks reach PluginEditor
+    if (isFull)
+        joystickPad_.setOverlayPassThrough({});
+    else
+    {
+        const int sz = 24, inset = 4;
+        joystickPad_.setOverlayPassThrough({ targetW - sz - inset, inset, sz, sz });
+    }
+
     // Adjust constrainer BEFORE setSize to avoid aspect-ratio rejection
     if (isFull)
     {
@@ -5846,15 +5862,14 @@ void PluginEditor::timerCallback()
                 default: break;
             }
         }
-        // MOD FIX X/Y knobs track live joystick regardless of LFO playback state.
-        // In INV mode physical X drives the logical Y axis, so we swap which display
-        // atomic feeds which knob so MOD FIX X always tracks the physical X stick.
+        // MOD FIX X/Y knobs track the live CC channel output.
+        // filterXOffsetDisplay_ = X CC channel output (uses filterYOffset in INV mode),
+        // filterYOffsetDisplay_ = Y CC channel output (uses filterXOffset in INV mode).
+        // No swap needed — display atoms already account for INV via effXOffset/effYOffset.
         {
-            const bool invForModFix = *proc_.apvts.getRawParameterValue("stickInvert") > 0.5f;
             if (!filterXOffsetDragging_)
                 filterXOffsetKnob_.setValue(
-                    (invForModFix ? proc_.filterYOffsetDisplay_ : proc_.filterXOffsetDisplay_)
-                        .load(std::memory_order_relaxed),
+                    proc_.filterXOffsetDisplay_.load(std::memory_order_relaxed),
                     juce::dontSendNotification);
 
         // Y axis targets
@@ -5945,8 +5960,7 @@ void PluginEditor::timerCallback()
 
             if (!filterYOffsetDragging_)
                 filterYOffsetKnob_.setValue(
-                    (invForModFix ? proc_.filterXOffsetDisplay_ : proc_.filterYOffsetDisplay_)
-                        .load(std::memory_order_relaxed),
+                    proc_.filterYOffsetDisplay_.load(std::memory_order_relaxed),
                     juce::dontSendNotification);
         }
 
