@@ -326,19 +326,19 @@ void GamepadInput::timerCallback()
             rightStickTrig_.store(true);
     }
 
-    // ── Options button (PS4: ≡ = SDL START) → cycles option mode 0→1→2→0 ──────
+    // ── Options button (PS4: ≡ = SDL START) → cycles option mode 0→1→2→3→4→0 ──
     optionFrameFired_ = false;
     {
         const bool cur = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_START) != 0;
         if (debounce(cur, btnOption_) && btnOption_.prev)  // rising edge = button down
         {
-            const int next = (optionMode_.load(std::memory_order_relaxed) + 1) % 3;
+            const int next = (optionMode_.load(std::memory_order_relaxed) + 1) % 5;
             optionMode_.store(next, std::memory_order_relaxed);
             optionFrameFired_ = true;  // lockout D-pad for this frame
         }
     }
 
-    // ── D-pad: mode 0=BPM/looper, mode 1=octaves, mode 2=transpose+intervals ─
+    // ── D-pad: mode 0/3/4=BPM/looper, mode 1=octaves, mode 2=transpose+intervals ─
     if (!optionFrameFired_)
     {
         const bool curUp    = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_DPAD_UP)    != 0;
@@ -346,7 +346,7 @@ void GamepadInput::timerCallback()
         const bool curLeft  = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_DPAD_LEFT)  != 0;
         const bool curRight = SDL_GameControllerGetButton(controller_, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) != 0;
 
-        if (optionMode_.load(std::memory_order_relaxed) != 0)
+        if (optionMode_.load(std::memory_order_relaxed) == 1 || optionMode_.load(std::memory_order_relaxed) == 2)
         {
             // Option modes 1 & 2: rising edge fires a press signal per direction.
             const bool curOptBtn[4] = { curUp, curDown, curLeft, curRight };

@@ -6197,15 +6197,19 @@ void PluginEditor::timerCallback()
         bpmDisplayLabel_.setText(juce::String(bpm, 1) + " BPM", juce::dontSendNotification);
     }
 
-    // Update OPTION indicator — dim=off, green=arp mode, red=interval mode
+    // Update OPTION indicator — dim=off, green=arp, red=interval, teal=mini, amber=maxi
     {
         const int optMode = proc_.getGamepad().getOptionMode();
         const juce::String newText = (optMode == 0) ? "OPTION"
                                    : (optMode == 1) ? "ARP"
-                                   :                  "INTRVL";
+                                   : (optMode == 2) ? "INTRVL"
+                                   : (optMode == 3) ? "MINI"
+                                   :                  "MAXI";
         const juce::Colour newCol  = (optMode == 0) ? Clr::textDim
                                    : (optMode == 1) ? Clr::gateOn
-                                   :                  juce::Colour(0xFFFF4444);  // red for mode 2
+                                   : (optMode == 2) ? juce::Colour(0xFFFF4444)   // red for mode 2
+                                   : (optMode == 3) ? juce::Colour(0xFF00BBAA)   // teal for mini
+                                   :                  juce::Colour(0xFFFFAA00);  // amber for maxi
         if (optionLabel_.getText() != newText)
             optionLabel_.setText(newText, juce::dontSendNotification);
         optionLabel_.setColour(juce::Label::textColourId, newCol);
@@ -6249,6 +6253,14 @@ void PluginEditor::timerCallback()
                 lbl->setColour(juce::Label::backgroundColourId, m2Colour);
                 lbl->repaint();
             }
+
+            // Modes 3/4 → compact view; modes 0/1/2 → ensure Full
+            if (optMode == 3)
+                applyWindowMode(WindowMode::Mini);
+            else if (optMode == 4)
+                applyWindowMode(WindowMode::Maxi);
+            else if (windowMode_ != WindowMode::Full)
+                applyWindowMode(WindowMode::Full);
         }
     }
 
