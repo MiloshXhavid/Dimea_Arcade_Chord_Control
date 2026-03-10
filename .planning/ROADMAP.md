@@ -345,131 +345,24 @@ Full details: `.planning/milestones/v1.8-ROADMAP.md`
 
 </details>
 
-### v1.9 Living Interface
+<details>
+<summary>✅ v1.9 Living Interface (Phases 38–45) — SHIPPED 2026-03-10</summary>
 
-**Milestone Goal:** Ship v1.9 with expressive UI refinements — per-lane recording undo, smart chord display, pitch axis crosshair, velocity-based knob drag, subdivision dot indicators, warp space effect, and a proportionally resizable plugin window.
+- [x] Phase 38: Quick Fixes & Rec Lane Undo (2/2 plans) — completed 2026-03-08
+- [x] Phase 38.1: Modulation Polish and CC Routing (1/1 plans) — completed 2026-03-08
+- [x] Phase 38.2: Custom CC Routing (4/4 plans) — completed 2026-03-09
+- [x] Phase 39: Knob UX — Velocity Drag & Visual Indicators (2/2 plans) — completed 2026-03-09
+- [x] Phase 40: Pitch Axis Crosshair (1/1 plans) — completed 2026-03-09
+- [x] Phase 41: Smart Chord Display (2/2 plans) — completed 2026-03-09
+- [x] Phase 43: Resizable UI (2/2 plans) — completed 2026-03-10
+- [x] Phase 43.1: Mini Mode (1/1 plans) — completed 2026-03-10
+- [x] Phase 43.2: Living Space (2/2 plans) — completed 2026-03-10
+- [x] Phase 44: Sister LFO Attenuation (1/1 plans) — completed 2026-03-09
+- [x] Phase 45: Arpeggiator Step Patterns UI Redesign (2/2 plans) — completed 2026-03-10
 
-#### Phase 38: Quick Fixes & Rec Lane Undo
-**Goal**: Five targeted fixes: play button stops flashing when DAW sync is armed but transport is stopped; each recording lane (Gates, Joy, Mod Whl) can be individually cleared by pressing its lit button again; LFO cross-mod level slider visually tracks when LFO X drives LFO Y's level parameter; looper is force-stopped when DAW transport stops to prevent note hang on DAW close; live joystick input (mouse drag or gamepad stick) overrides looper joystick playback with equal priority.
-**Depends on**: Phase 37
-**Success Criteria**:
-  1. In DAW Sync mode, the play button is unlit when transport is stopped and lit solid when playing — it never flashes while armed-but-stopped
-  2. Pressing Rec Gates while green immediately clears the gate buffer and turns the button gray; same behavior for Rec Joy and Rec Mod Whl independently — no cross-lane clearing
-  3. When LFO X is routed to LFO Y's Level parameter, the LFO Y Level slider thumb moves visually in real time at 30 Hz
-  4. When DAW transport stops while the looper is playing, the looper automatically stops in the same processBlock — note-offs for any active looper voices are emitted before the looper halts; closing the DAW after stopping transport leaves no stuck notes on the external synth
-  5. While actively dragging the mouse on the JoystickPad, the looper's recorded joystick positions do not override the live cursor position — the chord follows the mouse. When the gamepad right stick is deflected, it overrides the looper joystick playback identically. Releasing mouse/stick resumes looper joystick playback. Mouse and gamepad have equal priority.
-  6. The cursor burst particle effect fires for every trigger source — pad, joystick, random, looper playback, and arpeggiator — on the correct voice color. Currently looper and arp note-ons bypass voiceTriggerFlash_ and produce no burst.
-  7. When filterXMode or filterYMode is set to an LFO Freq target, the LFO Rate slider is the primary base value — MOD FIX adds a normalized offset on top of it (same additive pattern as Phase and Level targets already use). The LFO Rate slider visually tracks the combined value (base + MOD FIX + stick) whenever filterModOn is true, not only when a gamepad is active. Moving MOD FIX with no gamepad connected immediately updates the displayed rate. The fix applies to all four Freq cases: X→LFO-X, X→LFO-Y (cross), Y→LFO-Y, Y→LFO-X (cross).
-**Plans**: 1 plan
+Full details: `.planning/milestones/v1.9-ROADMAP.md`
 
-### Phase 38.1: Modulation Polish and CC Routing (INSERTED)
-
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
-**Depends on:** Phase 38
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 38.1 to break down)
-
-### Phase 38.2: Custom CC Routing (INSERTED)
-
-**Goal:** Allow users to assign any arbitrary MIDI CC number (0–127) to the LFO CC Dest and Left Stick X/Y Mode dropdowns, instead of being limited to the predefined named list.
-**Depends on:** Phase 38.1
-**Plans:** 4/4 plans complete
-
-Plans:
-- [ ] 38.2-01-PLAN.md — Wave 0: failing Catch2 test stubs for CC-CUSTOM-01/02/03 + CMakeLists registration
-- [ ] 38.2-02-PLAN.md — Processor: CustomCcRoutingHelpers.h, 4 APVTS params, StringArray extensions, kFilterCcNums[] OOB guards
-- [ ] 38.2-03-PLAN.md — Editor: 4 inline Label members, onChange show/hide, resized() row-split, timerCallback "CC [n]" sync, INV swap extension
-- [ ] 38.2-04-PLAN.md — Build + install + human smoke test (5 scenarios: custom entry, MIDI routing, preset round-trip, INV swap, all 4 combos)
-
-#### Phase 39: Knob UX — Velocity Drag & Visual Indicators
-**Goal**: Knob interaction feels professional — slow drag gives fine control, fast drag sweeps broadly, hovering shows a subtle highlight, and octave/interval buttons display 12 subdivision dots instead of the red ring indicator.
-**Depends on**: Phase 38
-**Success Criteria**:
-  1. Dragging slowly (< 2 px/frame) gives fine control; dragging fast (> 10 px/frame) sweeps ~3x faster — no jump on direction reversal
-  2. Exponential moving average smooths drag values — no stepping artifacts on LFO rate, Cutoff, Resonance
-  3. Hovering any knob shows a subtle brightness lift or highlight ring; disappears on mouse leave
-  4. All 4 octave and 4 interval buttons show 12 evenly-spaced 2 px filled dots at snap positions; red position ring removed; current value shown as a brighter dot
-**Plans**: 2 plans
-
-Plans:
-- [x] 39-01-PLAN.md — VelocityKnob + VelocitySlider classes, ScaleSnapSlider base change, drawRotarySlider dots + hover ring, wire all in-scope members (completed 2026-03-09)
-- [x] 39-02-PLAN.md — Build + install + UAT checkpoint (all 4 SC) (completed 2026-03-09)
-
-#### Phase 40: Pitch Axis Crosshair Visualization
-**Goal**: Two subtle lines extend from the cursor to the joystick pad edges with quantized note names — giving the player immediate pitch feedback without cluttering the space visual.
-**Depends on**: Phase 38
-**Success Criteria**:
-  1. Horizontal line to Y axis: root note name above the line, third note name below — both update in real time
-  2. Vertical line to X axis: fifth note name on left side, tension note name on right — both update in real time
-  3. Lines at ~30% alpha in voice accent color; not rendered when cursor is at center or pad inactive
-  4. Note names reflect quantized pitches (post-scale quantization)
-**Plans**: 1/1 plans complete
-
-Plans:
-- [x] 40-01-PLAN.md — livePitch_ atomics + crosshairVisible APVTS param + JoystickPad crosshair paint/toggle + UAT checkpoint (completed 2026-03-09)
-
-#### Phase 41: Smart Chord Display
-**Goal**: The chord display always shows the current chord quality built from the root up — inferring the third from scale when Voice 1 is not triggered — and only updating on an active trigger.
-**Depends on**: Phase 40
-**Success Criteria**:
-  1. Root from Voice 0 (Y axis); quality built upward through voices 1–3 — always root-relative (e.g. "Cm7", "Gmaj7#11", "D6")
-  2. When Voice 1 not triggered, third inferred from active scale pattern relative to root — correct minor/major quality shown
-  3. Display retains last chord name during silence — no update until next trigger fires
-  4. Correctly identifies: minor, major, dom7, maj7, m7, 6th, sus2/sus4, tension extensions (#11, b9, #9)
-**Plans**: 2 plans
-
-Plans:
-- [x] 41-01-PLAN.md — ChordNameHelper smart overload + PluginProcessor mask + TDD tests (completed 2026-03-09)
-- [x] 41-02-PLAN.md — PluginEditor wiring + build + install + UAT checkpoint (completed 2026-03-09)
-
-
-#### Phase 43: Resizable UI
-**Goal**: Plugin window resizes proportionally from 0.75x to 2.0x with locked aspect ratio — remembered across sessions.
-**Depends on**: Phase 38
-**Success Criteria**:
-  1. Dragging window corner in DAW resizes with locked aspect ratio — no overlap or distortion at any scale
-  2. At 0.75x all controls remain clickable and text readable; at 2.0x nothing overflows
-  3. Resizing produces no MIDI output or parameter changes
-  4. Scale factor persists across plugin save/load
-**Plans**: 2 plans
-
-Plans:
-- [ ] 43-01-PLAN.md — Processor savedUiScale_ + getStateInformation/setStateInformation round-trip + editor JUCE resize infrastructure
-- [ ] 43-02-PLAN.md — resized() full sc() wrapping + paint() font scaling + build + install + UAT checkpoint
-
-#### Phase 43.2: Living Space (INSERTED)
-**Goal**: Make the joystick pad feel alive in idle (non-warp) mode — pilot floating through space. All effects extremely subtle, active only when warp is off.
-**Depends on**: Phase 31 (starfield foundation)
-**Success Criteria**:
-  1. Stars drift in a unified heading that accumulates from joystick input — banking right rotates heading clockwise; releasing the joystick holds the new heading (no snap back). Full 360° rotation possible.
-  2. Stars twinkle independently at ±10% brightness — imperceptible on a single frame, felt over time
-  3. A faint shooting star streak appears every ~20s (random interval 12–30s)
-  4. Stars at 3 depth layers drift at 100% / 60% / 30% speed — parallax depth felt clearly
-  5. 2–3 soft nebula blobs (purple/teal, alpha ~0.05) drift extremely slowly across the pad
-  6. Background hue shifts ±8° over a 120s cycle — subliminal
-  7. All living-space effects crossfade out as warp ramps in — no overlap
-**Plans**: 2 plans
-
-Plans:
-- [ ] 43.2-01-PLAN.md — StarDot struct + new members + resized() generation + timerCallback animation (heading, parallax, respawn, twinkle, shooting star, nebulae)
-- [ ] 43.2-02-PLAN.md — paint() draw passes (hue drift, nebulae, twinkle+fade-in stars, shooting star) + build + install + UAT checkpoint
-
-#### Phase 43.1: Mini Mode (INSERTED)
-**Goal**: 3-state window toggle — Full UI, Mini (pad-only at current scale), Maxi (pad-only fills display). Starfield, warp, and cursor run in both compact states.
-**Depends on**: Phase 43
-**Success Criteria**:
-  1. Header ◱ button → Mini: window shrinks to pad square at current scale factor; all controls hidden
-  2. Header ⛶ button → Maxi: window expands to fill available display as a square; pad fills it
-  3. In Mini/Maxi: overlay button (top-right corner) returns to Full view
-  4. Starfield, warp, cursor, crosshair, and burst particles render normally in both Mini and Maxi
-  5. Plugin always opens in Full view (mode not persisted)
-**Plans**: 1 plan
-
-Plans:
-- [ ] 43.1-01-PLAN.md — WindowMode state machine, applyWindowMode(), resized() dispatch, overlay/header buttons, gamepad 5-state cycle + UAT checkpoint
+</details>
 
 ## Progress
 

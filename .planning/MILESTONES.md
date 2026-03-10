@@ -1,4 +1,19 @@
 # Milestones
+## v1.9 Living Interface (Shipped: 2026-03-10)
+
+**Phases completed:** Phases 38, 38.1, 38.2, 39, 40, 41, 43, 43.1, 43.2, 44, 45 (11 phases, 20 plans)
+
+**Key accomplishments:**
+- Resizable UI (0.75×–1.0× with locked aspect ratio) + 3-state Mini/Maxi window modes — pad-only compact views retain full starfield, warp, crosshair, and burst particles
+- Living Space starfield — unified heading drift with joystick input (full 360°), 3 parallax depth layers, per-star twinkle, shooting star, nebula blobs, background hue shift; INV co-rotates photo and starfield as one unit
+- Pitch axis crosshair with 4 livePitch_ atomics showing root/third/fifth/tension note names in real time; smart chord display infers quality from scale when voices not triggered (Cm7, Gmaj7#11, sus2/sus4)
+- Velocity-sensitive knob drag (EMA-smoothed, slow=fine/fast=broad) + hover ring; 12-dot snap indicators replace red ring on octave/interval buttons
+- Custom CC routing 0–127 for LFO CC Dest and Left Stick X/Y Mode; arpeggiator 8-step grid (ON/TIE/OFF), LEN combo, 3-state RND SYNC (FREE/INT/DAW)
+- Sister LFO bipolar attenuation slider; filter CC routing expanded to 18 named CCs; MOD FIX Freq dispatch fixed for all 4 cross-axis cases
+- GitHub Latest release v1.9 published; Inno Setup installer v1.9.0; desktop backup
+
+---
+
 ## v1.8 Modulation Expansion + Arp/Looper Fixes (Shipped: 2026-03-07)
 
 **Phases completed:** Phases 34, 35, 36, 37, 44 (5 phases, 7 plans)

@@ -8,14 +8,14 @@ ChordJoystick is a paid JUCE VST3 MIDI generator plugin for Windows that sends 4
 
 An XY joystick mapped to harmonic space — combined with per-note trigger gates, scale quantization, a gesture looper with trigger quantization, and gamepad control — that no existing MIDI tool provides as a unified instrument.
 
-## Current State (v1.8)
+## Current State (v1.9)
 
-- **Shipped:** 2026-03-07
-- **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/tag/v1.8
-- **Codebase:** ~8,500+ C++ LOC, 20+ source files + 14 Catch2 tests (LooperEngine)
+- **Shipped:** 2026-03-10
+- **GitHub:** https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/tag/v1.9
+- **Codebase:** ~10,000+ C++ LOC, 20+ source files + Catch2 tests (LooperEngine, ChordEngine, ScaleQuantizer, LfoSisterAtten)
 - **Build:** JUCE 8.0.4 + CMake FetchContent + SDL2 2.30.9 static, VS 18 2026, Release
 - **Plugin type:** VST3 instrument (IS_SYNTH TRUE, IS_MIDI_EFFECT FALSE, silent stereo output bus)
-- **Installer:** `installer/Output/DimeaArcade-ChordControl-v1.8.0-Setup.exe` (Inno Setup 6, static CRT, no MSVC redist required)
+- **Installer:** `installer/Output/DimeaArcade-ChordControl-v1.9.0-Setup.exe` (Inno Setup 6, static CRT, no MSVC redist required)
 - **Known limitation:** COPY_PLUGIN_AFTER_BUILD requires elevation — use `fix-install.ps1` manually after rebuild
 
 ## Requirements
@@ -105,6 +105,20 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 - ✓ Battery icon redesigned as 3 vertical stripe blocks (green/orange/red/gray/cyan/"?") — v1.7
 - ✓ GitHub v1.7 released as Latest; Inno Setup installer v1.7; desktop backup — v1.7
 
+### Validated — v1.9
+
+- ✓ Resizable UI — sc() helper wraps all layout constants; window scales 0.75×–1.0× with locked aspect ratio; scale persists in state — v1.9
+- ✓ Mini/Maxi window modes — 3-state toggle (Full/Mini/Maxi); gamepad Option modes 3/4 cycle; overlay return button; pad-only views retain full starfield/warp/cursor — v1.9
+- ✓ Living Space starfield — unified heading drift from joystick (full 360°); 3 parallax layers; per-star twinkle ±10%; shooting star ~20s; nebula blobs; background hue shift ±8°/120s; INV co-rotates photo+starfield; crossfade out on warp — v1.9
+- ✓ Pitch axis crosshair — 4 livePitch_ atomics, two half-segment lines, octave-qualified note labels, right-click APVTS toggle — v1.9
+- ✓ Smart chord display — computeChordNameSmart; root-up quality inference (Cm7, Gmaj7#11, D6, sus2/sus4); third inferred from scale when Voice 1 not triggered; holds last name during silence — v1.9
+- ✓ Velocity-sensitive knob drag — slow<2px=fine, fast>10px=3× sweep; EMA smoothing; hover ring; 12-dot snap indicators on octave/interval buttons — v1.9
+- ✓ Custom CC routing — "Custom CC…" in LFO CC Dest and Left Stick X/Y Mode; CC 0–127; preset round-trip; INV swap extended — v1.9
+- ✓ Arpeggiator 8-step pattern grid — ON/TIE/OFF per cell; LEN combo (1–8); 3-state RND SYNC (FREE/INT/DAW) — v1.9
+- ✓ Sister LFO attenuation — lfoXSisterAtten/lfoYSisterAtten APVTS params (−1…+1); inline bipolar slider in Sister row — v1.9
+- ✓ Modulation polish — MOD FIX dispatch fixed for 8 LFO target cases; filter CC routing expanded to 18 named CCs; MOD FIX Freq additive over Rate slider base — v1.9
+- ✓ Rec lane individual undo — pressing lit Rec button clears that lane only; play button flash fixed for DAW Sync armed+stopped — v1.9
+
 ### Validated — v1.8
 
 - ✓ Cross-LFO modulation: filterXMode indices 8/9/10 = X stick → LFO-Y Freq/Phase/Level; filterYMode 8/9/10 = Y stick → LFO-X Freq/Phase/Level; real-time visual slider tracking with Playback guard — v1.8
@@ -171,4 +185,4 @@ An XY joystick mapped to harmonic space — combined with per-note trigger gates
 | IS_MIDI_EFFECT FALSE + IS_SYNTH TRUE + enabled output bus | Universal DAW instrument slot compatibility; audio.clear() ensures silence | ✓ Good |
 
 ---
-*Last updated: 2026-03-07 — v1.8 shipped*
+*Last updated: 2026-03-10 — v1.9 shipped*
