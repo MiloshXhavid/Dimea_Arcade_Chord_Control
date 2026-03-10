@@ -25,8 +25,9 @@ RAILROAD_ARCHITECTURE.md
 # CMake build directory
 build/
 
-# Installer binaries
-installer/Output/
+# Installer binaries — ignore all except versioned release builds
+installer/Output/*
+!installer/Output/DimeaArcade-ChordControl-v*.exe
 
 # pluginval tool
 pluginval/

@@ -1023,6 +1023,9 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         // Sister modulation: capture last frame's ramped Y output before any mutations.
         // LFO Y→X uses this (one-frame delay, negligible). LFO X→Y uses same-frame xTarget.
         const float prevYRampOut = lfoYRampOut_;
+        // Unit-amplitude versions for cross-mod: cross-mod depth is controlled solely by
+        // sisterAtten; the source LFO's Level slider should not affect cross-mod depth.
+        const float prevYRampFull = (yLevel > 0.0f) ? prevYRampOut / yLevel : 0.0f;
         const int xSisterDest = (int)*apvts.getRawParameterValue("lfoXSister"); // X→Y target
         const int ySisterDest = (int)*apvts.getRawParameterValue("lfoYSister"); // Y→X target
         const float xSisterAtten = *apvts.getRawParameterValue("lfoXSisterAtten");
@@ -1113,8 +1116,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                     ? static_cast<float>(std::fmod(looper_.getPlaybackBeat() / loopLenBeats, 1.0))
                     : 0.0f;
             }
-            // Sister mod: LFO Y modulates LFO X using last frame's ramped Y output.
-            applySisterMod(xp, ySisterDest, prevYRampOut * ySisterAtten);
+            // Sister mod: LFO Y modulates LFO X using last frame's ramped Y output (unit-amplitude).
+            applySisterMod(xp, ySisterDest, prevYRampFull * ySisterAtten);
             xTarget = lfoX_.process(xp);
             lfoXOutputDisplay_.store(xTarget, std::memory_order_relaxed);
         }
@@ -1122,6 +1125,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
         {
             lfoXOutputDisplay_.store(0.0f, std::memory_order_relaxed);
         }
+        const float xTargetFull = (xLevel > 0.0f) ? xTarget / xLevel : 0.0f;
 
         float yTarget = 0.0f;
         if (yEnabled && yLevel > 0.0f)
@@ -1173,8 +1177,8 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& audio,
                     ? static_cast<float>(std::fmod(looper_.getPlaybackBeat() / loopLenBeats, 1.0))
                     : 0.0f;
             }
-            // Sister mod: LFO X modulates LFO Y using this frame's xTarget (same-frame, clean).
-            applySisterMod(yp, xSisterDest, xTarget * xSisterAtten);
+            // Sister mod: LFO X modulates LFO Y using this frame's unit-amplitude output.
+            applySisterMod(yp, xSisterDest, xTargetFull * xSisterAtten);
             yTarget = lfoY_.process(yp);
             lfoYOutputDisplay_.store(yTarget, std::memory_order_relaxed);
         }

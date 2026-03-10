@@ -1,4 +1,4 @@
-# ChordJoystick MK2
+# Arcade Chord Control
 
 A MIDI chord generator VST3 plugin for Windows. Plug in a gamepad or use the on-screen joystick — move it around and play chords in any scale, key, and voicing.
 
@@ -34,7 +34,6 @@ The four chord voices go out on separate MIDI channels so you can route them to 
 - 20 built-in scales (major, minor, modes, pentatonic, blues, etc.) plus a custom scale editor
 - Global key/transpose, per-voice octave offsets, per-voice interval adjustments
 - 4 voices on MIDI channels 1–4 (configurable per voice)
-- Slew (portamento) per voice
 - **Smart Chord Display** — infers correct chord quality (Cm7, Gmaj7#11, sus4, etc.) from the active scale in real time; retains last name during silence
 
 ### Triggers
@@ -77,7 +76,7 @@ The four chord voices go out on separate MIDI channels so you can route them to 
 - Custom assignments persist in presets
 
 ### Visual
-- **Resizable window** — drag corner to scale 0.75×–2.0×; aspect ratio locked; persists across save/load
+- **Resizable window** — drag corner to scale 0.75×–1.0×; aspect ratio locked; persists across save/load
 - **Mini mode (◱)** / **Maxi mode (⛶)** — pad-only or pad-fills-display
 - **Pitch Axis Crosshair** — live note names at joystick position; right-click pad to toggle
 - Living Space Starfield — parallax layers, shooting stars, nebula blobs; crossfades with warp
@@ -92,7 +91,7 @@ The four chord voices go out on separate MIDI channels so you can route them to 
 2. Run it — Windows SmartScreen may warn on first run, click "More info → Run anyway"
 3. Admin privileges required (installs to `C:\Program Files\Common Files\VST3\`)
 4. Open your DAW and rescan VST3 plugins
-5. Add **ChordJoystick MK2** on a MIDI track, before your instrument
+5. Add **Arcade Chord Control** on a MIDI track, before your instrument
 
 ---
 
@@ -114,7 +113,7 @@ The VST3 is output to `build/ChordJoystick_artefacts/Release/VST3/`.
 ## Changelog
 
 ### v1.9 — Living Interface
-- Resizable window (0.75×–2.0×), mini/maxi modes
+- Resizable window (0.75×–1.0×), mini/maxi modes
 - Pitch Axis Crosshair with live note names
 - Smart chord display — correct quality from scale, retained during silence
 - Living Space Starfield with parallax, shooting stars, nebula
@@ -160,7 +159,6 @@ The VST3 is output to `build/ChordJoystick_artefacts/Release/VST3/`.
 - DAW sync looper
 - Trigger source per voice (pad / joystick / random)
 - Random generative triggers with BPM sync
-- Slew (portamento) per voice
 
 ### v1.1
 - Gamepad support (Xbox, PS4, PS5)
@@ -172,4 +170,4 @@ The VST3 is output to `build/ChordJoystick_artefacts/Release/VST3/`.
 
 ---
 
-Made by Dima Xhavid
+Made by Dimea Arcade

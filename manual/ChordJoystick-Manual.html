@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DIMEA Chord Joystick — User Manual</title>
+<title>Arcade Chord Control — User Manual</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -451,7 +451,7 @@
   <div class="cover-stars"></div>
 
   <div class="cover-top">
-    <div class="brand-tag">DIMEA Arcade · VST3 · Windows</div>
+    <div class="brand-tag">Dimea Arcade · VST3 · Windows</div>
     <div class="cover-title">CHORD<br><span>JOYSTICK</span></div>
     <div class="cover-sub">Spatial Harmony Controller</div>
     <div class="cover-badge-row">
@@ -485,7 +485,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">Contents</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Table of <span class="accent">Contents</span></h1>
@@ -509,7 +509,7 @@
   <div class="toc-entry h2"><span class="toc-num">04</span><span>Voices &amp; MIDI Routing</span><span class="toc-dots"></span><span class="toc-page">6</span></div>
   <div class="toc-entry h3"><span class="toc-num"></span><span>TouchPlates &amp; trigger sources</span><span class="toc-dots"></span><span class="toc-page">6</span></div>
   <div class="toc-entry h3"><span class="toc-num"></span><span>Per-voice MIDI channels</span><span class="toc-dots"></span><span class="toc-page">6</span></div>
-  <div class="toc-entry h3"><span class="toc-num"></span><span>Slew (portamento)</span><span class="toc-dots"></span><span class="toc-page">6</span></div>
+
 
   <div class="toc-entry h2"><span class="toc-num">05</span><span>Scale &amp; Key</span><span class="toc-dots"></span><span class="toc-page">7</span></div>
   <div class="toc-entry h3"><span class="toc-num"></span><span>Scale presets</span><span class="toc-dots"></span><span class="toc-page">7</span></div>
@@ -540,7 +540,7 @@
   <div class="toc-entry h3"><span class="toc-num"></span><span>Troubleshooting</span><span class="toc-dots"></span><span class="toc-page">13</span></div>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>2</span>
   </div>
 </div>
@@ -549,7 +549,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">01 — Quick Start</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Quick <span class="accent">Start</span></h1>
@@ -562,22 +562,22 @@
     </div>
     <div class="step">
       <div class="step-num">2</div>
-      <div class="step-body"><strong>Rescan plugins in your DAW.</strong> In Ableton, go to <em>Preferences → Plugins</em> and click Rescan. In Reaper, go to <em>Options → Preferences → Plug-ins → VST</em> and click Re-scan. The plugin appears as <strong>Chord Joystick</strong> under manufacturer <em>DIMEA Arcade</em>.</div>
+      <div class="step-body"><strong>Rescan plugins in your DAW.</strong> In Ableton, go to <em>Preferences → Plugins</em> and click Rescan. In Reaper, go to <em>Options → Preferences → Plug-ins → VST</em> and click Re-scan. The plugin appears as <strong>Arcade Chord Control</strong> under manufacturer <em>Dimea Arcade</em>.</div>
     </div>
     <div class="step">
       <div class="step-num">3</div>
-      <div class="step-body"><strong>Load on a MIDI track.</strong> Chord Joystick is a <strong>MIDI instrument</strong> — place it on a MIDI track, then route that track's MIDI output to a software instrument (synth, sampler, piano) on a separate track. It outputs up to four simultaneous MIDI notes, one per voice.</div>
+      <div class="step-body"><strong>Load on a MIDI track.</strong> Arcade Chord Control is a <strong>MIDI instrument</strong> — place it on a MIDI track, then route that track's MIDI output to a software instrument (synth, sampler, piano) on a separate track. It outputs up to four simultaneous MIDI notes, one per voice.</div>
     </div>
   </div>
 
   <div class="box box-note">
     <div class="box-label">Ableton</div>
-    Place Chord Joystick in a MIDI track's instrument slot. Set the track's MIDI "To" destination to the instrument track you want to play. Because Chord Joystick is declared as an instrument (not a MIDI effect), it appears in the instrument browser — not the MIDI effects rack.
+    Place Arcade Chord Control in a MIDI track's instrument slot. Set the track's MIDI "To" destination to the instrument track you want to play. Because Arcade Chord Control is declared as an instrument (not a MIDI effect), it appears in the instrument browser — not the MIDI effects rack.
   </div>
 
   <div class="box box-note">
     <div class="box-label">Reaper</div>
-    Insert Chord Joystick as a VST instrument on a track. Enable the track's "MIDI output" routing to send the generated MIDI to a second track with your synth. Reaper will discover it under the manufacturer name set in the Windows version resource.
+    Insert Arcade Chord Control as a VST instrument on a track. Enable the track's "MIDI output" routing to send the generated MIDI to a second track with your synth. Reaper will discover it under the manufacturer name set in the Windows version resource.
   </div>
 
   <h2>Your First Chord</h2>
@@ -606,7 +606,7 @@
   </div>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>3</span>
   </div>
 </div>
@@ -615,7 +615,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">02 — Interface Overview</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Interface <span class="accent">Overview</span></h1>
@@ -670,7 +670,7 @@
       <!-- Voice config -->
       <rect x="260" y="76" width="120" height="50" rx="3" fill="#13162a" stroke="#1f2540" stroke-width="1"/>
       <text x="320" y="96" fill="#00e8d8" font-size="7.5" text-anchor="middle" font-weight="600">VOICE CONFIG</text>
-      <text x="320" y="110" fill="#6b7299" font-size="7" text-anchor="middle">CH1–CH4 · Slew · Atten</text>
+      <text x="320" y="110" fill="#6b7299" font-size="7" text-anchor="middle">CH1–CH4 · Atten</text>
       <text x="320" y="121" fill="#6b7299" font-size="7" text-anchor="middle">Interval / Octave offsets</text>
 
       <!-- Looper -->
@@ -717,7 +717,7 @@
   </div>
 
   <h2>Window Modes</h2>
-  <p>Chord Joystick has three window sizes, accessible from the header bar buttons or via gamepad.</p>
+  <p>Arcade Chord Control has three window sizes, accessible from the header bar buttons or via gamepad.</p>
 
   <div class="cols3">
     <div class="box box-tip" style="margin:0;">
@@ -737,7 +737,7 @@
   <p class="small" style="margin-top:3mm;">In Mini or Maxi mode, a small <strong>↩</strong> return button appears in the top-right corner of the pad. Click it to return to Full view. Window mode is never saved between sessions — the plugin always opens in Full.</p>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>4</span>
   </div>
 </div>
@@ -746,7 +746,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">03 — Joystick Pad</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Joystick <span class="accent">Pad</span></h1>
@@ -809,7 +809,7 @@
   </div>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>5</span>
   </div>
 </div>
@@ -818,13 +818,13 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">04 — Voices &amp; MIDI Routing</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Voices &amp; <span class="accent">MIDI Routing</span></h1>
 
   <h2>The Four Voices</h2>
-  <p>Chord Joystick outputs <strong>four independent MIDI voices</strong>. Each has a name, a role in the chord, and its own trigger source:</p>
+  <p>Arcade Chord Control outputs <strong>four independent MIDI voices</strong>. Each has a name, a role in the chord, and its own trigger source:</p>
 
   <table>
     <tr><th>Voice</th><th>Name</th><th>Chord role</th><th>Default MIDI Ch</th></tr>
@@ -860,24 +860,11 @@
     <li><span class="param">randomFreeTempo</span> — 30–240 BPM, used in FREE and INT modes</li>
   </ul>
 
-  <h2>Slew (Portamento)</h2>
-  <p>Each voice supports independent portamento via <span class="param">slewVoice0–3</span>. Slew is sent as MIDI CC before every note-on:</p>
-  <ul>
-    <li><strong>CC5</strong> (Portamento Time) — sets the glide duration</li>
-    <li><strong>CC65</strong> (Portamento On/Off) — enables portamento on the receiving instrument</li>
-  </ul>
-  <p>Set slew to 0 for instant pitch change. Increase for a smooth glide between chord voicings.</p>
-
-  <div class="box box-note">
-    <div class="box-label">Compatibility note</div>
-    Portamento CC5/CC65 only works if your receiving instrument honours these MIDI messages. Most hardware-modelled synths and physical modelling instruments support them. Check your instrument's MIDI implementation chart.
-  </div>
-
   <h2>Filter / CC Output</h2>
   <p>A dedicated filter CC channel sends continuous controller messages on a configurable MIDI channel (<span class="param">filterMidiCh</span>, default 1). The left joystick axes (gamepad) or the X/Y attenuation knobs send to up to 18 named CC destinations or any custom CC (0–127). See Section 10 for the full CC list.</p>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>6</span>
   </div>
 </div>
@@ -886,7 +873,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">05 — Scale &amp; Key</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Scale <span class="accent">&amp; Key</span></h1>
@@ -929,7 +916,7 @@
   </div>
 
   <h2>Custom Scale Builder</h2>
-  <p>Enable <span class="param">useCustomScale</span> to build your own scale from scratch. Twelve toggle buttons (<span class="param">scaleNote0–11</span>) represent the twelve semitones of the octave. Enable any combination — Chord Joystick quantises all voices to only the active notes.</p>
+  <p>Enable <span class="param">useCustomScale</span> to build your own scale from scratch. Twelve toggle buttons (<span class="param">scaleNote0–11</span>) represent the twelve semitones of the octave. Enable any combination — Arcade Chord Control quantises all voices to only the active notes.</p>
 
   <div class="box box-tip">
     <div class="box-label">Idea</div>
@@ -962,7 +949,7 @@
   <p>The display <strong>holds the last chord name during silence</strong> — so you always see the last chord you played, even when no notes are sounding.</p>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>7</span>
   </div>
 </div>
@@ -971,7 +958,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">06 — Chord Looper</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Chord <span class="accent">Looper</span></h1>
@@ -1017,14 +1004,14 @@
 
   <div class="box box-note">
     <div class="box-label">Stuck notes</div>
-    If you stop the DAW mid-note, Chord Joystick sends all-notes-off on all voice channels to prevent hanging notes. If a note does hang in your instrument, use the MIDI Panic function in your DAW (typically under the MIDI menu or transport bar).
+    If you stop the DAW mid-note, Arcade Chord Control sends all-notes-off on all voice channels to prevent hanging notes. If a note does hang in your instrument, use the MIDI Panic function in your DAW (typically under the MIDI menu or transport bar).
   </div>
 
   <h2>LFO + Looper Interaction</h2>
   <p>The LFO REC function (see Section 08) can capture a joystick movement curve and hand it to the looper's JOY lane. The two systems share timing: an LFO captured at "one loop cycle" length will loop perfectly in sync with the GATES or note lane.</p>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>8</span>
   </div>
 </div>
@@ -1033,7 +1020,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">07 — Arpeggiator</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Arpe<span class="accent">ggiator</span></h1>
@@ -1097,7 +1084,7 @@
   </ul>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>9</span>
   </div>
 </div>
@@ -1106,7 +1093,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">08 — LFO Engine</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>LFO <span class="accent">Engine</span></h1>
@@ -1130,7 +1117,7 @@
   </table>
 
   <h2>CC Destinations</h2>
-  <p>Both LFOs share the same destination list. The first 7 options are modulation targets within Chord Joystick itself. Options 8–25 are standard MIDI CCs sent directly to the filter MIDI channel.</p>
+  <p>Both LFOs share the same destination list. The first 7 options are modulation targets within Arcade Chord Control itself. Options 8–25 are standard MIDI CCs sent directly to the filter MIDI channel.</p>
 
   <div class="cols2">
     <div>
@@ -1177,14 +1164,14 @@
   <p>The <strong>REC</strong> button captures live joystick movement into the LFO:</p>
   <ol>
     <li>With the looper running and LFO armed, press REC</li>
-    <li>Chord Joystick records exactly one full loop cycle from the press point</li>
+    <li>Arcade Chord Control records exactly one full loop cycle from the press point</li>
     <li>The captured movement curve becomes the LFO waveform and loops in sync</li>
     <li>If the DAW transport stops mid-capture, the partial capture is kept</li>
   </ol>
   <p>Press <strong>CLR</strong> to delete the captured curve and revert to the oscillator waveform.</p>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>10</span>
   </div>
 </div>
@@ -1193,12 +1180,12 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">09 — Gamepad Control</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1>Gamepad <span class="accent">Control</span></h1>
 
-  <p class="section-intro">Chord Joystick has native support for PlayStation-style controllers via SDL2. Connect your controller before opening the plugin — it is detected automatically at 60 Hz.</p>
+  <p class="section-intro">Arcade Chord Control has native support for PlayStation-style controllers via SDL2. Connect your controller before opening the plugin — it is detected automatically at 60 Hz.</p>
 
   <h2>Button Map</h2>
   <div class="gp-grid">
@@ -1287,7 +1274,7 @@
   </div>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>11</span>
   </div>
 </div>
@@ -1296,7 +1283,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">10 — Reference</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h1><span class="accent">Reference</span></h1>
@@ -1358,7 +1345,7 @@
   <p class="small">Indices 0–6 are internal LFO targets (see Section 08). Custom CC mode allows any value 0–127 outside this table.</p>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>12</span>
   </div>
 </div>
@@ -1367,7 +1354,7 @@
 <div class="page">
   <div class="page-header">
     <span class="sect">10 — Reference · Troubleshooting</span>
-    <span>Chord Joystick — User Manual</span>
+    <span>Arcade Chord Control — User Manual</span>
   </div>
 
   <h2>Troubleshooting</h2>
@@ -1380,7 +1367,7 @@
     </tr>
     <tr>
       <td>No MIDI output / no sound</td>
-      <td>Chord Joystick outputs MIDI only — it does not produce audio. Route its MIDI output to a synth or sampler track. In Ableton, set the MIDI track's "MIDI To" destination. In Reaper, enable MIDI track routing from this plugin to the instrument track.</td>
+      <td>Arcade Chord Control outputs MIDI only — it does not produce audio. Route its MIDI output to a synth or sampler track. In Ableton, set the MIDI track's "MIDI To" destination. In Reaper, enable MIDI track routing from this plugin to the instrument track.</td>
     </tr>
     <tr>
       <td>Hanging notes / stuck notes</td>
@@ -1433,13 +1420,13 @@
   <hr>
 
   <p class="small" style="text-align:center; margin-top:4mm; color: var(--muted);">
-    Chord Joystick is developed by <strong style="color:var(--text)">DIMEA Arcade</strong>.<br>
+    Arcade Chord Control is developed by <strong style="color:var(--text)">Dimea Arcade</strong>.<br>
     JUCE framework © Raw Material Software. SDL2 © Sam Lantinga. All rights reserved.<br>
     Manual v1.9 · 2026
   </p>
 
   <div class="page-footer">
-    <span>DIMEA Arcade — Chord Joystick v1.9</span>
+    <span>Dimea Arcade — Arcade Chord Control v1.9</span>
     <span>13</span>
   </div>
 </div>
