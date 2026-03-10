@@ -1,5 +1,5 @@
 ---
-status: awaiting_human_verify
+status: resolved
 trigger: "6 UI bugs: gate-length slider axis, invert-mode crosshair lines, tempo knob size, BPM label layout, knob smoothing verification, and starfield direction bug"
 created: 2026-03-09T21:00:00Z
 updated: 2026-03-09T22:00:00Z

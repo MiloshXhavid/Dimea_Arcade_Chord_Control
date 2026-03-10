@@ -1,5 +1,5 @@
 ---
-status: awaiting_human_verify
+status: resolved
 trigger: "Ableton crashed when removing one of two plugin instances. Track type changed to audio on load."
 created: 2026-03-06T00:00:00Z
 updated: 2026-03-06T00:00:00Z

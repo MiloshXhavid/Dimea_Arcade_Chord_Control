@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: resolved
 trigger: "Ableton Live 11 freezes at Initializing audio inputs and outputs on DAW startup after recent build"
 created: 2026-03-06T00:00:00Z
 updated: 2026-03-06T00:10:00Z
