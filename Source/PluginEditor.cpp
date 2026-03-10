@@ -980,7 +980,7 @@ void JoystickPad::resized()
     spaceBgBaked_ = juce::Image(juce::Image::ARGB, w, h, true);
     if (spaceRawImage_.isValid())
     {
-        juce::Image scaled = spaceRawImage_.rescaled(w, h, juce::Graphics::mediumResamplingQuality);
+        juce::Image scaled = spaceRawImage_.rescaled(w, h, juce::Graphics::highResamplingQuality);
         const float cx = w * 0.5f, cy = h * 0.5f;
         const float maxR = std::sqrt(cx * cx + cy * cy);
         juce::Image::BitmapData src(scaled,        juce::Image::BitmapData::readOnly);
@@ -1055,13 +1055,17 @@ void JoystickPad::resized()
     }
 
     // ── Generate starfield_ ───────────────────────────────────────────────────
-    // Two depth layers: 200 background (dim) + 50 foreground (clearly visible).
+    // Scale star count with window width so Maxi mode has the same visual density.
+    // Radii stay at 308px-baseline values; starSizeScale_ is applied at draw time.
+    starSizeScale_ = (float)w / 308.0f;
+    const int nBg = juce::jmin(1200, juce::roundToInt(200.0f * starSizeScale_));
+    const int nFg = juce::jmin(300,  juce::roundToInt( 50.0f * starSizeScale_));
     starfield_.clear();
-    starfield_.reserve(250);
+    starfield_.reserve(nBg + nFg);
     juce::Random rng(0xDEADBEEF12345678LL);
 
     // Background layer — subdued but clearly visible, slow drift
-    for (int i = 0; i < 200; ++i)
+    for (int i = 0; i < nBg; ++i)
     {
         StarDot s;
         s.x = rng.nextFloat();
@@ -1083,7 +1087,7 @@ void JoystickPad::resized()
         starfield_.push_back(s);
     }
     // Foreground layer — brighter dots, faster drift
-    for (int i = 0; i < 50; ++i)
+    for (int i = 0; i < nFg; ++i)
     {
         StarDot s;
         s.x = rng.nextFloat();
@@ -1739,9 +1743,10 @@ void JoystickPad::paint(juce::Graphics& g)
                 const juce::Colour tc = s.c.withMultipliedAlpha(
                     juce::jlimit(0.0f, 1.0f, (1.0f + twinkleOff * warpFade) * fadeAlpha));
                 g.setColour(tc);
-                g.fillEllipse(s.x * b.getWidth()  - s.r,
-                              s.y * b.getHeight() - s.r,
-                              s.r * 2.0f, s.r * 2.0f);
+                const float dr = s.r * starSizeScale_;
+                g.fillEllipse(s.x * b.getWidth()  - dr,
+                              s.y * b.getHeight() - dr,
+                              dr * 2.0f, dr * 2.0f);
             }
         }
     }

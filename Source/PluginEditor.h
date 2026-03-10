@@ -197,6 +197,8 @@ private:
     // Phase 40: crosshair visualization
     int  livePitch_[4]     = { 60, 64, 67, 70 };  // cached from proc_ atomics in timerCallback
 
+    float starSizeScale_ = 1.0f;  // w / 308 — scales star radii for Maxi mode
+
     // Phase 43.2: Living Space
     float warpRamp_    = 0.0f;  // 0 = idle, 1 = full warp (Phase 42 will drive this; safe default = 0)
     float driftHeading_ = -juce::MathConstants<float>::halfPi;  // starts upward (forward flight)
