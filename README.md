@@ -6,9 +6,9 @@ A MIDI chord generator VST3 plugin for Windows. Plug in a gamepad or use the on-
 
 ## Download
 
-**[Latest release — v1.3](https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/latest)**
+**[Latest release — v1.9](https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/latest)**
 
-Download `DimaChordJoystickMK2-Setup.exe`, run it, rescan plugins in your DAW.
+Download `DimeaArcade-ChordControl-v1.9.0-Setup.exe`, run it, rescan plugins in your DAW.
 
 **Requirements**
 - Windows 10 or 11, 64-bit
@@ -23,6 +23,8 @@ You move a joystick (or analog stick on a gamepad) and it plays chords. The Y ax
 
 The four chord voices go out on separate MIDI channels so you can route them to different instruments or apply different effects per voice.
 
+> Place the plugin on a MIDI track in your DAW, before your instrument. In Ableton Live: add it on a MIDI track, then route that track's output to an instrument track.
+
 ---
 
 ## Features
@@ -33,6 +35,7 @@ The four chord voices go out on separate MIDI channels so you can route them to 
 - Global key/transpose, per-voice octave offsets, per-voice interval adjustments
 - 4 voices on MIDI channels 1–4 (configurable per voice)
 - Slew (portamento) per voice
+- **Smart Chord Display** — infers correct chord quality (Cm7, Gmaj7#11, sus4, etc.) from the active scale in real time; retains last name during silence
 
 ### Triggers
 - **Touchplate** — 4 pads, one per voice, velocity sensitive
@@ -40,49 +43,68 @@ The four chord voices go out on separate MIDI channels so you can route them to 
 - **Random** — generative rhythmic triggers with density, subdivision, and gate controls per voice
 - Hold mode per voice
 
+### LFO modulation
+- Dual LFOs (X and Y) with oscilloscope display
+- Shapes: sine, triangle, saw, ramp, square, S&H
+- Targets: LFO frequency, phase, level, Gate, or any of 18 MIDI CCs
+- **Sister LFO cross-modulation** — route X into Y or Y into X with a bipolar attenuator (−1…+1)
+- SYNC (DAW tempo) and JOY (joystick-driven) modes
+- REC lane — record one full loop cycle of LFO movement; CLR to clear
+
 ### Looper
 - Record and loop chord progressions in sync with your DAW
-- Record Gates / Joystick / Touchplate modes
+- Record Gates / Joystick / Mod Whl lanes independently
 - Adjustable time signature (3/4, 4/4, 5/4, 7/8, 9/8, 11/8) and length (1–16 bars)
-- **Trigger quantization** — snap recorded MIDI to grid: Off / Live (while recording) / Post (after recording), subdivisions from 1/4 down to 1/32
+- **Trigger quantization** — snap recorded MIDI to grid: Off / Live / Post, subdivisions 1/4–1/32
+- Rec Lane Undo — press a lit Rec button to clear that lane individually
 - Looper position bar shows playback progress in real time
+
+### Arpeggiator
+- 8-step grid (ON / TIE / OFF per cell) for melodic patterns
+- LEN control (1–8 active steps); RND SYNC: FREE / INT / DAW
+- Rate, order, and gate% controls
 
 ### Gamepad input
 - Right stick → joystick pitch
-- Left stick X/Y → CC74 cutoff + CC71 resonance (configurable channel and attenuation)
-- L1/L2/R1/R2 → trigger individual voices
-- L3 → all voices
+- Left stick X/Y → configurable CC targets (default CC74 cutoff + CC71 resonance) with attenuation
+- L1/L2/R1/R2 → trigger individual voices; L3 → all voices
 - X → looper play/stop, Square → reset, Triangle → record, Circle → delete
-- Status label shows detected controller type: PS4 / PS5 / Xbox / Controller Connected / No controller
+- Status label shows detected controller type: PS4 / PS5 / Xbox / No controller
 - **MIDI Panic** button — sends all-notes-off on all 16 MIDI channels instantly
 
+### Custom CC routing
+- LFO CC Dest and Left Stick X/Y Mode dropdowns support any CC 0–127
+- Custom assignments persist in presets
+
 ### Visual
-- LOOPER section panel with visual grouping
+- **Resizable window** — drag corner to scale 0.75×–2.0×; aspect ratio locked; persists across save/load
+- **Mini mode (◱)** / **Maxi mode (⛶)** — pad-only or pad-fills-display
+- **Pitch Axis Crosshair** — live note names at joystick position; right-click pad to toggle
+- Living Space Starfield — parallax layers, shooting stars, nebula blobs; crossfades with warp
 - Scale keyboard display
-- Arpeggiator (rate, order, gate%)
+- Velocity-sensitive knob drag (slow = fine, fast = broad sweep)
 
 ---
 
 ## Installation
 
-1. Download `DimaChordJoystickMK2-Setup.exe` from the [releases page](https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/latest)
-2. Run it — admin access required (installs to `C:\Program Files\Common Files\VST3\`)
-3. Open your DAW and rescan VST3 plugins
-4. Add **ChordJoystick MK2** to a MIDI track, place it before your instrument
-
-> In Ableton Live: add the plugin on a MIDI track, then route that track's output to an instrument track.
+1. Download `DimeaArcade-ChordControl-v1.9.0-Setup.exe` from the [releases page](https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine/releases/latest)
+2. Run it — Windows SmartScreen may warn on first run, click "More info → Run anyway"
+3. Admin privileges required (installs to `C:\Program Files\Common Files\VST3\`)
+4. Open your DAW and rescan VST3 plugins
+5. Add **ChordJoystick MK2** on a MIDI track, before your instrument
 
 ---
 
 ## Building from source
 
-Requires: CMake 3.22+, Visual Studio 2022, Windows SDK
+Requires: CMake 3.22+, Visual Studio 2022 or 2026, Windows SDK
 
 ```bash
 git clone https://github.com/MiloshXhavid/Dima_Plugin_Chrdmachine.git
 cd Dima_Plugin_Chrdmachine
-cmake -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
+cmake -B build -G "Visual Studio 18 2026" -A x64
+cmake --build build --config Release --target ChordJoystick_VST3
 ```
 
 The VST3 is output to `build/ChordJoystick_artefacts/Release/VST3/`.
@@ -91,11 +113,48 @@ The VST3 is output to `build/ChordJoystick_artefacts/Release/VST3/`.
 
 ## Changelog
 
+### v1.9 — Living Interface
+- Resizable window (0.75×–2.0×), mini/maxi modes
+- Pitch Axis Crosshair with live note names
+- Smart chord display — correct quality from scale, retained during silence
+- Living Space Starfield with parallax, shooting stars, nebula
+- Arpeggiator step pattern grid (8-step, ON/TIE/OFF)
+- Sister LFO attenuation slider (−1…+1 bipolar)
+- Custom CC routing for LFO and left stick targets
+- Rec Lane Undo; velocity-sensitive knob drag
+
+### v1.8
+- LFO engine — dual LFOs with oscilloscope, 6 shapes, DAW sync, JOY mode
+- Sister LFO cross-modulation (X↔Y)
+- LFO REC lane (one-cycle capture, CLR)
+- Plugin type changed to MIDI effect (place on MIDI track before instrument)
+
+### v1.7
+- Filter CC attenuation knob with live update
+- LFO panel redesign (oscilloscope, rows layout)
+- MOD FIX display and range fixes
+
+### v1.6
+- Looper reset phase fixes
+- Population knob
+- Left stick deadzone
+- CC X/Y modes
+- Arpeggiator step-counting fix
+- Gate length for joystick triggers
+
+### v1.5
+- SWAP/INV gamepad routing
+- UI polish
+
+### v1.4
+- Scale keyboard display
+- Per-voice MIDI channel configuration
+
 ### v1.3
-- LOOPER section panel with rounded border and floating label
-- Gamepad status label shows specific controller type (PS4 / PS5 / Xbox)
-- Trigger quantization (Off / Live / Post, 1/4–1/32 subdivisions)
-- MIDI Panic button (full 16-channel all-notes-off sweep)
+- LOOPER section panel with rounded border
+- Gamepad status label (PS4 / PS5 / Xbox)
+- Trigger quantization (Off / Live / Post, 1/4–1/32)
+- MIDI Panic button
 
 ### v1.2
 - DAW sync looper
