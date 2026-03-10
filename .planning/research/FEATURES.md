@@ -1,389 +1,336 @@
-# Feature Landscape — ChordJoystick v1.5
+# Feature Research
 
-**Domain:** MIDI generator VST3 plugin — live performance / composition tool
-**Researched:** 2026-02-28
-**Milestone:** v1.5 Routing + Expression
-**Confidence:** HIGH (codebase directly inspected; MIDI design claims verified against MIDI specification and KVR community knowledge)
+**Domain:** Cross-platform paid JUCE VST3/AU plugin — license key system, Mac distribution, Windows code signing
+**Researched:** 2026-03-10
+**Milestone:** v2.0 Cross-Platform Launch
+**Confidence:** MEDIUM-HIGH
+- LemonSqueezy API contract: HIGH (official docs)
+- Mac DAW format matrix: HIGH (Ableton/Steinberg/Apple official docs)
+- macOS signing/notarization requirements: HIGH (Apple Developer docs + melatonin.dev JUCE-specific guide)
+- Windows code signing landscape: MEDIUM — Microsoft changed SmartScreen/EV policy in March 2024; Azure Trusted Signing eligibility changed again in April 2025; verify current eligibility
 
----
-
-> **Scope note:** This document covers the NEW features for v1.5.
-> Previous milestone research (v1.4 LFO + Clock) is preserved at the bottom as a historical appendix.
-
----
-
-## Context
-
-The seven v1.5 features plus two bug fixes are analysed here through the lens of:
-- Table stakes vs differentiator vs anti-feature classification
-- User-facing behavior expectations
-- Critical edge cases per feature
-- Dependencies on existing subsystems (LooperEngine, LfoEngine, TriggerSystem, GamepadInput, PluginProcessor)
-
-**Existing subsystem summary relevant to v1.5:**
-- `LooperEngine` — lock-free SPSC FIFO, beat-timestamped events, AbstractFifo double-buffer, 2048 capacity
-- `LfoEngine` — stateless processBlock() DSP, ProcessParams-driven, 7 waveforms, no APVTS coupling
-- `TriggerSystem` — 4-voice gate, pad/joystick/random sources, NoteCallback per voice
-- `GamepadInput` — SDL2 60 Hz timer, optionMode_ (0/1/2), R3 = rightStickTrig_, held state per voice
-- `PluginProcessor` — arpeggiator state (arpPhase_, arpStep_, etc.), heldPitch_[4], looperActivePitch_[4]
-- Filter mode boxes — filterXMode/filterYMode APVTS enums, currently 2–3 items each
+> **Scope note:** This document covers ONLY what is new for v2.0 (license key system, Mac distribution, code signing).
+> Existing plugin features (chord engine, LFO, looper, arpeggiator, gamepad, UI) are already built and are not re-researched here.
 
 ---
 
-## Table Stakes
+## Feature Landscape
 
-Features that must work correctly once they exist. Wrong behavior makes the feature feel broken.
+### Table Stakes (Users Expect These)
+
+Features that must exist. Missing any of these = product feels broken or unprofessional.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Single-channel mode: all 4 voices to one MIDI channel | Mono synths and non-MPE targets require single-channel output; users expect a clean toggle | Medium | Requires note-collision guard — see edge cases |
-| Single-channel note collision: same pitch on same channel → extend gate, not retrigger | Standard MIDI behavior expectation; sending note-on for a sounding pitch on same channel causes stuck notes or envelope reset in most synths | Medium | Reference counting per active pitch is the safe implementation |
-| Sub octave: fires exactly -12 semitones below the parent voice pitch | "Sub octave" has a precise meaning to musicians — exactly one octave lower, not user-adjustable | Low | Fixed -12 offset; not a tunable interval |
-| Sub octave: follows the same gate (on/off timing) as the parent voice | Lower note must sound and stop together with its parent | Low | Use the same sampleOffset in the note-on/off callback |
-| Sub octave: persists across state save/load | APVTS bool per voice | Low | Standard APVTS bool parameter |
-| LFO recording: records exactly 1 loop cycle | Gesture automation must match the looper's loop length; arbitrary buffer length is confusing | Medium | Tie to looper's `getLoopLengthBeats()` |
-| LFO recording: Distort stays live during playback | Distort is a post-waveform noise shaper; users expect to sculpt the playback in real time | Low | Distort is a ProcessParams field, never stored in the recording buffer |
-| LFO playback: shape/freq/phase/level controls grayed out (not Distort) | Only params that define the recorded waveform should be locked | Low | UI-only: gray out 4 controls; leave Distort and on/off toggle enabled |
-| Arpeggiator DAW sync: already built | Arp already exists with subdivisions and random order; gamepad control is the only new part | Low | Gamepad routing change only — no new DSP |
-| Looper wrong start position: bug fix | Looper must replay events aligned to the beat boundary where REC started; wrong offset is a correctness regression | Medium | loopStartPpq_ anchor re-entrancy after record cycle end |
+| License key entry dialog on first launch | Every paid plugin requires a key before use; no dialog = feels broken or abandoned | LOW | Modal overlay shown in `PluginEditor` constructor; check persisted key first, only show if absent or invalid |
+| Persistent local license storage | Users expect to re-open DAW without re-entering key every session | LOW | `juce::PropertiesFile` at platform-appropriate path (`%APPDATA%` / `~/Library/Application Support`); NOT APVTS — APVTS is DAW-session state, not machine state |
+| Graceful offline mode after initial activation | Studio machines are routinely offline during sessions; plugin must not block audio | MEDIUM | Cache `instance_id` + key locally; re-validate on a background thread at most weekly; never touch audio thread for network; see grace period below |
+| Clear error messages for each failure case | Users paste wrong keys constantly; cryptic "activation failed" causes support tickets | LOW | Map each LemonSqueezy error string to a user-visible sentence (see LemonSqueezy section below) |
+| Machine count display | Multi-machine users need to know how many activations are used before they're blocked | LOW | LemonSqueezy returns `activation_usage` and `activation_limit` in every activate/validate response; show "2 of 3 machines activated" |
+| AU format on macOS | Logic Pro and GarageBand only load AU — shipping VST3-only excludes the two most popular Mac DAWs | HIGH | JUCE `FORMATS AU` in CMakeLists; only compiled on macOS; requires Apple Developer ID Application cert + notarization |
+| VST3 on macOS | Ableton Live, Reaper, FL Studio, Cubase on Mac use VST3 | LOW (incremental) | Same JUCE build target produces VST3 alongside AU; no additional DSP work |
+| Universal binary (arm64 + x86_64) | Apple Silicon Macs are now the majority; Rosetta works but triggers "not native" support complaints | MEDIUM | CMake: `-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64`; known Xcode 16.2 regression with AU universal binary — verify before shipping |
+| PKG installer for macOS | DMG drag-to-folder fails on macOS Sonoma for system plugin paths; PKG handles permissions automatically | MEDIUM | `pkgbuild` + `productbuild`; wrap PKG in DMG as distribution container; sign PKG with Developer ID Installer cert (separate from Application cert) |
+| Notarized macOS distribution | macOS Gatekeeper silently blocks unnotarized plugins — users see nothing load and file support tickets | HIGH | Requires Apple Developer Program ($99/year); `codesign --deep -o runtime` on .component + .vst3; submit via `notarytool`; staple ticket to PKG |
+| Windows code signing (SmartScreen-free installer) | SmartScreen "Windows protected your PC" warning on unsigned EXE causes a large fraction of users to abandon install | MEDIUM | Azure Artifact Signing ($9.99/month, instant reputation) if eligible; OV cert as fallback — see code signing section |
+| Offline grace period after activation | Users working in studios without internet access should not be locked out mid-session | LOW | Record `last_validated_timestamp` locally; allow use for 14 days after last successful validate; only show re-validation prompt after grace period expires |
 
----
+### Differentiators (Competitive Advantage)
 
-## Differentiators
-
-Features that add expressive value beyond user expectation.
+Features that raise quality perception above baseline indie plugin expectations.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Per-voice sub octave (not a global octave shift) | Lets user add bass doubling on the root voice without affecting the third — useful for bass+chord splits | Low | 4 APVTS bools subOctVoice0..3; UI: right-half of Hold button becomes SubOct toggle |
-| Sub octave + single-channel collision avoidance | When sub oct note = another voice's note on same channel, extend rather than retrigger — prevents mud | Medium | Requires cross-voice pitch comparison at note-on time in processBlock |
-| LFO recording arm/record/play/clear workflow | Captures a custom LFO shape from live performance without leaving the plugin; gesture automation | High | Largest new subsystem; beat-indexed float buffer per axis, new state machine |
-| Left joystick target expansion: LFO freq/shape/level/arp gate | Turns the left stick into a live modulation surface for internal plugin parameters beyond CC74/CC71 | Medium | Extend filterXMode/filterYMode APVTS enum by 4–6 values; new processBlock routing switch cases |
-| Gamepad Option Mode 1: arp controls on face buttons | Enables arp on/off, rate, and order changes during performance without touching the mouse | Low | Pure GamepadInput + processBlock routing change; no new DSP |
-| R3 + held pad = sub oct toggle for that voice | Ergonomic: hold a voice with one hand, toggle its sub oct with R3 + that pad | Low | Additive condition on existing gamepad held-state check; evaluate before R3-standalone |
+| "Deactivate this machine" button in plugin settings | Users can transfer license to new computer without emailing support — rare for indie plugins at this price point | LOW | Button in plugin About/Settings panel; calls `POST /v1/licenses/deactivate` with cached `instance_id`; deletes local cache on success; shows license entry dialog on next launch |
+| Named machine display ("Studio Laptop") | Users feel ownership of their activations; makes the machine list feel intentional not bureaucratic | LOW | Use `juce::SystemStats::getComputerName()` as default `instance_name` when calling activate; display it back in the UI |
+| Remaining activations display after deactivation | Shows "1 of 3 machines now active" — confirms the deactivation worked without requiring user to check a web dashboard | LOW | LemonSqueezy returns updated `activation_usage` in deactivate response; display it in a result label |
+| Architecture badge in About panel ("Native Apple Silicon") | Apple Silicon users notice and comment positively; signals quality and up-to-date build | LOW | Compile-time `#if JUCE_ARM` check; show "Native Apple Silicon" or "Intel x86_64" in About panel |
+
+### Anti-Features (Commonly Requested, Often Problematic)
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| iLok / hardware dongle requirement | "Industry standard" for flagship plugins | $50+ hardware barrier; alienates hobbyist / bedroom producer market; iLok account creation friction | LemonSqueezy machine-based activation (3 machines) |
+| Subscription licensing | Predictable revenue for developer | Music software users strongly prefer perpetual licenses; subscription churn + refund rate is high for tools priced under $100 | Perpetual license with optional paid upgrade for v3 |
+| Challenge-response offline activation | Requested by air-gapped studio users | LemonSqueezy does not provide this natively; requires manual support workflow; adds significant implementation complexity | 14-day offline grace period handles 99% of real-world offline studio scenarios |
+| Feature-gating / crippled trial mode | Lets users preview without paying | Removes features users rely on for evaluation; creates resentment if they buy and discover what was hidden; MIDI plugin is focused enough that a time-limited full trial is less confusing | Time-limited full trial (e.g., 14-day, full features, then license dialog blocks further use) |
+| Blocking audio thread during license validation | Simplest implementation | Causes audio dropouts, DAW freezes, pluginval failures; immediately destroys professional credibility | Validate on a background `juce::Thread`; cache result; audio thread reads cached bool only |
+| Server-side feature flags via license API | Granular per-user feature control | LemonSqueezy License API is binary pass/fail only (activated/not); building feature gating on top adds fragility | Keep feature set fixed per version; use licensed/unlicensed binary state only |
+| AAX / Pro Tools format | Broad DAW coverage | Requires Avid certification + iLok integration; significant effort for a format used by <10% of the hobbyist/bedroom producer target market | Defer to v3; AU + VST3 covers Logic, GarageBand, Ableton, Reaper, FL Studio, Cubase |
 
 ---
 
-## Anti-Features
+## LemonSqueezy License API — Specific Endpoints
 
-Features to explicitly NOT build in v1.5.
+This section documents the actual API contract. The requirements writer needs exact field names and error behaviors.
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Sub octave as a tunable interval (not fixed -12) | "Sub octave" has a precise meaning; tunable offset creates UI scope creep for marginal benefit | Fix at -12 semitones; add a named "voice octave offset" knob separately if needed |
-| LFO recording: selectable multi-cycle length | Recording exactly 1 loop cycle matches the looper's mental model; multi-cycle adds sync complexity | Lock to 1 cycle; if longer is needed, extend the looper loop length first |
-| LFO recording: record the Distort parameter | Distort is a live-shaping overlay; recording it breaks the "Distort stays live" contract | Keep Distort as a real-time overlay; never include it in the recording buffer |
-| Arp + looper: force looper to stop when arp turns on | Arp and looper are designed to run simultaneously; muting one on the other's activation is surprising | Let them run independently; handle note-collision cases with single-channel guard |
-| Single-channel mode: remove multi-channel mode | Multi-channel is the v1.0 default; it must remain the default; single-channel is opt-in | Toggle in UI + APVTS bool singleChannelMode, default false |
-| Remove R3 panic globally | Panic is safety-critical; removing it entirely is dangerous for live performance | Remove R3 standalone panic only when in Option Mode 1; panic remains available via UI button and via modes 0 and 2 |
-| Gamepad Option Mode 1: D-pad mapping for LFO params | D-pad is already used for octave/transpose control in modes 1 and 2; adding more sub-modes creates a menu jungle | Stick to face-button remapping only in v1.5; revisit D-pad extensions in v2 |
+**Base URL:** `https://api.lemonsqueezy.com/v1/licenses/`
+**Rate limit:** 60 requests per minute
 
----
+### Endpoint 1: Activate
 
-## Edge Cases by Feature
+```
+POST https://api.lemonsqueezy.com/v1/licenses/activate
+Content-Type: application/x-www-form-urlencoded
 
-### Feature 1: Single-Channel Routing Mode
+license_key=<key>
+instance_name=<label>   # use computer name, e.g. "MacBook Pro (Studio)"
+```
 
-**Edge case A — Note collision (same pitch, same channel):**
-Standard MIDI does not define behavior when a note-on arrives for a pitch already sounding on the same channel. Most synths either retrigger (resetting the envelope, which is usually unwanted) or create a stuck note (never hearing the second note-off that matches this note-on). The safe implementation: maintain a `singleChActiveCount[128]` reference count array for the target channel in processBlock. On note-on: if count > 0, skip the note-on but increment the count. On note-off: decrement count; only send MIDI note-off when count reaches zero.
+**Success response — key fields:**
+- `activated: true`
+- `error: null`
+- `license_key.status` — "active" | "inactive" | "expired" | "disabled"
+- `license_key.activation_limit` — integer (null = unlimited)
+- `license_key.activation_usage` — integer, count of currently activated instances
+- `license_key.expires_at` — ISO timestamp or null
+- `instance.id` — UUID — **persist this to disk; required for validate and deactivate**
+- `instance.name` — echoes the `instance_name` you sent
+- `meta.product_id`, `meta.customer_email` — useful for support lookup
 
-Confidence: MEDIUM — derived from KVR community consensus ("reference counting is the safe approach") and MIDI specification's undefined behavior for duplicate note-ons.
+**Failure response:**
+- `activated: false`
+- `error: "<message string>"` — common messages: "This license key does not exist.", "This license key has reached its activation limit.", "This license key has been disabled."
 
-**Edge case B — Sub octave + single-channel collision:**
-Voice 0 sounds MIDI 48; its sub octave is MIDI 36. Voice 1 happens to also compute MIDI 36. In single-channel mode both would emit note-on 36. Use the same reference-count guard to prevent double note-on.
+**User-visible error mapping (implement in plugin):**
+| LemonSqueezy error | User-facing text |
+|--------------------|-----------------|
+| "does not exist" | "Key not found. Check for typos and try again." |
+| "activation limit" | "This key has already been activated on 3 machines. Deactivate another machine first." |
+| "disabled" | "This key has been disabled. Contact support." |
+| Network unreachable | "Could not reach the activation server. Check your internet connection and try again." |
 
-**Edge case C — Mode toggle with notes held:**
-If the user switches single-channel mode while a note is sounding, the note-off must be sent on the original channel used at note-on time (not the new routing). Track per-voice "channel used at last note-on" alongside activePitch_ — same pattern already used for looperActivePitch_.
+### Endpoint 2: Validate
 
-**Edge case D — Channel selection in single-channel mode:**
-Use voiceCh0 (root voice APVTS parameter, already exists) as the single output channel when singleChannelMode is active. Avoids adding a new APVTS parameter and is intuitive (voice 0 = the "main" voice).
+```
+POST https://api.lemonsqueezy.com/v1/licenses/validate
+Content-Type: application/x-www-form-urlencoded
 
----
+license_key=<key>
+instance_id=<uuid>    # the instance.id saved from activation
+```
 
-### Feature 2: Sub Octave Per Voice
+**Success response:** same structure as activate; top-level `valid: true` instead of `activated`
+**Use:** Periodic background re-validation (weekly); called on launch if `last_validated_timestamp` is older than 7 days
 
-**Edge case A — Sub note MIDI range clamping:**
-If voice pitch is 0–11 (MIDI notes 0–11), subtracting 12 produces a negative value. Clamp to MIDI note 0 minimum. No user interaction needed; silent floor clamping is correct.
+### Endpoint 3: Deactivate
 
-**Edge case B — Sub note with Hold mode:**
-The existing padHold_ flag keeps the parent note sounding when mouseUp fires. Sub octave uses the same gate-open state as its parent voice — the hold behavior is automatic with no separate tracking.
+```
+POST https://api.lemonsqueezy.com/v1/licenses/deactivate
+Content-Type: application/x-www-form-urlencoded
 
-**Edge case C — Sub note with Arpeggiator:**
-The arpeggiator cycles individual voices, firing note-on via the TriggerSystem NoteCallback. Sub-octave emission must occur in the same callback branch as the main arp note-on, not as a separate later step. Order: fire main note, then immediately fire sub-oct note with the same sampleOffset.
+license_key=<key>
+instance_id=<uuid>
+```
 
-**Edge case D — Sub note with Looper playback:**
-Looper replays gate events from playbackStore_ which contain voice index and beatPosition — but not sub-octave state. Sub octave is a real-time APVTS parameter. Apply sub-octave doubling at the point of looper gate-on emission in processBlock, reading subOctVoiceN at playback time (not recording time). This means changing the sub-oct APVTS knob mid-playback takes effect immediately — which is the expected live behavior.
+**Success response:** `deactivated: true`; no `instance` object (it has been deleted server-side)
+**After success:** Delete local `instance_id` and key from `PropertiesFile`; show license entry dialog on next plugin open
 
-**Edge case E — R3 + held pad toggle mid-gate:**
-When R3 is pressed while a voice pad is physically held, toggle subOctVoiceN for that voice. Do NOT retroactively add or remove a currently sounding sub-octave note; that would produce a stuck note or orphan note-off. The toggle takes effect on the next note-on only. This is acceptable because the user is changing behavior for the next hit, not the current one.
+### What LemonSqueezy does NOT provide (handle in-app)
 
----
-
-### Feature 3: LFO Recording
-
-**Behavior contract (state machine per LFO axis):**
-- IDLE → ARM: arm button pressed; LFO output monitoring begins; no buffer write yet
-- ARM → RECORDING: looper enters playing state (or manual trigger if looper not running); LFO process() output sampled into a beat-indexed buffer for exactly 1 loop cycle
-- RECORDING → PLAYBACK: 1 cycle elapsed; buffer locked; LfoEngine.process() bypassed; buffer provides LFO value at each block via beat-position lookup
-- PLAYBACK → IDLE: Clear button pressed; buffer discarded; LfoEngine.process() resumes free-running
-
-**Edge case A — Buffer size calculation:**
-The recording resolution is one sample per processBlock (block-rate, not sample-rate). LFO values do not need sample-accurate timestamping. At 120 BPM, 16-bar 4/4 loop = 64 beats = 32 seconds. At 512-sample blocks and 44100 Hz, that is ~2755 blocks. A fixed buffer of 4096 `(float beatPosition, float lfoValue)` pairs (two float per entry = 32 KB per axis) covers all practical loop lengths. This is the same pattern as LooperEngine's playbackStore_ but for LFO values instead of gate events.
-
-Use a `std::array<std::pair<float,float>, 4096>` or two parallel float arrays. Store as (beatPosition, value) pairs sorted by beatPosition so playback can binary-search or linearly scan.
-
-**Edge case B — Playback interpolation:**
-Recorded samples are spaced at processBlock intervals — approximately every 5–12 ms. At slow LFO rates (0.1 Hz) this is fine. At fast rates (10 Hz) with small blocks (64 samples), the recording resolution may be coarser than the LFO output. Linear interpolation between adjacent (beatPos, value) pairs eliminates zipper artifacts. This is low-cost and should be implemented from the start.
-
-**Edge case C — Tempo change during playback:**
-The buffer stores beat positions, not sample positions. Playback reads the buffer by mapping current playbackBeat_ (from LooperEngine) to the nearest recorded beat position. If the DAW BPM changes, the beat-position mapping stays correct — the playback speed just changes in musical time, which is correct behavior (same as how the looper itself behaves).
-
-**Edge case D — Gray-out scope during playback:**
-Gray out (disable UI): LFO shape combo, rate slider, phase slider, level slider.
-Leave active (not grayed out): Distort slider, LFO on/off toggle, arm/record/clear buttons.
-Rationale: Distort is explicitly stated to remain live. The on/off toggle must stay active so the user can bypass the whole LFO (including the recording) if needed.
-
-**Edge case E — Sync button interaction with recording:**
-If LFO sync is on, recording should start at the next bar boundary (same as looper's recPendingNextCycle_ pattern). If sync is off, recording starts immediately when ARM transitions to RECORDING.
-
-**Edge case F — Two independent recording instances (LFO X and LFO Y):**
-Each axis has its own recording buffer and state machine. Implement as a `LfoRecorder` struct (or nested class) held by PluginProcessor (one instance: lfoXRecorder_, one: lfoYRecorder_). Keep LfoEngine itself stateless-ish and unmodified. PluginProcessor stitches: if recorder is in PLAYBACK state, ignore lfoX_.process() output and use recorder's buffer output instead.
+| Gap | In-app mitigation |
+|-----|-------------------|
+| No offline activation (challenge/response) | 14-day grace period using local `last_validated_timestamp` |
+| No machine fingerprinting | Plugin tracks `instance_id` (UUID assigned by LemonSqueezy at activation); `instance_name` is freeform label only |
+| No webhook for key revocation | Weekly validate call surfaces revocation; grace period cap is 14 days worst-case |
+| No grace period enforcement | App must implement: compare `last_validated_timestamp` to current time before blocking |
 
 ---
 
-### Feature 4: Left Joystick X/Y Modulation Target Expansion
+## Mac DAW Compatibility Matrix
 
-**Current targets (filterXMode / filterYMode APVTS enums):**
-- X: Cutoff (CC74), VCF LFO (CC12), Mod Wheel (CC1)
-- Y: Resonance (CC71), LFO Rate (CC76)
+| DAW | macOS Formats Accepted | Notes |
+|-----|------------------------|-------|
+| Logic Pro | **AU only** | VST3 not supported; AU is mandatory for Logic users |
+| GarageBand | **AU only** | Same plugin engine as Logic; free, large hobbyist user base |
+| Ableton Live (Mac) | AU + VST3 (+ VST2) | Both work; VST3 preferred for new plugins |
+| Reaper (Mac) | AU + VST3 (+ VST2) | Both work |
+| FL Studio (Mac) | AU + VST3 | Both work |
+| Cubase / Nuendo (Mac) | VST3 (+ VST2) | Steinberg host — VST3 is the native format |
+| Pro Tools (Mac) | AAX only | Out of scope for v2; requires Avid certification + iLok |
 
-**New targets to add (6 new enum values, 3 per axis):**
-- LFO-X Freq, LFO-X Shape, LFO-X Level (new X axis targets)
-- LFO-Y Freq, LFO-Y Shape, LFO-Y Level (new Y axis targets, add to both dropdowns)
-- Arp Gate Length (add to both X and Y dropdowns)
+**Conclusion:** AU + VST3 dual-format covers all major Mac DAWs except Pro Tools. Shipping only VST3 on Mac would lock out Logic Pro and GarageBand — a significant portion of the Mac musician market.
 
-**Edge case A — Shape is a discrete enum, not a float:**
-LFO shape is Waveform integer (0–6). Left stick output is float -1..+1. Map by dividing the ±1 range into 7 equal bands (each band is 2/7 wide). Apply hysteresis (±0.04) at each boundary to prevent rapid flickering when the stick hovers on a boundary. This is the standard approach for continuous-to-step mapping in hardware synthesizers.
+### macOS Plugin Install Paths
 
-**Edge case B — LFO Freq target when sync is on:**
-When LFO sync mode is enabled, the rate parameter is in beat subdivisions (not Hz). Driving the sync subdivision with an analog stick would produce confusing jumps between discrete time signatures. If the target is "LFO-X Freq" and sync is on, suppress the CC output (or display a warning label). The user should turn off sync before using the left stick as LFO rate.
+| Format | System path (PKG installs here) | User path (no admin needed) |
+|--------|--------------------------------|-----------------------------|
+| AU (.component) | `/Library/Audio/Plug-Ins/Components/` | `~/Library/Audio/Plug-Ins/Components/` |
+| VST3 (.vst3) | `/Library/Audio/Plug-Ins/VST3/` | `~/Library/Audio/Plug-Ins/VST3/` |
 
-**Edge case C — Arp Gate Length mapping:**
-arpGateTime APVTS is 0.0–1.0. Left stick -1..+1 maps to 0..1 via `(value + 1.0f) * 0.5f`. Direct float assignment to the APVTS parameter. No special handling needed; this is the cleanest of the new targets.
-
-**Edge case D — Multi-target conflict:**
-Both X and Y dropdowns could select the same target (e.g., both targeting LFO-X Level). Allowed — last write wins within processBlock. No need to prevent it.
-
----
-
-### Feature 5: Gamepad Option Mode 1 Remapping
-
-**New face-button mapping in Option Mode 1:**
-- Circle (B) → Arp on/off toggle
-- Triangle (Y) → Arp Rate: cycle subdivision forward (wraps 0→5→0)
-- Square (X) → Arp Order: cycle order forward (wraps 0→6→0)
-- Cross (A) → RND Sync toggle (intercept before looper start/stop dispatch)
-- R3 (right stick btn) → sub oct toggle for held pad (no longer panic in mode 1)
-
-**Edge case A — Circle toggles arp; arp starts waiting for DAW:**
-Existing behavior: when arpEnabled is set to true while DAW is not playing, `arpWaitingForPlay_` becomes true (blink state). The existing blink counter handles this. Circle just sets the APVTS arpEnabled bool using `p->setValueNotifyingHost()` — no new state needed.
-
-**Edge case B — R3 standalone panic removal in mode 1 only:**
-In processBlock, the current logic fires panic on `consumeRightStickTrigger()` regardless of mode. Add a guard: `if (optionMode != 1 && consumeRightStickTrigger()) { ... panic ... }`. In mode 1, R3 is consumed only in combination with a held pad (for sub oct toggle) and ignored when no pad is held.
-
-**Edge case C — Cross intercept for RND Sync in mode 1:**
-Cross (A) in mode 0 = looper start/stop. In mode 1, Cross = RND Sync toggle. Implement as: before the normal looper start/stop branch, check `if (optionMode == 1 && consumeLooperStartStop()) { toggle randomClockSync APVTS bool; return; }`. The `consumeLooperStartStop()` is a destructive consume so it cannot fire twice.
-
-**Edge case D — Rate/Order cycling:**
-Triangle → increment `arpSubdiv` APVTS index cyclically within [0, 5]. Square → increment `arpOrder` APVTS index cyclically within [0, 6]. Both use the existing `stepWrappingParam()` helper in PluginProcessor. These consume the option-mode D-pad delta signals — use the same consume pattern: check `consumeOptionDpadDelta()` or add a new option-button-delta mechanism for face buttons in GamepadInput.
-
-Actually: Triangle/Square/Circle are not D-pad buttons — they are face buttons. The D-pad delta mechanism (pendingOptionDpadDelta_) is for D-pad only. For face buttons in option mode, add direct consume flags: `pendingOptionCircle_`, `pendingOptionTriangle_`, `pendingOptionSquare_` as `std::atomic<bool>` in GamepadInput, set on rising edge when optionMode == 1.
+PKG installer should target system paths (requires admin password prompt, which users expect for audio software). User-path install skips the prompt but may not be found by all DAWs without custom scan-path configuration.
 
 ---
 
-### Feature 6: Bug Fix — Looper Wrong Start Position After Record Cycle
+## macOS Distribution: Signing and Notarization
 
-**Root cause (inferred from LooperEngine.h):**
-`loopStartPpq_` is set when the looper begins playing/recording to anchor beat 0. After `finaliseRecording()` runs and the looper transitions from recording to playback, `internalBeat_` is reset but the anchor may not re-snap to the nearest bar boundary. If the PPQ position at the moment of transition is mid-bar, the first playback cycle starts from a fractional beat offset instead of beat 0.
+### Requirements for unblocked distribution (macOS Gatekeeper)
 
-**Expected fix:** After `finaliseRecording()` completes and playback begins, compute the PPQ distance from the current position to the last bar boundary and reset `loopStartPpq_` to that bar boundary. This ensures the first playback pass starts at beat 0 of the recorded material.
+1. **Apple Developer Program** — $99/year; provides Developer ID certificates
+2. **Developer ID Application certificate** — signs .component and .vst3 bundles
+3. **Developer ID Installer certificate** — signs .pkg installer (separate cert from Application)
+4. **Hardened Runtime** — `codesign -o runtime` flag required on all binaries for notarization
+5. **Notarization** — submit signed PKG to Apple via `notarytool submit`; attach staple ticket
+6. **Stapling** — `stapler staple` attaches the notarization ticket to the PKG so Gatekeeper trusts it offline
 
-**Edge case — DAW loop playback (Ableton clip loop):**
-If the DAW loops its own timeline, PPQ position resets backward. The looper must detect backward PPQ jumps (current ppq < previous ppq by more than half a beat) and re-anchor loopStartPpq_ to the new position. This avoids the looper drifting out of sync after a DAW loop point.
+### Distribution container recommendation
+
+**PKG inside DMG** — industry standard for audio plugins:
+- PKG handles automated install to `/Library/Audio/Plug-Ins/` (handles admin prompt, creates target directories)
+- DMG is the download artifact (familiar to Mac users; easy to distribute via GitHub Releases)
+- Notarize the DMG (outermost container); everything inside is implicitly trusted
+
+**Why not DMG-only (drag-to-folder):** On macOS Sonoma, dragging a plugin to a system path from a DMG fails silently — the system does not let the user write to `/Library/Audio/Plug-Ins/VST3/` via drag. PKG handles this correctly.
+
+### Ad-hoc signing (beta testing only)
+
+Ad-hoc signed code (`codesign --sign -`) only works on the machine that built it. Copying to another machine causes Gatekeeper to kill it. For beta distribution, either use a full Developer ID signing workflow or document the `xattr -rd com.apple.quarantine` override command for testers.
 
 ---
 
-### Feature 7: Bug Fix — SDL2 Bluetooth Reconnect Crash
+## Windows Code Signing — OV vs EV vs Azure Artifact Signing
 
-**Root cause (inferred from GamepadInput.h):**
-The `timerCallback()` calls `tryOpenController()` on SDL_CONTROLLERDEVICEADDED events. If a disconnect and reconnect occur in quick succession (BT pairing oscillation), two ADD events may fire before the first `closeController()` has fully executed. The previous `SDL_GameController*` handle may still be non-null but invalidated, causing a crash in the next SDL_GameControllerOpen call or in axis polling.
+### Current landscape (2025)
 
-**Expected fix:**
-1. Add a `lastCloseTimestampMs_` member. In `tryOpenController()`, return early if `SDL_GetTicks() - lastCloseTimestampMs_ < 500` — a 500 ms debounce on reconnect.
-2. In `closeController()`, set `lastCloseTimestampMs_ = SDL_GetTicks()` before nulling the pointer.
-3. Null-guard all SDL_GameController* accesses at the top of `timerCallback()`.
+| Option | SmartScreen behavior | Cost | Key storage | Recommendation |
+|--------|---------------------|------|-------------|----------------|
+| OV Certificate | Reputation builds organically over months/years of downloads — SmartScreen warning shows until threshold; Microsoft does not publish the threshold | ~$200–400/year | FIPS 140-2 Level 2 USB token (required since June 2023) | Viable long-term; unsuitable for initial release without warning documentation |
+| EV Certificate | As of March 2024: no longer provides instant SmartScreen trust — reputation builds same way as OV; EV OIDs removed from Microsoft Trusted Root in August 2024 | ~$300–600/year | FIPS 140-2 Level 2 USB token (required) | No longer justifies premium over OV; skip EV |
+| Azure Artifact Signing (Trusted Signing) | **Instant SmartScreen reputation** tied to verified publisher identity; certificate rotation does not reset reputation; FIPS 140-2 Level 3 cloud HSM, no physical token | $9.99/month (5,000 signatures) | Cloud-managed (no USB token) | **Recommended if eligible** — lowest cost, instant reputation, no hardware |
 
-**Edge case — Multiple controllers connected simultaneously:**
-SDL may report multiple ADD events if a second controller is connected. GamepadInput currently tracks only one controller_. Add a check in tryOpenController(): if controller_ is already non-null and valid, do not open a second one.
+**Critical Azure Artifact Signing eligibility note (April 2025):** Currently restricted to US or Canadian businesses with 3+ years of history. Individual developers and non-US/non-Canadian entities are not eligible until General Availability. Verify current eligibility at [azure.microsoft.com/products/artifact-signing](https://azure.microsoft.com/en-us/products/artifact-signing) before planning this path.
+
+**If Azure Artifact Signing is not available:** Use OV cert. EV provides no material SmartScreen advantage over OV post-March 2024. With OV, SmartScreen warnings will appear on early installs — document this for users in release notes: "Windows may show a SmartScreen warning for new software. Click 'More info' → 'Run anyway'." This is expected and common for indie plugins.
 
 ---
 
 ## Feature Dependencies
 
 ```
-Single-channel mode
-  → new: singleChannelMode APVTS bool (default false)
-  → new: singleChActiveCount[128] reference count in processBlock (audio thread only)
-  → uses: voiceCh0 APVTS param as target channel (existing)
-  → used by: sub octave collision guard
+LemonSqueezy License Check (first launch)
+    └──requires──> Network HTTP client (juce::URL over HTTPS; no third-party HTTP lib needed)
+    └──requires──> Local key + instance_id persistence (juce::PropertiesFile)
+    └──requires──> Background thread for validation (juce::Thread; never audio thread)
+    └──enables──>  Deactivate This Machine (needs stored instance_id)
+    └──enables──>  Machine count display (needs activation_usage from API response)
+    └──enables──>  Offline grace period (needs last_validated_timestamp in PropertiesFile)
 
-Sub octave per voice
-  → new: subOctVoice0..3 APVTS bools
-  → uses: heldPitch_[4] array (existing)
-  → uses: NoteCallback in TriggerSystem (existing — fire sub note in same callback)
-  → requires single-channel collision guard when singleChannelMode is active
-  → UI: split Hold button right-half into SubOct region (per-voice TouchPlate area)
-  → UI: R3 + held pad shortcut in GamepadInput processBlock routing
+AU Format (macOS)
+    └──requires──> Apple Developer Program ($99/year)
+    └──requires──> Developer ID Application certificate
+    └──requires──> macOS build machine with Xcode installed
+    └──requires──> Notarization (Gatekeeper blocks without it)
+    └──requires──> Verify: Xcode 16.2 has known AU universal binary regression — check JUCE forum before building
 
-LFO recording
-  → new: LfoRecorder struct (beat-indexed float buffer + state machine, one per axis)
-  → uses: LfoEngine.process() output (existing — recorder intercepts it)
-  → uses: looper.getLoopLengthBeats() (existing)
-  → UI: ARM button near LFO Sync; CLEAR button; gray-out logic for 4 LFO controls
+macOS PKG Installer
+    └──requires──> Developer ID Installer certificate (separate from Application cert)
+    └──requires──> pkgbuild + productbuild CLI tools (included with Xcode)
+    └──requires──> Notarization of the PKG / DMG container
 
-Left joystick target expansion
-  → extends: filterXMode / filterYMode APVTS enum values (add 4–6 new values)
-  → uses: LfoEngine ProcessParams (existing — new case in processBlock switch)
-  → uses: arpGateTime APVTS param (existing)
-  → new: hysteresis + step mapping for LFO Shape discrete target
+macOS Notarization
+    └──requires──> Apple Developer Program
+    └──requires──> All binaries signed with Hardened Runtime (-o runtime)
+    └──requires──> notarytool + stapler (Xcode CLI tools)
+    └──enables──>  Gatekeeper trust (plugin loads without xattr override)
+    └──enables──>  macOS GitHub Release distribution
 
-Gamepad Option Mode 1 remapping
-  → new: pendingOptionCircle_, pendingOptionTriangle_, pendingOptionSquare_ atomics in GamepadInput
-  → uses: stepWrappingParam() (existing)
-  → uses: arpEnabled APVTS (existing)
-  → changes: R3 routing guard (optionMode != 1 precondition before panic)
-  → changes: Cross routing guard (optionMode == 1 intercept for RND Sync)
-  → depends on: sub octave (R3+pad gesture)
+Universal Binary
+    └──requires──> CMake -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
+    └──requires──> SDL2 universal fat library (or SDL2 not linked on Mac — verify if gamepad needed on Mac)
+    └──note──>     Xcode 16.2 regression: AU universal binary may not build; track JUCE forum issue
 
-Bug fix: looper start position
-  → changes: LooperEngine — loopStartPpq_ re-anchor logic after finaliseRecording()
-  → changes: backward PPQ jump detection
-
-Bug fix: BT reconnect crash
-  → changes: GamepadInput — lastCloseTimestampMs_ debounce in tryOpenController()
-  → changes: null-guard in timerCallback()
+Windows Code Signing
+    └──requires──> Azure Artifact Signing account (if eligible) OR OV cert USB token
+    └──requires──> Sign both the .exe installer and the .vst3 bundle
+    └──enables──>  SmartScreen-free install experience
 ```
 
 ---
 
-## MVP Build Order for v1.5
+## MVP Definition
 
-Build in this sequence to respect dependencies and validate foundational changes before layering complexity:
+### Launch With (v2.0)
 
-1. **Bug fixes first** — Looper start position and BT crash are live correctness issues. Fix these before adding features that stress these same systems.
+Minimum required for a paid public cross-platform release.
 
-2. **Single-channel routing mode** — Foundational routing change. The reference-count collision guard is reused by sub octave. Low risk: it is additive to the existing multi-channel path.
+- [ ] License key entry dialog — shown on first launch when no valid local key exists
+- [ ] Local license persistence — `juce::PropertiesFile` stores key + `instance_id`; dialog skipped on valid re-open
+- [ ] 14-day offline grace period — `last_validated_timestamp` stored locally; background re-validation on launch if stale
+- [ ] Activation error messages — user-readable text for each LemonSqueezy failure code
+- [ ] Machine count display — show `activation_usage / activation_limit` in the dialog
+- [ ] AU format build — universal binary; required for Logic/GarageBand users
+- [ ] VST3 macOS build — universal binary; required for Ableton/Reaper/FL Studio on Mac
+- [ ] Notarized PKG installer for macOS — no Gatekeeper block; installs to system plugin paths
+- [ ] Windows code signing — Azure Artifact Signing (preferred) or OV cert; no SmartScreen block on installer
 
-3. **Sub octave per voice** — Depends on single-channel collision guard. The DSP is 4 extra note-on/off calls per trigger. The UI split-button is the highest-effort part; it is self-contained.
+### Add After Validation (v2.x)
 
-4. **Left joystick target expansion** — Extends the existing filterXMode/filterYMode switch statement. Low integration risk. Delivers user-visible expressive value early.
+Features to add once the v2.0 launch is proven stable.
 
-5. **Gamepad Option Mode 1 remapping** — Pure routing change. Depends on sub octave (R3+pad gesture). Requires new atomic flags in GamepadInput for face buttons.
+- [ ] "Deactivate this machine" button — reduces support volume as user base grows
+- [ ] Machine name display in settings panel — shows which `instance_name` is active on this machine
+- [ ] Silent weekly background re-validation — surfaces key revocation within 7 days without user action
 
-6. **LFO recording** — Highest complexity. Build last so foundational features are stable. Requires the most new state and the most edge-case validation (interpolation, gray-out, sync timing). Can be delivered in a 1.5.1 patch if it blocks the milestone.
+### Future Consideration (v3+)
+
+- [ ] Offline activation / challenge-response — only warranted if enterprise/air-gapped segment is significant
+- [ ] AAX / Pro Tools support — requires Avid certification + iLok; separate milestone
+- [ ] Linux support — JUCE supports it; commercial plugin sales volume is low on Linux
 
 ---
 
-## Confidence Assessment
+## Feature Prioritization Matrix
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Single-channel note collision: reference count approach | MEDIUM | KVR community consensus; MIDI spec is undefined for this case; reference counting is the most widely cited safe approach |
-| Sub octave -12 semitone fixed offset | HIGH | "Sub octave" is a well-defined musical term; no ambiguity |
-| Sub octave gate timing (same sampleOffset as parent) | HIGH | Direct from TriggerSystem NoteCallback design in codebase |
-| LFO recording buffer size (4096 beat-indexed pairs) | HIGH | First-principles calculation from looper max 16 bars, min 30 BPM, 512-sample blocks |
-| LFO recording Distort stays live | HIGH | Explicitly stated in milestone spec; Distort is a ProcessParams field not stored in buffer |
-| Left joystick shape discrete mapping (7 bands + hysteresis) | MEDIUM | Standard hardware synth pattern; no official VST plugin spec for this |
-| Gamepad Option Mode 1 face-button atoms needed | HIGH | Direct consequence of how GamepadInput currently exposes D-pad-only option deltas |
-| Looper start-position root cause | MEDIUM | Inferred from LooperEngine.h anchor logic; not confirmed by running code |
-| BT reconnect crash root cause | MEDIUM | Inferred from GamepadInput.h + SDL2 timer thread patterns; not confirmed by repro |
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| License key dialog (first launch) | HIGH | LOW | P1 |
+| Local key persistence (no re-entry) | HIGH | LOW | P1 |
+| 14-day offline grace period | HIGH | LOW | P1 |
+| Activation error messages | HIGH | LOW | P1 |
+| AU format (Logic/GarageBand access) | HIGH | HIGH | P1 |
+| VST3 macOS + universal binary | HIGH | MEDIUM | P1 |
+| Notarized PKG installer | HIGH | MEDIUM | P1 |
+| Windows code signing | HIGH | LOW–MEDIUM | P1 |
+| Machine count display | MEDIUM | LOW | P1 |
+| Deactivate this machine button | MEDIUM | LOW | P2 |
+| Machine name label in settings | LOW | LOW | P2 |
+| Weekly background re-validation | MEDIUM | LOW | P2 |
+| Apple Silicon architecture badge | LOW | LOW | P3 |
 
 ---
 
 ## Sources
 
-- Codebase inspection: `Source/PluginProcessor.h`, `Source/LooperEngine.h`, `Source/LfoEngine.h`, `Source/TriggerSystem.h`, `Source/GamepadInput.h`, `Source/PluginEditor.h`, `Source/PluginEditor.cpp`
-- MIDI same-pitch collision: KVR Audio DSP forum — "Midi events with note on and note off at the same time" (reference count approach is community consensus) — MEDIUM confidence
-- MIDI specification undefined duplicate note-on: midi.teragonaudio.com Note-On specification — HIGH confidence
-- Arpeggiator loop start-position quirk: Ableton Forum — "Arpeggiator problem" thread — MEDIUM confidence (same symptom as the looper bug)
-- Gamepad mode design (dual-purpose buttons): ControllerBuddy design documentation — MEDIUM confidence
-- LFO buffer calculation: first-principles from codebase constants (looper 16 bars, 512 block, 30 BPM minimum) — HIGH confidence
+- [LemonSqueezy License API Overview](https://docs.lemonsqueezy.com/api/license-api) — endpoints list
+- [LemonSqueezy Activate Endpoint](https://docs.lemonsqueezy.com/api/license-api/activate-license-key) — request/response schema, instance.id
+- [LemonSqueezy Validate Endpoint](https://docs.lemonsqueezy.com/api/license-api/validate-license-key) — `valid`, `activation_usage`, `activation_limit` fields
+- [LemonSqueezy Deactivate Endpoint](https://docs.lemonsqueezy.com/api/license-api/deactivate-license-key) — `instance_id` required, instance deleted on success
+- [LemonSqueezy License Key Guide](https://docs.lemonsqueezy.com/guides/tutorials/license-keys) — full activation/deactivation flow walkthrough
+- [Ableton: Using AU and VST plug-ins on macOS](https://help.ableton.com/hc/en-us/articles/209068929-Using-AU-and-VST-plug-ins-on-macOS) — AU + VST3 format support confirmed
+- [Steinberg: VST3 plug-in locations on macOS](https://helpcenter.steinberg.de/hc/en-us/articles/115000171310-VST-plug-in-locations-on-Mac-OS-X-and-macOS) — system install paths
+- [JUCE Forum: CMake + macOS Universal Binary](https://forum.juce.com/t/cmake-plugin-and-os-11-universal-binary/41997) — `-DCMAKE_OSX_ARCHITECTURES` flag
+- [JUCE Forum: AU universal binary Xcode 16.2 regression](https://forum.juce.com/t/au-universal-binary-macos-sequoia-and-xcode-16-2/65337) — active issue in 2025
+- [Melatonin: Code sign and notarize macOS audio plugins in CI](https://melatonin.dev/blog/how-to-code-sign-and-notarize-macos-audio-plugins-in-ci/) — JUCE-specific practical guide
+- [KVR Audio: Mac plugin distribution — DMG or PKG](https://www.kvraudio.com/forum/viewtopic.php?t=393088) — DMG limitations on Sonoma
+- [JUCE Forum: Signing Windows installers with OV cert](https://forum.juce.com/t/signing-windows-installers-with-ov-certificate-how-long-to-get-smartscreen-reputation/55245) — community experience with reputation build time
+- [Azure Artifact Signing](https://azure.microsoft.com/en-us/products/artifact-signing) — $9.99/month, instant SmartScreen reputation
+- [Microsoft Q&A: EV vs OV SmartScreen post-March 2024](https://learn.microsoft.com/en-us/answers/questions/417016/reputation-with-ov-certificates-and-are-ev-certifi) — parity confirmed
+- [JUCE Forum: Current options for code signing on Windows (2025)](https://forum.juce.com/t/current-options-for-code-signing-on-windows/65812) — community roundup
+- [Melatonin: Code signing on Windows with Azure Trusted Signing](https://melatonin.dev/blog/code-signing-on-windows-with-azure-trusted-signing/) — step-by-step for JUCE developers
 
 ---
 
----
+## Appendix: v1.5 Feature Research (Historical — 2026-02-28)
 
-## Appendix: v1.4 Feature Research (Historical — 2026-02-26)
+> Archived. All v1.5 features validated and shipped as of v1.9.
 
-> Preserved for roadmap continuity. All v1.4 features were validated and shipped.
-
-**Domain:** Plugin LFO engine for a JUCE VST3 MIDI performance instrument
-**Researched:** 2026-02-26
-**Milestone:** ChordJoystick v1.4 — LFO + Clock
-**Overall confidence:** HIGH for waveform math and S&H/Random distinction; HIGH for sync/phase reset behavior; MEDIUM for distortion interpretation
-
-### Table Stakes (v1.4)
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Sine waveform | Default LFO shape; smooth, organic | Low | `sin(2π * φ)` |
-| Triangle waveform | Standard LFO shape; linear | Low | `(φ < 0.5) ? (4φ - 1) : (3 - 4φ)` |
-| Sawtooth Up / Down | Classic filter sweeps | Low | `2φ - 1` / `1 - 2φ` |
-| Square waveform | Rhythmic gating | Low | `φ < 0.5 ? +1 : -1` |
-| Sample & Hold | Stepped random; staircase voltage | Medium | New random value at each cycle boundary |
-| Random (smooth) | Interpolated S&H; organic drift | Medium | Linear interpolation between random targets |
-| Frequency slider | Fundamental LFO parameter | Low | Hz free mode / BPM subdivision sync mode |
-| Level (depth) | Controls modulation amount | Low | Scales output ∈ [-1,+1] |
-| On/Off toggle | Bypass without losing state | Low | Outputs 0.0 when off |
-| Sync toggle | Lock rate to DAW BPM | Medium | Hard phase reset at transport start; PPQ-derived phase |
-| Phase preserved across blocks | Phase is class member | Low | Required to avoid tearing |
-| No memory allocation on audio thread | Real-time safety | Low | All state in pre-allocated POD members |
-| Beat clock indicator | Visual tempo confirmation | Medium | Flashing dot 30 Hz, reads PPQ or elapsed time |
-
-### Differentiators (v1.4)
-
-Phase slider, Distortion/Jitter slider (additive white noise), Sync subdivisions, Free BPM internal clock.
-
-### Anti-Features (v1.4)
-
-LFO-to-MIDI CC output, custom LFO shape drawing, LFO envelope, variable pulse width, per-voice LFO (4 separate), modulation routing matrix.
-
-### APVTS Parameters Added (v1.4)
-
-lfoXEnabled, lfoXShape (0–6), lfoXFreq, lfoXPhase, lfoXDistortion, lfoXLevel, lfoXSync, lfoXSyncDiv and mirrored lfoY* set — 16 new parameters total.
-
-### Distortion Implementation (v1.4)
-
-Additive white noise: `output = lfoWaveform + distortion * noise` where `noise = lcg() ∈ [-1,+1]`. Clamped to ±1. Matches Ableton M4L LFO "Jitter" documented behavior.
-
-### Sync Behavior (v1.4)
-
-Hard phase reset on DAW play-start (transport stopped → playing transition). PPQ-derived phase during playback for seek/loop robustness: `φ = fmod(ppqPosition / beatsPerCycle, 1.0) + phaseOffset`.
+Key decisions preserved for reference:
+- Single-channel routing: reference-count collision guard per pitch per channel
+- Sub octave: fixed -12 semitones; per-voice APVTS bool; fires in same NoteCallback as parent
+- LFO recording: 4096-entry beat-indexed float buffer; 1 loop cycle; Distort stays live
+- Left joystick expansion: filterXMode/filterYMode APVTS enum extended; LFO targets + arp gate
+- Gamepad Option Mode 1: face-button remapping; R3+pad = sub oct toggle; R3 standalone panic removed in mode 1 only
 
 ---
-
-## Appendix: v1.1 Feature Research (Historical — 2026-02-24)
-
-> Preserved for roadmap continuity. All v1.1 features shipped in v1.3.
-
-**MIDI Panic:** CC64=0, CC120=0, CC123=0 on all 16 channels. CC121 explicitly excluded (downstream VST3 instruments map CC121 to parameters). One-shot (not persistent mute).
-
-**Trigger/Gate Quantization:** Live (snap on record) and Post (snap existing loop). Algorithm: `round(beatPos / gridSize) * gridSize`. Applied only to Gate events. Subdivisions: 1/4=1.0 beats, 1/8=0.5, 1/16=0.25, 1/32=0.125.
-
-**Looper Playback Position Bar:** Horizontal progress bar. Ratio = `getPlaybackBeat() / getLoopLengthBeats()`. Cyan playing, amber recording. 30 Hz update.
-
-**Gamepad Controller Type Detection:** `SDL_GameControllerGetType()` (SDL 2.0.12+). Returns enum covering PS3/PS4/PS5, Xbox 360/One, Switch Pro. Display string: "{Type} Connected" or "No Controller".
-
----
-*Feature research for: ChordJoystick v1.5 Routing + Expression (primary) and v1.4 LFO + Clock / v1.1 additions (appendix)*
-*Primary research date: 2026-02-28*
+*Feature research for: ChordJoystick v2.0 Cross-Platform Launch — license key UX, Mac DAW distribution, Windows code signing*
+*Researched: 2026-03-10*

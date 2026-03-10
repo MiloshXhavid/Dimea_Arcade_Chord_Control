@@ -1,484 +1,445 @@
 # Technology Stack
 
-**Project:** ChordJoystick v1.5 — Routing + Expression
-**Domain:** JUCE VST3 MIDI effect plugin — single-channel routing, sub octave, arpeggiator, LFO recording, left-stick target expansion, SDL2 BT fix
-**Researched:** 2026-02-28
-**Confidence:** HIGH (all claims verified against repo source, JUCE 8.0.4 API docs, SDL2 2.30 wiki, and SDL2 issue tracker)
+**Project:** ChordJoystick v2.0 — Cross-Platform Launch
+**Domain:** JUCE VST3+AU MIDI plugin — macOS universal binary, license key validation, macOS installer, cross-platform code signing
+**Researched:** 2026-03-10
+**Confidence:** MEDIUM-HIGH (CMake/JUCE claims HIGH from official docs; signing claims MEDIUM from community sources; LemonSqueezy API HIGH from official docs)
 
-> **Scope:** This file covers ONLY the new v1.5 features. The full locked stack
-> (JUCE 8.0.4, SDL2 2.30.9 static, CMake FetchContent, C++17, MSVC, Catch2, Inno Setup 6)
-> is documented in prior milestone STACK files and is NOT re-researched here.
-> No new external libraries are needed for any v1.5 feature.
-
----
-
-## Decision: No New Dependencies
-
-All v1.5 features are implemented with the existing locked stack. Zero new libraries, zero new
-JUCE modules, zero new CMake targets.
-
-| Feature | Why No New Library Needed |
-|---------|--------------------------|
-| Note collision tracking (single-channel) | `int[128]` ref-count array — O(1), zero allocation, audio-thread-safe |
-| Sub Octave per voice | Second `MidiMessage::noteOn/Off` call with `pitch - 12` — `juce_audio_basics` already in use |
-| Arpeggiator DAW sync | `AudioPlayHead::PositionInfo::getPpqPosition()` — already used by LfoEngine and LooperEngine |
-| LFO recording ring buffer | `std::array<float, N>` with audio-thread-only read/write indices — no SPSC FIFO needed |
-| Left stick target routing | APVTS dispatch switch — pattern identical to existing D-pad option mode |
-| SDL2 BT reconnect crash | Instance-ID guard using `SDL_GameControllerGetJoystick` / `SDL_JoystickInstanceID` — both in SDL2 2.30.9 |
-| Option Mode 1 arp remap | Code-only button mapping change in existing dispatch logic |
-| Looper start-position fix | Logic defect in `loopStartPpq_` anchoring — no new API needed |
+> **Scope:** This file covers ONLY the new v2.0 additions. The locked Windows stack
+> (JUCE 8.0.4, SDL2 2.30.9 static, CMake FetchContent, C++17, MSVC, Catch2, Inno Setup 6,
+> static CRT MultiThreaded, GitHub releases via gh CLI) is NOT re-researched here.
 
 ---
 
-## Feature-by-Feature Stack Analysis
+## Area 1: macOS Universal Binary Build
 
-### Feature 1: Single-Channel MIDI Routing + Note Collision Tracking
+### CMake Configuration
 
-**Problem statement:** When all 4 voices route to one MIDI channel, two voices can emit a
-`noteOn` for the same pitch number simultaneously. Most downstream instruments treat a second
-`noteOn` for an already-sounding pitch as a re-trigger and decrement their internal reference
-count on the first `noteOff`, leaving a ghost note sounding indefinitely.
+The single flag that makes every FetchContent dependency (JUCE, SDL2, Catch2) build as a fat binary:
 
-**Stack decision:** Plain `int noteRefCount_[128]` array on `PluginProcessor`, audio-thread-only.
-Before any `noteOn` emission on the single channel: increment `noteRefCount_[pitch]`. Before any
-`noteOff` emission: decrement `noteRefCount_[pitch]` and only emit the MIDI `noteOff` when the
-count reaches zero. Reset the table on panic, DAW stop, and single-channel-mode toggle.
-
-**JUCE APIs used:**
-- `MidiBuffer::addEvent(MidiMessage, sampleOffset)` — already in use in processBlock
-- `MidiMessage::noteOn(channel, pitch, velocity)` — already in use
-- `MidiMessage::noteOff(channel, pitch, velocity)` — already in use
-
-**Why not `juce::MPEInstrument`:** MPE is an input-side polyphony tracker for synthesiser voice
-assignment. This plugin generates MIDI; it does not receive or track incoming notes. MPE solves
-the wrong problem and would add dead weight.
-
-**Why not `std::map<int,int>`:** Dynamic allocation is prohibited on the audio thread. A
-128-element `int` array costs 512 bytes, is O(1), and needs no destructor.
-
-**Confidence:** HIGH — the `int[N]` note-reference-count pattern is the standard MIDI generator
-technique confirmed in JUCE forum discussions on stuck notes (multiple threads, 2018–2024).
-
----
-
-### Feature 2: Per-Voice Sub Octave (Parallel Note 1 Octave Lower)
-
-**Problem statement:** Each voice pad must optionally emit a second note one octave below the
-primary pitch on the same channel at the same time, with an independent note-off.
-
-**Stack decision:** Add `bool subOctEnabled_[4]` backed by four new APVTS bool parameters. In the
-existing note-on/off emission path, after computing `pitch` for a voice, conditionally emit a
-second pair:
+```cmake
+# Must be set BEFORE project() — set once, propagates to all FetchContent subdirs
+set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "" FORCE)
 ```
-subPitch = juce::jlimit(0, 127, pitch - 12);
-noteOn  at subPitch, same channel, same sampleOffset
-noteOff at subPitch, same channel
+
+- `CMAKE_OSX_ARCHITECTURES "arm64;x86_64"` — the standard CMake universal binary flag; propagates automatically to SDL2 and JUCE when set before `project()` or at configure time via `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"`
+- `CMAKE_OSX_DEPLOYMENT_TARGET "11.0"` — macOS 11 (Big Sur) is the minimum that supports Apple Silicon natively; required for arm64 slice; JUCE 8.0.4 supports 10.13+ but 11.0 is the practical floor for universal binaries targeting M1+ users
+
+### Xcode Generator
+
+```bash
+cmake -S . -B build-mac -G Xcode \
+  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET="11.0"
+
+cmake --build build-mac --config Release --target ChordJoystick_VST3
+cmake --build build-mac --config Release --target ChordJoystick_AU
 ```
-In single-channel mode the collision tracker (Feature 1) handles ref counting for `subPitch`
-independently of `pitch`.
 
-**JUCE APIs used:** Same as Feature 1, plus `juce::jlimit<int>()` from `juce_core`.
+Use the Xcode generator (`-G Xcode`) on macOS — not `Unix Makefiles` or `Ninja`. JUCE's AU wrapper generation requires the Xcode toolchain for the post-build `auval`-compatible bundle structure.
 
-**Confidence:** HIGH — trivial extension of existing note-emit logic; no new API surface.
+### Known Issue: AU Universal Binary on Xcode 16.2 + JUCE 8.0.6
+
+A February 2025 JUCE forum report ([AU universal binary macOS Sequoia and Xcode 16.2](https://forum.juce.com/t/au-universal-binary-macos-sequoia-and-xcode-16-2/65337)) states that AU plugins built with Xcode 16.2 compile only for arm64 despite `CMAKE_OSX_ARCHITECTURES` being set, while VST3 compiles correctly as universal. VST3 builds are unaffected. The workaround is to verify the output with `lipo -info PluginName.component/Contents/MacOS/PluginName` after build and, if single-arch, use Xcode 15.x or pin to a known-good Xcode version in CI. This bug may be resolved in a later JUCE or Xcode patch.
+
+### JUCE CMakeLists.txt: HARDENED_RUNTIME_ENABLED
+
+The existing `CMakeLists.txt` already sets `HARDENED_RUNTIME_ENABLED TRUE` in `juce_add_plugin`. This is **required** for macOS notarization — Apple rejects binaries that are not built with the hardened runtime. No change needed; this is already correct.
+
+### JUCE CMakeLists.txt: AU Format
+
+The existing `CMakeLists.txt` already includes `FORMATS VST3 AU`, `AU_MAIN_TYPE kAudioUnitType_MusicDevice`, and macOS copy commands in the `elseif(APPLE)` block. The `AU` format target is already wired. No structural CMake change is needed; the AU target exists but has never been built on macOS.
+
+### SDL2 Universal Binary
+
+SDL2 2.30.9 respects `CMAKE_OSX_ARCHITECTURES` when built via FetchContent. Because `CMAKE_OSX_ARCHITECTURES` is set before `FetchContent_MakeAvailable(SDL2)`, SDL2-static will be compiled as a fat library automatically. No SDL2-specific CMake changes are needed.
+
+**Verification command after build:**
+```bash
+lipo -info build-mac/ChordJoystick_artefacts/Release/VST3/"Arcade Chord Control (BETA-Test).vst3"/Contents/MacOS/"Arcade Chord Control (BETA-Test)"
+# Expected: Architectures in the fat file: x86_64 arm64
+```
 
 ---
 
-### Feature 3: Arpeggiator — Rate, Order, Gate Length, DAW Sync
+## Area 2: AU Plugin Format
 
-**Problem statement:** The existing arpeggiator skeleton in `PluginProcessor` has `arpPhase_`,
-`arpStep_`, `arpActivePitch_`, and `arpActiveVoice_`. The v1.5 spec adds configurable rate
-(1/4 to 1/32), order (up/down/random), gate length as a 0..1 fraction of subdivision, and
-stable DAW clock sync without drift.
+### What JUCE Already Provides
 
-**Stack decision — timing model:**
+JUCE 8.0.4 generates a full AudioUnit v2 (AUv2) component bundle from the same source files that produce the VST3. The `AU_MAIN_TYPE kAudioUnitType_MusicDevice` (already set in `CMakeLists.txt`) is correct for an instrument that sends MIDI — it registers the plugin as a music device in the CoreAudio component system, equivalent to VST3's `Instrument` category.
 
-The JUCE `ArpeggiatorPluginDemo` uses a sample-counter approach that accumulates drift at
-non-integer BPMs (e.g. 130 BPM, where `noteDuration` is a fractional number of samples).
-Community reports confirm audible timing drift with this approach.
+### No Source Code Changes Required
 
-The correct DAW-synced pattern uses `AudioPlayHead::PositionInfo::getPpqPosition()` to compute
-the exact sample offset within the block where the next note boundary falls:
+The AU wrapper is generated entirely by JUCE. `PluginProcessor.cpp` and `PluginEditor.cpp` do not need platform guards or AU-specific code. The existing `IS_SYNTH TRUE`, `NEEDS_MIDI_OUTPUT TRUE`, and silent stereo bus setup work identically for AU.
 
-```cpp
-const double subdivBeats = arpSubdivToBeats(arpRate_);   // e.g. 0.25 for 1/16
-const double blockBeats  = (numSamples / sampleRate_) * (bpm / 60.0);
-const double nextBoundary = std::ceil(ppqPos / subdivBeats) * subdivBeats;
+### auval Validation
 
-if (nextBoundary < ppqPos + blockBeats)
+Before shipping, validate the AU component with Apple's `auval` tool:
+```bash
+auval -v aumu DCJM MxCJ
+# PLUGIN_CODE=DCJM, PLUGIN_MANUFACTURER_CODE=MxCJ (from CMakeLists.txt)
+```
+A clean `auval` pass is required for Logic Pro and GarageBand compatibility.
+
+### AU Installation Path
+
+System-wide (requires sudo, installer-friendly):
+`/Library/Audio/Plug-Ins/Components/`
+
+User-only (no elevation, matches existing macOS copy command in CMakeLists.txt):
+`~/Library/Audio/Plug-Ins/Components/`
+
+The production installer should install to `/Library/Audio/Plug-Ins/Components/` using `pkgbuild` (see Area 4). The CMakeLists.txt post-build copy to `~/Library/` is for local dev iteration only.
+
+---
+
+## Area 3: LemonSqueezy License Key Validation
+
+### API Overview
+
+LemonSqueezy provides a REST License API separate from their main store API. No API key is required from the client side — only the license key (and optionally the instance ID). All requests go to `https://api.lemonsqueezy.com/v1/licenses/`.
+
+### Two-Step Flow
+
+**Step 1: Activate** (first launch on a new machine)
+
+```
+POST https://api.lemonsqueezy.com/v1/licenses/activate
+Content-Type: application/x-www-form-urlencoded
+
+license_key=XXXX-XXXX-XXXX-XXXX&instance_name=MacBook-Pro-M2
+```
+
+Response includes `instance.id` (UUID string) — save this to disk alongside the license key. The `instance_id` is needed to validate on subsequent launches.
+
+**Step 2: Validate** (every subsequent launch)
+
+```
+POST https://api.lemonsqueezy.com/v1/licenses/validate
+Content-Type: application/x-www-form-urlencoded
+
+license_key=XXXX-XXXX-XXXX-XXXX&instance_id=f90ec370-fd83-46a5-8bbd-44a241e78665
+```
+
+Response:
+```json
 {
-    const int sampleOffset = static_cast<int>(
-        (nextBoundary - ppqPos) / blockBeats * numSamples);
-    // emit noteOn at sampleOffset in MidiBuffer
+  "valid": true,
+  "error": null,
+  "license_key": { "status": "active", "activation_limit": 2, "activation_usage": 1 },
+  "instance": { "id": "...", "name": "..." },
+  "meta": { "store_id": 12345, "product_id": 67890, "variant_id": 11111 }
 }
 ```
 
-This is identical to the `ppqPosition`-based sync already implemented in `LfoEngine::process()`
-and `LooperEngine::process()`. No new algorithm is needed — extend the existing pattern.
+Always verify `meta.store_id`, `meta.product_id`, and `meta.variant_id` match your product's IDs (hard-code these values in the plugin). The `valid` field is `true` only when the key is active and the instance is valid.
 
-**Gate length:** `gateBeats = subdivBeats * gateFraction`. Use existing `arpNoteOffRemaining_`
-counter (already a `double` tracking beats until note-off) to emit the `noteOff` at the correct
-sample offset within the same or a later block.
+### C++ HTTP Implementation: juce::URL
 
-**Free-tempo mode:** When DAW is not playing, use `effectiveBpm_` and `sampleCounter_` (already
-on `PluginProcessor`) to synthesize a `ppqPos` equivalent. This is the existing pattern used by
-`TriggerSystem` for random gates.
+**Recommended: `juce::URL` with `juce_network` module.** Do not add libcurl or any third-party HTTP library.
 
-**JUCE APIs used:**
-- `AudioPlayHead::PositionInfo::getPpqPosition()` — returns `std::optional<double>`, JUCE 8
-- `AudioPlayHead::PositionInfo::getBpm()` — returns `std::optional<double>`, JUCE 8
-- `AudioPlayHead::PositionInfo::getIsPlaying()` — returns `std::optional<bool>`, JUCE 8
-- `MidiBuffer::addEvent()` with computed `sampleOffset`
+Rationale:
+- The existing `CMakeLists.txt` sets `JUCE_USE_CURL=0` — this disables curl on all platforms and tells JUCE to use native HTTP (WinHTTP on Windows, NSURLSession on macOS). This is the correct setting for a plugin that does not want a libcurl dependency.
+- `juce_network` is already an implicit transitive dependency of `juce_audio_processors`; no new `target_link_libraries` entry is needed.
+- `juce::URL` supports HTTPS POST on both Windows (WinHTTP) and macOS (NSURLSession) natively with `JUCE_USE_CURL=0`.
 
-All three `PositionInfo` methods confirmed against the JUCE 8 official API documentation.
-All are already called in `processBlock` for LFO and looper sync.
+**Required CMake change:** Add `JUCE_WEB_BROWSER=0` is already set. Add `juce::juce_core` to ensure `juce_network` is linked — in practice `juce_audio_processors` pulls it in, but explicit is safer:
 
-**New APVTS parameters needed:**
-| Parameter ID | Type | Range | Default |
-|-------------|------|-------|---------|
-| `arpRate` | Choice | 0=1/4, 1=1/8, 2=1/16, 3=1/32 | 2 (1/16) |
-| `arpOrder` | Choice | 0=Up, 1=Down, 2=Random | 0 |
-| `arpGateLen` | Float | 0.05..0.99 | 0.5 |
-| `arpEnabled` | Bool | false/true | false |
-
-**Confidence:** HIGH — ppqPosition-based note scheduling is confirmed by JUCE's own
-`AudioPlayHead::PositionInfo` API reference and is the documented approach for sample-accurate
-MIDI scheduling in processBlock.
-
----
-
-### Feature 4: LFO Recording into a Ring Buffer (Arm → Capture 1 Cycle → Locked Playback)
-
-**Problem statement:** Arm a capture mode, record one full LFO cycle of output values into a
-fixed-size buffer, then play back the recorded values in a loop instead of recomputing the
-live LFO. `distortion` must remain adjustable during playback.
-
-**Stack decision:** Extend `LfoEngine` with a fixed-size float ring buffer:
-
-```cpp
-// In LfoEngine.h (new private members)
-static constexpr int LFO_REC_CAPACITY = 8192;   // 8192 blocks @ 512 samples = ~95 sec @ 44100
-std::array<float, LFO_REC_CAPACITY> recBuf_ {};
-int   recWritePos_  = 0;   // audio-thread-only
-int   recReadPos_   = 0;   // audio-thread-only
-int   recLength_    = 0;   // audio-thread-only; set when capture ends
-
-// Cross-thread (UI sets, audio reads/sets)
-std::atomic<bool> recArmed_    { false };
-std::atomic<bool> recPlaying_  { false };
+```cmake
+target_link_libraries(ChordJoystick PRIVATE
+    ...
+    juce::juce_core     # ensures juce_network is available for URL HTTP calls
+)
 ```
 
-**Recording logic:** While `recArmed_` is true, write one float per `process()` call into
-`recBuf_[recWritePos_++ % LFO_REC_CAPACITY]`. Detect one complete cycle using the existing
-`totalCycles_` counter: when `floor(totalCycles_)` advances by 1, the cycle is complete. Set
-`recLength_ = recWritePos_`, set `recPlaying_.store(true)`, clear `recArmed_`.
+Also remove (or conditionally set) `JUCE_USE_CURL=0` — it must remain `0` on Windows and macOS since we rely on native transports. This is already correctly set.
 
-**Playback logic:** When `recPlaying_` is true, return `recBuf_[recReadPos_++ % recLength_]`
-directly. Apply `distortion` post-playback identically to the live path so distortion
-remains adjustable without rewriting the buffer.
-
-**Clear button:** Sets `recPlaying_.store(false)` and `recArmed_.store(false)` from the
-message thread. Audio thread resumes live LFO computation on the next `process()` call.
-
-**Why not `juce::AbstractFifo`:** `AbstractFifo` is a SPSC FIFO for communicating data
-between two threads (one writer, one reader on different threads). The LFO record buffer
-has a single thread touching it (the audio thread writes during record, then reads during
-playback). SPSC synchronization overhead is unnecessary and incorrect for a single-thread
-pattern. A plain `std::array<float>` with `int` indices is simpler and sufficient.
-
-**Why not extending `LooperEngine`:** `LooperEngine` stores sparse beat-timestamped events
-(joystick X/Y, gate on/off). LFO recording produces a dense stream of one float per block —
-a fundamentally different data model. Storing it in `LooperEngine` would require a new event
-type, a new playback mode, and cross-class coupling. Keeping it inside `LfoEngine` is
-self-contained and mirrors the existing "audio-thread-only private state" design of `LfoEngine`.
-
-**Thread boundary:**
-- `recArmed_` written by message thread, read by audio thread — `std::atomic<bool>` correct
-- `recPlaying_` written by audio thread (on cycle completion), read by message thread (UI blink) — `std::atomic<bool>` correct
-- `recWritePos_`, `recReadPos_`, `recLength_` are audio-thread-only — no atomic needed
-
-**Capacity math:** 8192 entries at one entry per block at 44100 Hz / 512 samples/block = ~95
-seconds of LFO recording. At the slowest LFO sync (8 bars at 60 BPM = 32 seconds), this
-comfortably fits two full cycles, ensuring the capture always completes.
-
-**Confidence:** HIGH — pattern is a textbook single-producer-single-consumer ring buffer that
-degrades to a single-thread pattern (no sync primitives needed). Mirrors the `AbstractFifo`
-design in `LooperEngine` at the conceptual level.
-
----
-
-### Feature 5: Left Joystick X/Y Modulation Target Expansion
-
-**Problem statement:** Left stick axes currently route to CC74 (cutoff) and CC71 (resonance).
-v1.5 adds LFO freq / shape / level / arp gate len as additional selectable targets per axis.
-
-**Stack decision:** Add two APVTS int parameters `leftStickXTarget` / `leftStickYTarget`
-(enum: 0=Filter CC, 1=LFO Freq, 2=LFO Shape, 3=LFO Level, 4=Arp Gate Len). In
-`processBlock`'s left-stick section, dispatch on the target using a switch and call
-`setValueNotifyingHost` on the appropriate APVTS parameter.
+**HTTP call pattern:**
 
 ```cpp
-const float stickVal = gamepad_.getFilterX();  // normalized -1..+1
-switch (leftXTarget)
+// Activate (first launch)
+juce::URL url("https://api.lemonsqueezy.com/v1/licenses/activate");
+url = url.withPOSTData("license_key=" + key + "&instance_name=" + machineName);
+
+int statusCode = 0;
+juce::StringPairArray responseHeaders;
+auto stream = url.createInputStream(
+    juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inPostData)
+        .withStatusCode(&statusCode)
+        .withResponseHeaders(&responseHeaders));
+
+if (stream != nullptr && statusCode == 200)
 {
-    case 0: /* existing CC74 code */ break;
-    case 1: stepClampingParam(apvts, "lfoXFreq", ...); break;
-    case 2: stepWrappingParam(apvts, "lfoXWave", 0, 6, ...); break;
-    case 3: stepClampingParam(apvts, "lfoXDepth", 0, 127, ...); break;
-    case 4: stepClampingParam(apvts, "arpGateLen", 0, 99, ...); break;
+    juce::String body = stream->readEntireStreamAsString();
+    // parse JSON with juce::JSON::parse(body)
 }
 ```
 
-`stepClampingParam` and `stepWrappingParam` are already defined as static helpers on
-`PluginProcessor` (confirmed in `PluginProcessor.h` lines 274–295).
+**JSON parsing:** Use `juce::JSON::parse()` (from `juce_core`) — already available, no additional library needed. The LemonSqueezy response is shallow JSON (one level of nesting for the main fields, two levels for `license_key` and `instance` objects).
 
-**Why `setValueNotifyingHost` and not direct atomic write:** APVTS parameters must be changed
-via `setValueNotifyingHost` so DAW automation tracks changes, state save/load works, and the
-UI reflects changes in real time. This is the existing pattern for all parameter mutations in
-this plugin.
+**Local persistence:** Store `license_key` and `instance_id` in `juce::PropertiesFile` (stored in the OS app data directory). On macOS: `~/Library/Application Support/DimeaArcade/ChordControl/`. On Windows: `%APPDATA%\DimeaArcade\ChordControl\`. `juce::PropertiesFile` handles the platform-specific path automatically.
 
-**New APVTS parameters needed:**
-| Parameter ID | Type | Range | Default |
-|-------------|------|-------|---------|
-| `leftStickXTarget` | Choice | 0..4 | 0 (Filter CC) |
-| `leftStickYTarget` | Choice | 0..4 | 0 (Filter CC) |
+**Offline fallback:** Cache the last-known-good validation result with a timestamp. Allow a grace period (e.g., 7 days) before requiring re-validation. Store `last_validated_at` in the PropertiesFile.
 
-**Confidence:** HIGH — pattern is identical to the existing D-pad option mode parameter dispatch
-(confirmed at `PluginProcessor.h` lines 271–295 and `PluginProcessor.cpp` processBlock section).
+**Thread safety:** Make the HTTP call from a background thread (`juce::Thread` subclass or `juce::ThreadPool`). Never call `juce::URL::createInputStream()` from the audio thread or the message thread directly (it blocks). Show a non-blocking "Validating license..." UI while the thread runs.
+
+### What NOT to Use
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| libcurl via FetchContent | Adds ~500KB binary weight, conflicts with `JUCE_USE_CURL=0`, requires OpenSSL or system TLS linkage on macOS | `juce::URL` with native transport |
+| Boost.Asio | Heavyweight dependency for a single POST call | `juce::URL` |
+| JUCE's `OnlineUnlockStatus` | Tied to JUCE's proprietary key format and server; not compatible with LemonSqueezy's REST API | Direct `juce::URL` POST |
 
 ---
 
-### Feature 6: SDL2 Bluetooth Reconnect Crash Fix
+## Area 4: macOS Installer
 
-**Root cause analysis (MEDIUM confidence — inferred from SDL2 issue tracker):**
+### Recommendation: pkgbuild + productbuild (.pkg)
 
-The crash on PS4 BT reconnect is caused by the Windows Bluetooth HID stack firing
-`SDL_CONTROLLERDEVICEREMOVED` and `SDL_CONTROLLERDEVICEADDED` events in rapid succession during
-a BT re-pair. The current `GamepadInput::timerCallback()` calls `closeController()` on ANY
-`SDL_CONTROLLERDEVICEREMOVED` event and `tryOpenController()` on ANY `SDL_CONTROLLERDEVICEADDED`
-event. Two failure modes:
+Use Apple's first-party `pkgbuild` and `productbuild` command-line tools. Do NOT use create-dmg for plugin distribution.
 
-1. **Double-open:** A spurious `SDL_CONTROLLERDEVICEADDED` fires while `controller_` is
-   non-null (BT re-pair without a preceding valid disconnect). `tryOpenController()` opens a
-   second handle to the same HID device. Both handles share SDL2's internal device state.
-   When either is closed or the BT stack flushes, the shared state is freed and the surviving
-   handle is a use-after-free.
+Rationale: DMGs cannot create directories that don't exist on the target machine. Plugin installers must write to `/Library/Audio/Plug-Ins/VST3/` and `/Library/Audio/Plug-Ins/Components/`, which may not exist. `pkgbuild` is a native macOS tool (included in Xcode Command Line Tools), requires no additional installs, and produces `.pkg` files that can be notarized with `xcrun notarytool`.
 
-2. **Wrong-device close:** `SDL_CONTROLLERDEVICEREMOVED`'s `event.cdevice.which` is the
-   **joystick instance ID**, not the device index. On systems with a USB hub or composite
-   device, a different device's removal can trigger `closeController()` on the wrong handle.
-   This is documented in the SDL2 wiki for `SDL_ControllerDeviceEvent`.
+### Toolchain
 
-**Fix: two guards in `GamepadInput::timerCallback()`**
+| Tool | Source | Purpose |
+|------|--------|---------|
+| `pkgbuild` | macOS built-in (Xcode CLT) | Create a `.pkg` component package for each plugin format |
+| `productbuild` | macOS built-in (Xcode CLT) | Assemble component packages into a signed distribution installer |
+| `codesign` | macOS built-in | Sign each plugin bundle before packaging |
+| `xcrun notarytool` | macOS built-in (Xcode 13+) | Submit `.pkg` to Apple's notarization service |
+| `xcrun stapler` | macOS built-in | Staple the notarization ticket to the final `.pkg` |
 
-```cpp
-// ADDED event: guard against double-open
-if (ev.type == SDL_CONTROLLERDEVICEADDED && controller_ == nullptr)
-    tryOpenController();
+No third-party tools are required. This is the current community-standard workflow for JUCE plugin installers (confirmed by [moonbase.sh pkgbuild guide](https://moonbase.sh/articles/how-to-make-macos-installers-for-juce-projects-with-pkgbuild-and-productbuild/) and [JUCE forum pkgbuild tutorial](https://forum.juce.com/t/pkgbuild-and-productbuild-a-tutorial-pamplejuce-example/64977)).
 
-// REMOVED event: verify instance ID matches our open handle before closing
-if (ev.type == SDL_CONTROLLERDEVICEREMOVED && controller_ != nullptr)
-{
-    SDL_Joystick* joy = SDL_GameControllerGetJoystick(controller_);
-    if (joy && SDL_JoystickInstanceID(joy) == ev.cdevice.which)
-        closeController();
-}
+### Workflow Summary
+
+```bash
+# 1. Sign each plugin bundle (requires Developer ID Application cert)
+codesign --force --timestamp --options runtime \
+  -s "Developer ID Application: Dimea Arcade (TEAMID)" \
+  "build-mac/.../Arcade Chord Control (BETA-Test).vst3"
+
+codesign --force --timestamp --options runtime \
+  -s "Developer ID Application: Dimea Arcade (TEAMID)" \
+  "build-mac/.../Arcade Chord Control (BETA-Test).component"
+
+# 2. Create component packages
+pkgbuild --component "Arcade Chord Control (BETA-Test).vst3" \
+  --install-location "/Library/Audio/Plug-Ins/VST3" \
+  --identifier "com.dimeaarcade.chordcontrol.vst3" \
+  --version "2.0.0" \
+  ChordControl-VST3.pkg
+
+pkgbuild --component "Arcade Chord Control (BETA-Test).component" \
+  --install-location "/Library/Audio/Plug-Ins/Components" \
+  --identifier "com.dimeaarcade.chordcontrol.au" \
+  --version "2.0.0" \
+  ChordControl-AU.pkg
+
+# 3. Assemble distribution installer (requires distribution.xml)
+productbuild --distribution distribution.xml \
+  --package-path . \
+  --sign "Developer ID Installer: Dimea Arcade (TEAMID)" \
+  DimeaArcade-ChordControl-v2.0.0-macOS.pkg
+
+# 4. Notarize
+xcrun notarytool submit DimeaArcade-ChordControl-v2.0.0-macOS.pkg \
+  --keychain-profile "notarytool-profile" --wait
+
+# 5. Staple
+xcrun stapler staple DimeaArcade-ChordControl-v2.0.0-macOS.pkg
 ```
 
-**SDL2 APIs used (all in SDL2 2.30.9):**
-- `SDL_GameControllerGetJoystick(SDL_GameController*)` — documented in SDL2 wiki, returns the
-  underlying `SDL_Joystick*` pointer for an open game controller handle
-- `SDL_JoystickInstanceID(SDL_Joystick*)` — returns the joystick instance ID as `SDL_JoystickID`
-- `ev.cdevice.which` — in `SDL_CONTROLLERDEVICEREMOVED` events this is the joystick instance ID
-  (confirmed in SDL2/SDL_ControllerDeviceEvent wiki documentation)
+### distribution.xml Structure
 
-**No SDL version upgrade needed.** Both `SDL_GameControllerGetJoystick` and `SDL_JoystickInstanceID`
-have been present since SDL2 2.0.0. SDL2 2.30.9 is the pinned version; no change to
-`CMakeLists.txt` required.
+A minimal `distribution.xml` must specify:
+- `<title>` — installer window title
+- `<pkg-ref>` entries for each component package
+- `<choice>` elements to make them selectable (or mandatory)
+- `<domains enable_localSystem="true"/>` — required for `/Library/` installation
 
-The existing fallback poll (`SDL_GameControllerGetAttached()` every tick) remains in place and
-handles silent USB disconnects that do not generate events.
+### Beta Distribution Without Notarization
 
-**Confidence:** MEDIUM — root cause is inferred from SDL2 GitHub issues #3697 and #3468 (both
-confirmed reports of crash on reconnect and wrong-index on REMOVED events), the raylib PR #4724
-(reference implementation of instance-ID guard), and the SDL2 wiki documentation on
-`SDL_ControllerDeviceEvent.which`. The specific stack trace for this project's PS4 BT crash
-has not been captured in a debugger. The fix addresses the two most common root causes; if the
-crash persists post-fix, a debug build with SDL_SetHint("SDL_LOGGING", "all") should capture
-the event sequence.
+For beta testers before signing infrastructure is set up, distribute with ad-hoc signing:
+```bash
+codesign --force --deep -s - "PluginName.vst3"
+```
+Recipients must right-click and "Open" to bypass Gatekeeper, or run:
+```bash
+xattr -dr com.apple.quarantine "PluginName.vst3"
+```
+This is not suitable for public release.
 
 ---
 
-### Feature 7: Gamepad Option Mode 1 Re-mapping to Arp Control
+## Area 5: Code Signing
 
-**Problem statement:** Option Mode 1 currently sets octave offsets via D-pad. v1.5 changes it
-to: Circle=Arp on/off, Triangle=Rate, Square=Order, X (Cross)=RND Sync. R3 (right stick click)
-panic is also removed.
+### macOS Code Signing
 
-**Stack decision:** Pure code change. Two files:
+**Certificate requirements:**
 
-1. `GamepadInput.cpp`: In the `SDL_CONTROLLER_BUTTON_B/Y/X/A` looper-button section, add a
-   mode check — when `optionMode_ == 1`, these buttons fire new `atomic<bool>` trigger flags
-   (`arpToggleTrig_`, `arpRateTrig_`, `arpOrderTrig_`, `arpRndSyncTrig_`) instead of their
-   normal looper functions.
+| Certificate | Purpose | Source |
+|-------------|---------|--------|
+| Developer ID Application | Sign plugin bundles (.vst3, .component) | Apple Developer Program ($99/year) |
+| Developer ID Installer | Sign .pkg installer built with productbuild | Apple Developer Program (same membership) |
 
-2. `PluginProcessor.cpp`: In the Option Mode 1 D-pad dispatch block, consume the new trigger
-   flags and call `stepWrappingParam` / `setValueNotifyingHost` on the arp parameters.
+Both certificates are obtained from the Apple Developer Program. One $99/year membership covers both. Enroll at https://developer.apple.com/programs/.
 
-Remove the `rightStickTrig_` consumer from processBlock (single line deletion).
+**Required: Hardened Runtime** — already set in CMakeLists.txt via `HARDENED_RUNTIME_ENABLED TRUE`. The `--options runtime` flag in `codesign` activates it at signing time.
 
-**New SDL2 APIs needed:** None. Existing `SDL_CONTROLLER_BUTTON_B/Y/X/A` polling,
-`debounce()` helper, and `atomic<bool>` trigger pattern are reused.
+**Notarization tool:** `xcrun notarytool` (Xcode 13+). `altool` was deprecated by Apple; as of November 2023 Apple's notary service no longer accepts `altool` uploads. Use only `notarytool`.
 
-**Confidence:** HIGH — mechanical remapping of existing dispatch logic.
-
----
-
-### Feature 8: Looper Start Position Bug Fix
-
-**Problem statement:** After the record cycle completes and playback begins, the looper plays
-back from a wrong beat offset (typically mid-loop rather than beat 0).
-
-**Root cause hypothesis:** `loopStartPpq_` in `LooperEngine` is either:
-(a) Set to the ppqPosition at record *stop* instead of record *start*, or
-(b) Set to the next bar boundary instead of the actual start ppqPosition, producing an off-by-one
-    when the DAW ppqPosition at record start is not exactly on a bar boundary.
-
-The relevant field `loopStartPpq_` is initialized to `-1.0` and set in `anchorToBar()`. The
-`process()` method computes playback beat as `(currentPpq - loopStartPpq_) % loopLen`. If
-`loopStartPpq_` is set to the bar boundary *before* the actual record start ppqPosition, the
-offset is negative until the playhead crosses that boundary, then jumps to positive — producing
-the observed wrong-start behavior.
-
-**Stack decision:** No new API. The fix is a logic correction in `LooperEngine.cpp`:
-`anchorToBar()` must be called at record *start* (not record *stop*) and must use the
-*current ppqPosition* (not the next bar boundary) as the anchor when recording in free-running
-(non-bar-aligned) mode.
-
-**Confidence:** MEDIUM — structural diagnosis is correct based on code inspection. The exact
-line requires adding a `DBG()` trace to `anchorToBar()` to confirm which scenario applies.
-
----
-
-## Consolidated New APVTS Parameters
-
-All parameters are added to `createParameterLayout()` following the existing helper pattern.
-
-| Parameter ID | Type | Range | Default | Feature |
-|-------------|------|-------|---------|---------|
-| `singleChannelMode` | Bool | false/true | false | F1: single-channel routing |
-| `singleChannelNum` | Int | 1..16 | 1 | F1: which MIDI channel |
-| `subOct0..3` | Bool x4 | false/true | false | F2: sub octave per voice |
-| `arpEnabled` | Bool | false/true | false | F3: arp on/off |
-| `arpRate` | Choice | 0=1/4, 1=1/8, 2=1/16, 3=1/32 | 2 | F3: arp rate |
-| `arpOrder` | Choice | 0=Up, 1=Down, 2=Random | 0 | F3: arp order |
-| `arpGateLen` | Float | 0.05..0.99 | 0.5 | F3: gate length fraction |
-| `leftStickXTarget` | Choice | 0..4 | 0 | F5: stick X target |
-| `leftStickYTarget` | Choice | 0..4 | 0 | F5: stick Y target |
-
----
-
-## New C++ Members by File
-
-### `LfoEngine.h` additions
-```cpp
-static constexpr int LFO_REC_CAPACITY = 8192;
-std::array<float, LFO_REC_CAPACITY> recBuf_ {};
-int   recWritePos_  = 0;
-int   recReadPos_   = 0;
-int   recLength_    = 0;
-std::atomic<bool> recArmed_   { false };
-std::atomic<bool> recPlaying_ { false };
+**Credential storage for CI:**
+```bash
+# Store once on the CI machine or in Keychain
+xcrun notarytool store-credentials "notarytool-profile" \
+  --key ~/private_keys/AuthKey_XXXXXXXXXX.p8 \
+  --key-id XXXXXXXXXX \
+  --issuer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
-### `PluginProcessor.h` additions
-```cpp
-// Single-channel note collision tracker (audio-thread-only)
-int noteRefCount_[128] = {};
-
-// R3 + pad sub-oct toggle tracking (audio-thread-only)
-bool r3HeldLastFrame_ = false;
+**Verification after notarization:**
+```bash
+spctl --assess -vvv --type install DimeaArcade-ChordControl-v2.0.0-macOS.pkg
+# Expected: "accepted" source=Notarized Developer ID
 ```
 
-### `GamepadInput.h` additions
-```cpp
-// Option Mode 1 arp control triggers
-std::atomic<bool> arpToggleTrig_   { false };
-std::atomic<bool> arpRateTrig_     { false };
-std::atomic<bool> arpOrderTrig_    { false };
-std::atomic<bool> arpRndSyncTrig_  { false };
+### Windows Code Signing
+
+**2025 Status:** As of June 2023, both EV and OV code signing certificates require hardware token or cloud signing (two-factor requirement). As of March 2024, EV certificates no longer provide instant SmartScreen reputation — both OV and EV now build reputation organically through download volume.
+
+**Recommended: Azure Trusted Signing** (formerly Azure Code Signing)
+
+| Approach | Cost | Hardware Token | SmartScreen Reputation | CI/CD |
+|----------|------|---------------|----------------------|-------|
+| Azure Trusted Signing | ~$9.99/month | No (cloud) | Builds organically | Native GitHub Actions integration |
+| Traditional EV Cert (DigiCert, Sectigo) | $300-600/year | Yes (USB token) | Builds organically (same as ATS since March 2024) | Requires token or cloud signing workaround |
+| OV Cert | $100-300/year | Yes (USB token) | Builds organically | Same issues as EV |
+
+Azure Trusted Signing is preferred for v2.0 because:
+1. No hardware USB token — signing happens in the cloud via `signtool.exe` with the `Azure.CodeSigning.Dlib` plugin
+2. GitHub Actions integration via the `azure/trusted-signing-action` action
+3. $9.99/month vs $300-600/year for EV
+4. Automatic certificate renewal (no annual cert expiry)
+
+**Limitation (as of 2025):** Azure Trusted Signing requires a US or Canadian organization with 3+ years of verifiable business history, OR individual developers in the US/Canada. EU/rest-of-world availability is in progress. If not eligible, fall back to an OV cert from DigiCert, Sectigo, or SSL.com.
+
+**Azure Trusted Signing signtool invocation:**
+```bash
+signtool sign /v /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 \
+  /dlib "Azure.CodeSigning.Dlib.dll" \
+  /dmdf "metadata.json" \
+  "DimeaArcade-ChordControl-v2.0.0-Setup.exe"
 ```
 
----
+**Traditional EV/OV signtool invocation (fallback):**
+```bash
+signtool sign /v /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 \
+  /sha1 "CERTIFICATE_THUMBPRINT" \
+  "DimeaArcade-ChordControl-v2.0.0-Setup.exe"
+```
 
-## Explicit "Do Not Add" List
-
-| What | Why Not |
-|------|---------|
-| Ableton Link | `AudioPlayHead::getPpqPosition()` provides sufficient DAW sync; Link adds network sync overhead unnecessary for a single-host MIDI plugin |
-| `juce::MPEInstrument` | Input-side polyphony tracker for synths; this plugin generates MIDI, does not process it |
-| `std::map` / `std::unordered_map` for note tracking | Dynamic allocation on audio thread is prohibited; `int[128]` array is O(1) and correct |
-| `std::mutex` in processBlock path | Zero mutexes on audio thread is an existing invariant in this codebase; `std::atomic` and audio-thread-only state are sufficient |
-| SDL3 upgrade | SDL2 2.30.9 has all required APIs; SDL3 breaks ABI and binary compatibility with the static lib build, and is a v2.0 concern |
-| Second `juce::Timer` for arp or LFO recording | Existing 60 Hz `GamepadInput` timer and 30 Hz `PluginEditor` timer are sufficient; a third timer adds jitter and complexity |
-| `juce_dsp` module | No audio processing; `isMidiEffect()=true` plugin has no `AudioBlock`; the module is dead weight |
-| Third-party arpeggiator library | The arp is 40 lines of ppqPosition arithmetic extending the existing skeleton; a library adds build complexity for no benefit |
-| Per-sample LFO recording | This plugin has no audio output; block-granular LFO recording (one float per processBlock call) is indistinguishable at MIDI resolution |
+**What to sign on Windows:** The Inno Setup output `.exe`. The JUCE-built `.vst3` bundle is already inside the installer payload; signing the installer is sufficient for SmartScreen. Optionally sign the `.vst3` DLL directly if distributing it outside the installer.
 
 ---
 
-## JUCE Module Inventory (unchanged — no additions needed)
+## Consolidated: New Stack Additions
 
-| Module | v1.5 Usage |
-|--------|-----------|
-| `juce_audio_processors` | APVTS new params, AudioPlayHead ppqPosition / getBpm / getIsPlaying |
-| `juce_audio_basics` | MidiBuffer, MidiMessage, AbstractFifo (LooperEngine, unchanged) |
-| `juce_core` | `juce::jlimit`, `juce::String`, `juce::Timer`, `std::atomic` wrappers |
-| `juce_gui_basics` | PluginEditor UI controls for new parameters |
+| Technology | Version | Purpose | Existing? |
+|------------|---------|---------|-----------|
+| `CMAKE_OSX_ARCHITECTURES` | CMake built-in | Universal binary fat build | No — must add |
+| `CMAKE_OSX_DEPLOYMENT_TARGET` | CMake built-in | macOS 11.0 minimum | No — must add |
+| Xcode | 15.x recommended (see AU bug note) | macOS build generator | No — need Mac build machine |
+| `juce::URL` + `juce_network` | JUCE 8.0.4 (already available) | LemonSqueezy HTTP POST | Already in JUCE; `JUCE_USE_CURL=0` already set |
+| `juce::JSON` | JUCE 8.0.4 (already available) | Parse LemonSqueezy response | Already in `juce_core` |
+| `juce::PropertiesFile` | JUCE 8.0.4 (already available) | Persist license key + instance_id | Already in `juce_core` |
+| `pkgbuild` | macOS built-in | Build AU+VST3 component packages | macOS built-in, no install |
+| `productbuild` | macOS built-in | Assemble signed distribution installer | macOS built-in, no install |
+| `codesign` | macOS built-in | Sign plugin bundles | macOS built-in, no install |
+| `xcrun notarytool` | Xcode 13+ (macOS built-in) | Submit .pkg to Apple notarization | macOS built-in (Xcode CLT) |
+| Apple Developer Program | $99/year | Developer ID Application + Installer certs | No — must enroll |
+| Azure Trusted Signing | $9.99/month | Windows EXE/DLL signing (no hardware token) | No — must set up |
+
+**No new FetchContent dependencies.** Zero new libraries added to CMakeLists.txt for the license key feature. All HTTP, JSON, and persistence needs are covered by existing JUCE modules.
 
 ---
 
-## Confidence Assessment
+## CMake Changes Summary
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Note collision (int[128]) | HIGH | Standard MIDI generator pattern; confirmed in JUCE forum stuck-note discussions |
-| Sub Octave | HIGH | Trivial extension of existing note-on/off emission; no new API surface |
-| Arp ppqPosition scheduling | HIGH | JUCE AudioPlayHead PositionInfo API verified against official JUCE 8 docs; pattern mirrors LfoEngine/LooperEngine |
-| LFO recording ring buffer | HIGH | Single-thread array + atomics pattern mirrors LooperEngine AbstractFifo design; no SPSC sync needed |
-| Left stick target routing | HIGH | Pattern identical to existing D-pad dispatch (confirmed in PluginProcessor.h) |
-| SDL2 BT reconnect fix | MEDIUM | Root cause inferred from SDL2 issues #3697/#3468 and SDL2 wiki; not yet debugger-confirmed with a stack trace |
-| Looper start-position fix | MEDIUM | Structural diagnosis correct; exact root requires DBG() trace to confirm which anchor scenario |
-| Option Mode 1 remap | HIGH | Pure mechanical change to existing dispatch logic |
+The full set of CMakeLists.txt changes for macOS support:
+
+```cmake
+# Add near top, before project()
+set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "" FORCE)
+
+# Remove the JUCE_USE_CURL=0 from Catch2 test target definition,
+# or keep it — it doesn't affect the plugin target (already JUCE_USE_CURL=0 there)
+
+# Add to plugin target_compile_definitions (macOS network entitlement)
+# JUCE_USE_CURL=0 is already set — no change needed
+# JUCE_WEB_BROWSER=0 is already set — no change needed
+
+# The APPLE elseif block in CMakeLists.txt already handles post-build copies.
+# The AU format is already in FORMATS.
+# HARDENED_RUNTIME_ENABLED is already TRUE.
+# No structural CMake changes are needed for the AU format itself.
+```
+
+The existing `elseif(APPLE)` block already handles post-build copies for VST3 and AU. The existing `FORMATS VST3 AU` already declares both targets. The only true additions are the two `CMAKE_OSX_*` cache variables.
+
+---
+
+## Version Compatibility
+
+| Component | Version | Compatibility Note |
+|-----------|---------|-------------------|
+| JUCE | 8.0.4 | AU v2 generation confirmed working; AU universal binary issue with Xcode 16.2 is post-8.0.4 (8.0.6 report) |
+| SDL2 | 2.30.9 | Respects `CMAKE_OSX_ARCHITECTURES`; macOS gamepad support via IOKit (no change needed) |
+| Xcode | 15.x preferred | 16.2 has known AU universal binary bug; use 15.x until patched |
+| macOS deployment target | 11.0 | Minimum for arm64 native (Apple Silicon); JUCE 8 supports 10.13+ |
+| Catch2 | 3.8.1 | No macOS-specific changes; tests run on both arches |
+| notarytool | Xcode 13+ | `altool` is deprecated since Nov 2023; must use `notarytool` |
 
 ---
 
 ## Alternatives Considered
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Note collision tracking | `int[128]` ref count, audio-thread-only | `std::map<int,int>` | Dynamic allocation on audio thread is prohibited by JUCE audio thread safety rules |
-| Arp timing | ppqPosition boundary math per block | JUCE `ArpeggiatorPluginDemo` sample-counter | Sample-counter drifts at non-integer BPMs (confirmed in JUCE forum "Inconsistent arpeggiations" thread) |
-| LFO recording | `std::array<float, 8192>` inside LfoEngine | Extend LooperEngine with new event type | LooperEngine is designed for sparse timestamped events; a dense float stream requires a fundamentally different data model and would add unnecessary coupling |
-| SDL2 BT fix | Instance-ID guard in timerCallback | Upgrading to SDL3 | SDL3 breaks ABI with the static lib build; requires CMakeLists.txt changes, potential API breakage in existing SDL2 calls; the fix is two lines of SDL2 code |
-| Left stick targets | APVTS parameter dispatch in processBlock | Direct atomic write to LFO state | Bypassing APVTS means DAW automation, state save/load, and UI synchronization all break |
+| Recommended | Alternative | Why Not |
+|-------------|-------------|---------|
+| `juce::URL` for LemonSqueezy HTTP | libcurl via FetchContent | Conflicts with `JUCE_USE_CURL=0`; adds binary weight; native transports are sufficient for a single POST |
+| `juce::URL` for LemonSqueezy HTTP | JUCE `OnlineUnlockStatus` | Designed for JUCE's proprietary XML key format; incompatible with LemonSqueezy JSON REST API |
+| pkgbuild + productbuild | create-dmg | DMGs cannot create install directories; plugins must install to `/Library/Audio/Plug-Ins/` which may not exist |
+| pkgbuild + productbuild | Packages.app (GUI) | GUI tool is not CI-scriptable; official CLI tools are sufficient |
+| Azure Trusted Signing | Traditional EV cert (DigiCert) | EV no longer provides instant SmartScreen reputation since March 2024; ATS is cheaper, no hardware token, CI-native |
+| Azure Trusted Signing | OV cert | Same SmartScreen reputation curve; more expensive and requires hardware token |
+| Xcode generator | Ninja generator on macOS | JUCE AU wrapper requires Xcode build system for proper bundle generation and Info.plist embedding |
 
 ---
 
 ## Sources
 
-- [JUCE AudioPlayHead::PositionInfo API](https://docs.juce.com/master/classAudioPlayHead_1_1PositionInfo.html) — getBpm, getPpqPosition, getIsPlaying, getBarCount methods confirmed (HIGH)
-- [JUCE ArpeggiatorPluginDemo source](https://github.com/juce-framework/JUCE/blob/master/examples/Plugins/ArpeggiatorPluginDemo.h) — sample-counter timing approach with identified drift limitation (HIGH)
-- [JUCE AbstractFifo Class Reference](http://docs.juce.com/master/classAbstractFifo.html) — SPSC design rationale; reason LFO recording uses plain array instead (HIGH)
-- [SDL2 SDL_ControllerDeviceEvent wiki](https://wiki.libsdl.org/SDL2/SDL_ControllerDeviceEvent) — `which` = joystick instance ID on REMOVED events, device index on ADDED events (HIGH)
-- [SDL2 SDL_GameControllerOpen wiki](https://wiki.libsdl.org/SDL2/SDL_GameControllerOpen) — "index passed to SDL_GameControllerOpen is not the value that will identify the controller in future events" (HIGH)
-- [SDL2 issue #3697 — Re-plugging PS4 USB controller crashes SDL](https://github.com/libsdl-org/SDL/issues/3697) — crash on reconnect; duplicate of internal bug 5034 (MEDIUM)
-- [SDL2 issue #3468 — Reconnect stops generating events after disconnect/reconnect](https://github.com/libsdl-org/SDL/issues/3468) — instance ID vs device index confusion (MEDIUM)
-- [Raylib PR #4724 — Fix gamepad event handling by adding joystick instance id tracking](https://github.com/raysan5/raylib/pull/4724) — reference implementation of instance-ID guard (MEDIUM)
-- [JUCE forum: stuck notes in MidiKeyboardState](https://forum.juce.com/t/possible-stuck-notes-in-midikeyboardstate/10316) — manual note-array tracking is the established JUCE plugin pattern (MEDIUM)
-- [JUCE forum: MIDI events lost causing stuck notes](https://forum.juce.com/t/midi-events-lost-causing-stucked-notes/65518) — confirms custom ref-count approach (MEDIUM)
-- Source code verified: `PluginProcessor.h` lines 274–295 (`stepClampingParam`/`stepWrappingParam`), lines 259–295 (existing arp state), `LfoEngine.h` (full class), `LooperEngine.h` (AbstractFifo double-buffer design), `GamepadInput.cpp` (SDL2 event loop)
+- [JUCE CMake API docs](https://github.com/juce-framework/JUCE/blob/master/docs/CMake%20API.md) — `juce_add_plugin` FORMATS, AU_MAIN_TYPE, HARDENED_RUNTIME_ENABLED (HIGH)
+- [JUCE forum: AU universal binary macOS Sequoia and Xcode 16.2](https://forum.juce.com/t/au-universal-binary-macos-sequoia-and-xcode-16-2/65337) — AU single-arch bug on Xcode 16.2 (MEDIUM — community report)
+- [LemonSqueezy License API: Validate](https://docs.lemonsqueezy.com/api/license-api/validate-license-key) — validate endpoint, request format, response JSON (HIGH — official docs)
+- [LemonSqueezy License API: Activate](https://docs.lemonsqueezy.com/api/license-api/activate-license-key) — activate endpoint, instance_id in response (HIGH — official docs)
+- [JUCE forum: Using juce::URL to send POST](https://forum.juce.com/t/solved-using-juce-url-to-send-post-with-body/59701) — confirmed POST with form-data body (MEDIUM)
+- [JUCE forum: JUCE_USE_CURL=0 alternatives](https://forum.juce.com/t/juce-use-curl-0-what-does-juce-use-instead/60937) — WinHTTP on Windows, NSURLSession on macOS (MEDIUM)
+- [moonbase.sh: macOS installers with pkgbuild and productbuild](https://moonbase.sh/articles/how-to-make-macos-installers-for-juce-projects-with-pkgbuild-and-productbuild/) — pkgbuild/productbuild workflow for JUCE plugins (MEDIUM — community, verified against Apple CLI docs)
+- [JUCE forum: pkgbuild and productbuild tutorial + pamplejuce](https://forum.juce.com/t/pkgbuild-and-productbuild-a-tutorial-pamplejuce-example/64977) — community-standard macOS installer workflow (MEDIUM)
+- [moonbase.sh: Code signing audio plugins in 2025](https://moonbase.sh/articles/code-signing-audio-plugins-in-2025-a-round-up/) — current state of both Windows and macOS signing (MEDIUM — community, 2025)
+- [Apple Developer: Signing Mac Software with Developer ID](https://developer.apple.com/developer-id/) — Developer ID Application and Installer certificate types (HIGH — official)
+- [Apple: Customizing the notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow) — notarytool workflow (HIGH — official)
+- [Melatonin: macOS plugin CI signing and notarization](https://melatonin.dev/blog/how-to-code-sign-and-notarize-macos-audio-plugins-in-ci/) — CI-oriented notarization guide (MEDIUM)
+- [Melatonin: Azure Trusted Signing on GitHub Actions](https://melatonin.dev/blog/code-signing-on-windows-with-azure-trusted-signing/) — ATS setup for JUCE plugins (MEDIUM)
+- [pamplejuce template](https://github.com/sudara/pamplejuce) — JUCE 8 + macOS notarization + Azure Trusted Signing reference implementation (MEDIUM)
+- [SDL2 README-cmake.md](https://github.com/libsdl-org/SDL/blob/main/docs/README-cmake.md) — `CMAKE_OSX_ARCHITECTURES` propagation to SDL2 builds (HIGH — official)
+- Source code verified: `CMakeLists.txt` (FORMATS VST3 AU, HARDENED_RUNTIME_ENABLED, elseif APPLE block, JUCE_USE_CURL=0 already set)
 
 ---
 
-*Stack research for: ChordJoystick v1.5 — Routing + Expression*
-*Researched: 2026-02-28*
+*Stack research for: ChordJoystick v2.0 — Cross-Platform Launch*
+*Researched: 2026-03-10*

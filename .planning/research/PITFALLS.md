@@ -1,366 +1,375 @@
-# Domain Pitfalls — ChordJoystick v1.5
+# Pitfalls Research
 
-**Domain:** JUCE VST3 MIDI generator — adding routing, sub-octave, LFO recording, arp gamepad control, left-stick modulation expansion, and gamepad Option Mode 1
-**Researched:** 2026-02-28
-**Confidence:** HIGH — all findings grounded in direct source-code analysis of the v1.4 codebase
-
----
-
-## Executive Summary
-
-v1.5 adds six features to an already complex processBlock. Four of them introduce new note-tracking responsibilities (single-channel collision, sub-octave orphan, LFO recording replay, arp+single-channel). Two introduce gamepad state-machine changes that interact with the existing 60 Hz timer architecture (Option Mode 1 button remapping, BT reconnect crash). The highest-risk pitfalls are: (1) note collision on a shared MIDI channel requiring a per-pitch reference count, (2) sub-octave note-off using a stale pitch value, (3) the existing looper start-position bug poisoning LFO recording phase alignment, and (4) the SDL2 BT reconnect crash caused by opening a handle during BT re-enumeration. All are preventable with specific design decisions documented below.
+**Domain:** JUCE 8 VST3/AU plugin — Windows-to-macOS port with universal binary, AU format, LemonSqueezy licensing, code signing, and notarization
+**Researched:** 2026-03-10
+**Confidence:** MEDIUM — WebSearch + JUCE forum community findings verified across multiple sources; Apple entitlement specifics are HIGH (official Apple docs); LemonSqueezy offline behavior is LOW (limited native desktop documentation)
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause stuck notes, crashes, or silent audio-thread data corruption.
+Mistakes that cause build failures, DAW rejection, notarization rejection, or audio-thread crashes.
 
 ---
 
-### Pitfall 1: Single-Channel Mode — Note-On Collision on Shared MIDI Channel
+### Pitfall 1: Network Call on the Audio Thread for License Validation
 
 **What goes wrong:**
-When all 4 voices route to the same MIDI channel, two voices can compute the same MIDI pitch number. A single `noteOff(ch, pitch)` kills both because MIDI note-off is pitch-addressed, not voice-addressed.
+The license check fires inside `processBlock` (or from a constructor, which may run on a real-time thread in some DAWs). `processBlock` is called on the audio thread, which is a real-time thread. Any blocking I/O — including a synchronous HTTP request to `api.lemonsqueezy.com` — blocks the audio thread. The OS can preempt the network stack for arbitrarily long periods (DNS resolution, TLS handshake, TCP timeout). This causes an audio dropout in the best case and a DAW freeze or crash in the worst case.
 
-The current `processBlock` computes four independent pitches via `ChordEngine::computePitch(v, chordP)` and emits `noteOn(voiceChs[v], pitch, 100)` per voice (lines 879, 1115). In single-channel mode `voiceChs[0..3]` all equal the same channel. If voice 0 and voice 2 both compute pitch 64, the MIDI stream becomes:
-- `noteOn(ch1, 64, 100)` — voice 0
-- `noteOn(ch1, 64, 100)` — voice 2 (redundant; most synths ignore it or retrigger)
-- `noteOff(ch1, 64, 0)` — voice 0 releases — kills BOTH
+**Why it happens:**
+Developers initialize a `juce::URL::InputStreamOptions` or equivalent HTTP fetch in `PluginProcessor::prepareToPlay()` or a parameter callback, not realising those run on the audio thread in some DAWs. JUCE's `URL::createInputStream()` is a blocking call.
 
-The looper gate-on path (lines 775–787) has the same exposure: `loopOut.gateOn[0]` and `loopOut.gateOn[2]` both fire `noteOn(ch1, looperActivePitch_[v])` in the same block. The first gate-off for either voice sends a note-off that silences the other.
+**How to avoid:**
+License validation must run exclusively on the message thread (JUCE's main UI thread) or a dedicated background `juce::Thread`. The correct pattern:
 
-**Consequences:**
-- Stuck notes when two voices share a pitch and one releases
-- Doubled-velocity artifacts on synths that stack note-ons
-- Arp steps that happen to land on the same pitch as a held pad cause immediate mute
+1. On first `PluginEditor` construction (message thread), launch a background `juce::Thread` that performs the HTTP request to LemonSqueezy.
+2. The thread stores the result via an atomic flag or a lock-free queue visible to the editor.
+3. The editor polls this result in its `timerCallback()` and updates UI.
+4. `processBlock` reads only the atomic flag (`licenseValid_.load()`). It never touches network code.
 
-**Prevention:**
-Track a per-pitch reference count on each MIDI channel: `int noteCount_[16][128] = {}` (audio-thread-only, 2 KB, no atomic needed). On note-on: increment count; always emit noteOn (retrigger is usually desired). On note-off: decrement count; only emit MIDI noteOff when count reaches zero. This is the standard merge-box approach. Apply to all three note-emission paths: direct pad triggers (tp.onNote), looper gateOn/gateOff, and arp.
+Never call `juce::URL::createInputStream()`, `juce::WebInputStream`, or any LemonSqueezy HTTP wrapper from `processBlock`, `prepareToPlay()`, or any `AudioProcessorParameter::Listener` callback.
 
-**Detection warning signs:**
-- Notes sustain after pad release when two voices compute the same pitch
-- Reliable trigger: set all 4 voices to channel 1, set interval knobs to 0 (unison), hold two pads, release one
+**Warning signs:**
+- Audio glitches or dropout on first plugin load
+- DAW logs showing "audio thread blocked for Xms"
+- Debug assertion: "This function should only be called from the message thread"
 
-**Phase:** Single-channel routing implementation
+**Phase to address:** License validation implementation phase — must be the first architectural decision before writing any validation code.
 
 ---
 
-### Pitfall 2: Sub-Octave Note-Off Orphan When Pitch Changes Mid-Hold
+### Pitfall 2: AU Validation Fails Due to Wrong Plugin Type Mapping
 
 **What goes wrong:**
-The sub-octave note is `pitch - 12`. In `processBlock`, `heldPitch_[v]` is updated every block at line 800: `heldPitch_[v] = freshPitches[v]`. The existing main-voice solution snapshots the active pitch into `looperActivePitch_[v]` at gate-on and uses that snapshot at gate-off. Sub-octave has no equivalent snapshot — if the implementation sends `noteOff(ch, heldPitch_[v] - 12)` at release time, and the joystick has moved between note-on and note-off, `heldPitch_[v]` is now a different pitch and the note-off misses the sounding note.
+ChordJoystick is currently `IS_SYNTH TRUE`, `IS_MIDI_EFFECT FALSE`, with a silent stereo output bus. The AU type for this configuration is `aumu` (musical instrument). However `auval` also checks: the output bus layout must be consistent with the declared type, and MIDI output capability must be declared correctly.
 
-Concrete scenario: pad pressed while joystick at Y=0.5 → sub-octave note-on at pitch 55. Joystick moves to Y=0.8 → `heldPitch_[v]` updates to 60. Pad released → `noteOff(ch, heldPitch_[v] - 12)` = `noteOff(ch, 48)`. Pitch 55 never receives a note-off. Stuck note.
+In JUCE's CMake AU wrapper, `NEEDS_MIDI_OUTPUT TRUE` is required for the plugin to emit MIDI in the AU format. Without it, `auval` reports "No MIDI output" or Logic Pro silently ignores all MIDI. Setting `IS_MIDI_EFFECT TRUE` instead causes `auval` to use type `aumi` (MIDI processor) and Logic places the plugin on a MIDI channel strip, not an instrument slot — changing the workflow users expect.
 
-**Consequences:**
-- Stuck sub-octave note whenever joystick moves between note-on and note-off
-- Particularly high probability with looper playback: gate-on fires at beat A with one joystick position; joystick position (from looper replay) changes before gate-off fires at beat B
+**Why it happens:**
+Developers copy CMake configuration from a VST3-only target and do not realise the AU wrapper requires additional CMake flags to expose MIDI output.
 
-**Prevention:**
-Add `std::array<int, 4> subOctActivePitch_ {-1, -1, -1, -1}` as an audio-thread-only member in PluginProcessor (mirrors `looperActivePitch_`). At sub-octave note-on: `subOctActivePitch_[v] = pitch - 12`. At sub-octave note-off: use `subOctActivePitch_[v]`; reset to -1. Apply the same pattern to the looper gateOn path (lines 775–787) if sub-octave is active for that voice.
-
-**Detection warning signs:**
-- Sub-octave note sustains indefinitely when joystick moves during a held pad press
-- Does not reproduce with static joystick
-- Deterministic: press pad → move joystick → release pad → sub-oct hangs
-
-**Phase:** Sub-octave implementation
-
----
-
-### Pitfall 3: SDL2 Bluetooth Reconnect — Invalid Handle After Rapid Re-Open
-
-**What goes wrong:**
-The 60 Hz `timerCallback()` handles reconnect by responding to `SDL_CONTROLLERDEVICEADDED` (line 113) with `tryOpenController()` called inline inside the SDL event loop. On Bluetooth reconnect, the BT stack on Windows takes 100–500 ms to complete device enumeration after signaling `SDL_CONTROLLERDEVICEADDED`. Calling `SDL_GameControllerOpen(i)` during active BT enumeration can return a handle that passes the null check but becomes invalid on the next SDL API call (the handle points to an incompletely initialized internal SDL structure).
-
-On the subsequent timerCallback tick, `SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_RIGHTX)` is called with the invalid handle (line 130). This produces an access violation crash.
-
-**Second failure mode:** `SDL_CONTROLLERDEVICEREMOVED` is unreliable on PS4 BT under Windows. The existing fallback poll at line 120–121 (`if (controller_ && !SDL_GameControllerGetAttached(controller_))`) correctly catches silent disconnects. However, if a `SDL_CONTROLLERDEVICEREMOVED` event arrives AND the fallback fires in the same tick (e.g., the event is queued but the poll also runs before the event is processed), `closeController()` is called twice on the same handle. The second call passes `if (controller_)` = false (already nulled) so it is safe, but only because of the null guard. Any future refactor that removes the null guard would cause a double-free.
-
-**Root cause of the crash:** `tryOpenController()` is called from within the `while (SDL_PollEvent(&ev))` loop (line 113). SDL may still have pending events for the same device in the queue. Opening the device before the queue is drained puts SDL's internal state in an inconsistent window.
-
-**Prevention:**
-Set a `bool pendingReopen_ = false` flag when `SDL_CONTROLLERDEVICEADDED` fires. On the following timerCallback tick (after the event queue is fully drained), call `tryOpenController()`. This defers the open by one 16.7 ms frame, past the BT enumeration window. After `SDL_GameControllerOpen(i)`, immediately verify: `if (!SDL_GameControllerGetAttached(result)) { SDL_GameControllerClose(result); continue; }`. Do not call `tryOpenController()` from within the SDL event processing loop.
-
-**Detection warning signs:**
-- Crash occurs on BT disconnect + reconnect but not on USB
-- Stack trace shows `SDL_GameControllerGetAxis` or `SDL_GameControllerGetButton` on the frame after reconnect
-- Reliable reproduction: hold a button, BT-disconnect, wait 1 second, BT-reconnect
-
-**Phase:** Bug fix — PS4 BT reconnect crash
-
----
-
-### Pitfall 4: LFO Recording Buffer — FIFO Overflow on Long Loops
-
-**What goes wrong:**
-LFO output is a continuous float signal (one value per processBlock call, not a sparse event). If LFO recording stores samples into the existing `LooperEngine` FIFO as `LooperEvent` entries, a 16-bar 4/4 loop at 120 BPM = 32 seconds. At 512 samples/block and 44100 Hz, that is ~86 blocks/second = 2752 events for one loop cycle. This exceeds `LOOPER_FIFO_CAPACITY = 2048`. The existing `capReached_` guard fires and recording silently truncates mid-loop.
-
-Additionally, LFO events recorded into the LooperEngine FIFO displace gate events. A session with a 16-bar loop that records LFO for more than ~24 seconds leaves zero capacity for gate events. The cap guard stops gate recording without warning.
-
-**Consequences:**
-- LFO playback truncates at the 2048-event mark (approximately 24 seconds of recording at 86 blocks/sec)
-- Gate events are silently lost when FIFO fills with LFO samples
-- `capReached_` becomes true but the UI indicator may not clearly signal the cause
-
-**Prevention:**
-Use a **separate ring buffer** for LFO recording, independent of `LooperEngine`. Size: `ceil(maxLoopSecs * maxBlockRate)` with generous headroom. For a 16-bar 4/4 loop at 30 BPM (slowest reasonable tempo) = 128 seconds at ~86 blocks/sec = 10,987 blocks. Use a power-of-two size of 16,384 floats (~64 KB — acceptable for a plugin member). Index with a write-position counter (audio-thread-only, no FIFO needed since recording and playback never overlap in time). Playback reads the same buffer sequentially using a read-position counter that advances each block and wraps at the recorded length.
-
-Do not route LFO recording through `LooperEngine::recordJoystick()` or any FIFO-backed method.
-
-**Detection warning signs:**
-- LFO playback ends abruptly mid-loop on loops longer than ~24 seconds (at 512 samples/block, 44100 Hz)
-- `capReached_` becomes true during LFO-only recording sessions
-- Gate events stop being captured after LFO recording runs for a few seconds
-
-**Phase:** LFO recording implementation
-
----
-
-### Pitfall 5: Looper Start-Position Bug Poisons LFO Recording Phase Alignment
-
-**What goes wrong:**
-The known bug "looper start position wrong after rec cycle" directly corrupts LFO recording playback. In `LooperEngine::process()` at lines 758–763, after `finaliseRecording()`, `internalBeat_` resets to `0.0` and `loopStartPpq_` resets to `-1.0`. On the very next block, `anchorToBar()` re-anchors to `floor(ppqPos / bpb) * bpb` — the current bar, not the bar where recording started. If the DAW playhead is mid-bar at the moment recording ends (the typical case), the anchor slips by up to one bar.
-
-For gate events, this phase slip is usually masked by note-attack transients. For LFO waveform playback, a phase slip of 0.3 beats at 120 BPM is 150 ms — an audible discontinuity at the loop seam on every cycle.
-
-**Consequence for LFO recording:** Adding LFO recording before fixing this bug produces a system where LFO playback has a phase glitch at every loop seam. The glitch will be attributed to LFO recording (a new feature) when the actual cause is the pre-existing looper anchor bug.
-
-**Prevention:**
-Fix the anchor bug before implementing LFO recording. The fix: capture `recordStartPpq_` (the `ppqPosition` at the moment `recordPending_` activates or `activateRecordingNow()` fires) and use that as the `loopStartPpq_` in `finaliseRecording()` instead of resetting to -1 and re-anchoring on the next block. The read-position counter for LFO playback must use the same anchor reference as gate event playback.
-
-**Detection warning signs:**
-- LFO playback waveform has a phase discontinuity at the loop seam after the first record cycle
-- Glitch disappears if looper is stopped and restarted manually (clean anchor from stop)
-- Glitch magnitude is proportional to `ppqPos mod beatsPerBlock` at the moment recording ends
-
-**Phase:** Looper bug fix must precede LFO recording phase
-
----
-
-## Moderate Pitfalls
-
----
-
-### Pitfall 6: Option Mode 1 — Circle Fires `looperDelete_` Unconditionally
-
-**What goes wrong:**
-In `GamepadInput::timerCallback()` (line 177–178), `SDL_CONTROLLER_BUTTON_B` (Circle on PS4) is mapped to `looperDelete_` with no mode guard. The v1.4 Option Mode implementation gates D-pad behavior via `optionMode_`, but the four face buttons (Cross/Circle/Square/Triangle) fire their looper atomics unconditionally.
-
-In v1.5, Option Mode 1 reassigns Circle to arp on/off. If the looper button dispatch is not gated, pressing Circle in Mode 1 fires both `looperDelete_` and the new arp toggle. The loop is deleted every time arp is toggled.
-
-The same applies to Triangle (looper record → arp rate), Square (looper reset → arp order), and Cross (looper start/stop → arp RND sync).
-
-**Consequences:**
-- Circle in Option Mode 1 deletes the loop
-- Triangle in Option Mode 1 starts recording
-- Square in Option Mode 1 resets looper
-- All four actions have dual effects until mode guard is added
-
-**Prevention:**
-Wrap the entire face-button looper dispatch block (lines 175–185 in GamepadInput.cpp) inside `if (optionMode_.load(std::memory_order_relaxed) == 0)`. In Option Mode 1, process the same four buttons against new atomics: `arpToggle_`, `arpRateInc_`, `arpOrderNext_`, `arpRndSyncToggle_`. Consume these in processBlock when `gamepad_.getOptionMode() == 1`. Do not reuse the existing looper atomics for dual purposes.
-
-**Detection warning signs:**
-- Pressing Circle in Option Mode 1 deletes the loop
-- Loop content disappears on first arp toggle attempt
-- Reliable test: arm a loop, switch to Mode 1, press Circle
-
-**Phase:** Gamepad Option Mode 1 implementation
-
----
-
-### Pitfall 7: R3 + Pad Combo Detection — 60 Hz Frame Timing Misses Simultaneous BT Presses
-
-**What goes wrong:**
-R3 + held-pad combo for sub-octave toggle requires detecting R3 pressed while a voice trigger (L1/L2/R1/R2) is also held. At 60 Hz polling (16.7 ms frames), two buttons pressed within the same frame appear simultaneous. The issue is the detection site:
-
-In `timerCallback()`, R3 fires `rightStickTrig_.store(true)` (line 190–192) as a rising-edge flag. In `processBlock`, `consumeRightStickTrigger()` exchanges this flag to false. The existing held-state atomics `voiceHeld_[v]` are accurate at 60 Hz resolution.
-
-If the combo detection logic checks `voiceHeld_[v]` in `processBlock` at the moment `consumeRightStickTrigger()` returns true, and both R3 and L1 are pressed within the same 60 Hz frame, the detection is correct. But PS4 Bluetooth adds ~8 ms latency per button event. Two simultaneous physical presses may arrive in adjacent 60 Hz frames (16.7 ms apart). In the second frame, L1 has already been in `voiceHeld_[0] = true` for one frame, and R3 fires in this frame — detection succeeds. However, if R3 arrives in the first frame and L1 in the second frame (latency inversion), `voiceHeld_[0]` is false when R3 is consumed — combo fails.
-
-**Consequences:**
-- Sub-octave combo fires the old R3 action (panic, before removal) instead of toggling sub-oct
-- Combo unreliable on BT; reliable on USB
-- Intermittent: depends on exact BT scheduling
-
-**Prevention:**
-Add a `rightStickHeld_` atomic to `GamepadInput` (mirrors `voiceHeld_[v]` pattern). Detect the combo in `processBlock` with a short hold window: if `rightStickHeld_` and `getVoiceHeld(v)` are simultaneously true (even across multiple blocks), treat as combo. Since `voiceHeld_` is continuously updated at 60 Hz, the window for detection spans multiple processBlock calls (~3 calls per 60 Hz tick). Store `rightStickHeldSamples_` counter (audio-thread-only): increment while `rightStickHeld_` is true; fire combo if `voiceHeld_[v]` becomes true while counter is within a threshold window (e.g., 3 blocks ≈ 34 ms at 512 samples/block). This tolerates BT latency inversion.
-
-**Detection warning signs:**
-- Sub-octave combo works on USB gamepad but fails intermittently on BT
-- Adding `DBG` to combo detection shows R3 consumed before L1 is held approximately 30% of the time on BT
-
-**Phase:** Gamepad Option Mode 1 / sub-octave implementation
-
----
-
-### Pitfall 8: Left-Stick Modulation Targets — `setValueNotifyingHost` from Audio Thread
-
-**What goes wrong:**
-Left stick X/Y expanded targets (LFO freq, shape, level, arp gate len) are APVTS parameters. If the implementation calls `apvts.getParameter("lfoXRate")->setValueNotifyingHost(value)` from `processBlock` (audio thread), this is illegal — JUCE's `setValueNotifyingHost` acquires the APVTS lock internally on some JUCE 8 build configurations and always notifies the host, which may call back onto the audio thread recursively. At minimum it floods the host automation track with 60-sample-rate-worth of parameter changes per second.
-
-**Consequences:**
-- JUCE assertion "This should only be called from the main thread" fires in debug builds
-- Host automation undo stack overflow at 60 writes/sec in some DAWs
-- Potential deadlock if host calls `audioProcessorParameterChanged` re-entrantly
-
-**Prevention:**
-Apply left-stick LFO/arp modulation as an inline additive offset computed inside `processBlock`, not as APVTS writes. This is the same pattern already used for LFO output on joystick position (lines 631–632). Read the APVTS base value, add the stick contribution, use the result locally:
-
-```cpp
-const float baseLfoRate = apvts.getRawParameterValue("lfoXRate")->load();
-const float effectiveRate = baseLfoRate + stickX * modDepth;  // local only, not written back
+**How to avoid:**
+In `CMakeLists.txt`, the AU target must declare:
 ```
+IS_SYNTH TRUE
+IS_MIDI_EFFECT FALSE
+NEEDS_MIDI_INPUT TRUE
+NEEDS_MIDI_OUTPUT TRUE
+```
+The silent stereo output bus must remain enabled (JUCE's AU wrapper requires at least one output bus for the `aumu` type — even if it outputs silence). Verify with `auval -v aumu [SUBT] [MANU]` on the command line before any DAW testing.
 
-Pass `effectiveRate` directly to `ProcessParams.rateHz` for that block. This is zero-latency, audio-thread-safe, and produces no parameter-change notifications.
+**Warning signs:**
+- `auval` passes but Logic Pro shows no MIDI output from the plugin
+- Logic places plugin on audio channel strip instead of instrument slot
+- `auval -v aufx` (effect type) finds the plugin when `aumu` was expected
 
-**Detection warning signs:**
-- JUCE assertion fires in debug build on first stick movement with modulation enabled
-- Host records a continuous automation lane from stick movements
-
-**Phase:** Left-stick modulation expansion
+**Phase to address:** Mac build phase — CMake AU target configuration must be verified before any AU DAW testing.
 
 ---
 
-### Pitfall 9: Arp + Single-Channel Mode — Step Collision When Adjacent Voices Share Pitch
+### Pitfall 3: AU Parameter IDs Break Saved State Between VST3 and AU Versions
 
 **What goes wrong:**
-The arpeggiator emits `noteOn(voiceChs[voice], heldPitch_[voice], 100)` per step, tracking one active pitch in `arpActivePitch_`. In single-channel mode, when two adjacent arp steps hit the same quantized pitch, the step-boundary note-off fires `noteOff(ch, prevPitch)` and then `noteOn(ch, samePitch)` in the same block. Some synths interpret this as a retrigger (new note envelope); others suppress the noteOff because the note is immediately re-triggered. If `arpActivePitch_` equals the next step's pitch and both are on the same channel, the behavior is synth-dependent and inconsistent.
+JUCE generates AU parameter IDs differently from VST3 parameter IDs by default. In JUCE 8, AU parameters are ordered by a hash of their string identifier (not by registration order). If a user saves an AU preset and then you add new parameters in a subsequent build, Logic Pro remaps automation using parameter indices (not IDs), which means adding parameters can silently corrupt saved presets.
 
-With the per-pitch reference-count solution from Pitfall 1, this specific case is handled: the reference count for that pitch goes 1 → (noteOff decrements to 0 → MIDI noteOff sent) → (noteOn increments to 1 → MIDI noteOn sent). This is the correct retrigger behavior. The pitfall is that Pitfall 1's solution must be applied to the arp path as well, not just the pad trigger path.
+Additionally: if `JUCE_FORCE_USE_LEGACY_PARAM_IDS` is not set, JUCE's AU wrapper sorts existing parameters by hash and adds new ones via a version hint. Failing to supply a `versionHint` to every `AudioProcessorValueTreeState::Parameter` constructor means all parameters get hint `0`, and their AU order is hash-based — unpredictable and not the same as VST3 order.
 
-**Prevention:**
-Apply the same per-pitch reference count (`noteCount_[16][128]`) to arp note-on and note-off emissions (lines 1068, 1025, 990–991). Do not add arp-specific special-casing; the reference count solution handles all cases uniformly.
+**Why it happens:**
+VST3 parameter IDs are handled by JUCE automatically. AU is a different format with different identity rules. Developers test on VST3, ship AU, and only notice the problem when Logic users report broken presets after an update.
 
-**Phase:** Single-channel routing phase (arp integration path)
+**How to avoid:**
+From the first AU build: supply explicit `versionHint = 1` to every `APVTS::ParameterLayout` entry. For any new parameters added in v2.1+, supply `versionHint = 2`. Never remove or reorder existing parameters between releases. Run `auval` after any parameter change. Document the version hint assignment in code comments.
+
+Also set `JUCE_IGNORE_VST3_MISMATCHED_PARAMETER_ID_WARNING 1` only if you have deliberately diverged VST3 and AU IDs — do not set this to silence legitimate warnings.
+
+**Warning signs:**
+- `auval` warning: "Parameter did not retain default value when set"
+- Logic Pro automation lanes point to wrong parameters after a plugin update
+- APVTS `restoreFromXML` produces incorrect parameter values when loading a VST3 preset in the AU version
+
+**Phase to address:** Mac build phase — set all version hints before the first AU release to any user.
 
 ---
 
-### Pitfall 10: LFO Recording "Distort Stays Live" — Double-Distortion on Playback
+### Pitfall 4: Manufacturer Code Must Have at Least One Uppercase Character
 
 **What goes wrong:**
-The v1.5 spec says "Distort stays live" (distortion parameter remains adjustable during playback of a recorded LFO cycle). If the ring buffer stores **post-distortion** samples (the final `lfoX_.process(xp)` return value, which already includes the LCG noise contribution), then during playback the user's live distortion knob re-applies distortion to an already-distorted signal:
+`auval` rejects AU plugins with a manufacturer OSType (4-character code) that is entirely lowercase. The error message is: `ERROR: Manufacturer OSType should have at least one non-lower case character`. JUCE reads this from `PLUGIN_MANUFACTURER_CODE` in `CMakeLists.txt`. If the existing Windows build used a code like `"dimea"` or `"juce"`, the AU build will fail `auval`.
 
-- Buffer was recorded at distortion=0.2 → waveform contains 20% noise contribution
-- User turns distortion to 0.4 during playback → live distortion 0.4 applied on top
-- Net distortion is not 0.4 but approximately 0.2 + 0.4 * (1 - 0.2) ≈ 0.52
+**Why it happens:**
+VST3 does not enforce this rule, so it was never caught during Windows development.
 
-The user expects "live distortion = 0.4 = 40% noise", but hears 52% noise.
+**How to avoid:**
+Set `PLUGIN_MANUFACTURER_CODE "Dima"` (or similar) in `CMakeLists.txt`. Verify with `auval -v aumu [SUBT] [MANU]`. The 4-character code must also not conflict with any existing Apple-registered manufacturer code. Check current registration at the Apple AU manufacturer code registry.
 
-**Prevention:**
-Record **pre-distortion** waveform values: store the `evaluateWaveform()` output before the LCG noise is added. During playback, apply the current live distortion value to each replayed sample. This requires a small refactor of `LfoEngine`: expose `evaluateWaveform()` publicly (or add a `noDistort` flag to `ProcessParams`). The playback path in processBlock reads the ring buffer sample, then applies `liveDistortion * nextLcg() + (1.0f - liveDistortion) * bufferedSample`.
+**Warning signs:**
+- `auval` output: `ERROR: Manufacturer OSType should have at least one non-lower case character`
+- AU plugin does not appear in Logic's plugin manager after installation
 
-Document the intended behavior explicitly before implementation to avoid ambiguity.
-
-**Detection warning signs:**
-- LFO playback sounds "dirtier" than the distortion knob value suggests
-- Turning distortion to zero does not fully remove noise from recorded playback
-- The artifact is proportional to the distortion level used during recording
-
-**Phase:** LFO recording implementation
+**Phase to address:** Mac build phase — before any `auval` run.
 
 ---
 
-### Pitfall 11: Option Mode 1 RND Sync Toggle — `setValueNotifyingHost` from processBlock
+### Pitfall 5: SDL2 Initialization Conflicts with macOS Main Thread Requirements
 
 **What goes wrong:**
-v1.5 maps Cross (SDL A) in Option Mode 1 to `X=RND Sync`, toggling the `randomClockSync` APVTS bool. If the implementation toggles this via `setValueNotifyingHost("randomClockSync", ...)` from processBlock (audio thread), this is the same violation as Pitfall 8.
+SDL2 on macOS requires `SDL_Init` and all event processing to run on the main thread. ChordJoystick's `GamepadInput` currently initialises SDL2 in a background timer thread (60 Hz `juce::Timer` callback). On Windows this works because Win32 allows SDL event polling from non-main threads. On macOS, SDL2's Cocoa backend calls into AppKit APIs (`NSApplication`, `NSEvent`) which must run on the main thread. Calling these from a JUCE timer callback (which runs on the message thread — which IS the main thread in a plugin editor context, but is NOT the main thread if the editor is not open) causes a crash or silent SDL failure.
 
-**Prevention:**
-Use the same pending-delta atomic pattern as Option Mode 2's D-pad parameter control (lines 486–497): set a `pendingRndSyncToggle_` atomic bool in processBlock; consume in `PluginEditor::timerCallback()` and call `setValueNotifyingHost` there. This is the established pattern in the codebase for all gamepad-driven parameter changes.
+Additionally, `SDL_INIT_JOYSTICK`/`SDL_INIT_GAMECONTROLLER` on macOS uses the IOKit HID Manager internally, which also requires main-thread context.
 
-**Phase:** Gamepad Option Mode 1 implementation
+**Why it happens:**
+The Windows port works because SDL2's Windows backend does not use a GUI toolkit. The macOS port exposes SDL2's Cocoa/IOKit threading requirements that were never exercised.
+
+**How to avoid:**
+On macOS, wrap SDL2 initialization in `juce::MessageManager::callAsync()` to ensure it runs on the main message thread. The 60 Hz timer callback in `GamepadInput` may need to be started after the editor is opened (ensuring the message loop is running). Test with the plugin editor closed — the gamepad must not crash the host when the UI is not visible.
+
+Also: when building as a universal binary, ensure the SDL2 static library is built as a fat binary (`lipo -create`) containing both `arm64` and `x86_64` slices. A single-arch SDL2 lib will produce a link error during the universal binary build. Use SDL2's `build-scripts/clang-fat.sh` or build SDL2 twice (once per arch) and combine with `lipo`.
+
+**Warning signs:**
+- Plugin crashes on macOS when joystick is connected but editor is closed
+- SDL2 returns error on `SDL_Init`: "No displays available" or AppKit threading assertion
+- `lipo -info libSDL2.a` shows single architecture when universal binary is expected
+
+**Phase to address:** Mac build phase — SDL2 universal binary is a build-system blocker; threading fix must be verified in headless host scenario.
 
 ---
 
-## Minor Pitfalls
-
----
-
-### Pitfall 12: Sub-Octave in Looper Playback — Both Paths Must Fire Sub-Oct
+### Pitfall 6: Hardened Runtime Breaks SDL2 HID/Gamepad Access Without Entitlements
 
 **What goes wrong:**
-The looper gate-on path (lines 775–787) currently fires one `noteOn` per voice. If sub-octave is added to `tp.onNote` (the direct pad/joystick/random trigger path) but not to the looper gate-on path, live pad presses produce sub-octave notes but looper playback does not. The feature appears to work in basic testing (pad presses) but fails when the looper is active.
+macOS notarization requires hardened runtime (`--options runtime` in `codesign`). Hardened runtime by default blocks access to USB HID devices (gamepads use the IOKit HID Manager). Without the correct entitlements, `SDL_Init(SDL_INIT_GAMECONTROLLER)` silently returns 0 (success) but `SDL_NumJoysticks()` returns 0 — no gamepads detected. No error is reported; the feature silently stops working on notarized builds.
 
-**Prevention:**
-Abstract the "emit note-on for voice, optionally including sub-octave" logic into a helper used by both paths. Both `loopOut.gateOn[v]` and `tp.onNote` call the same helper. The helper accepts the voice index, pitch, channel, MIDI buffer, sample offset, and a `bool subOctEnabled[4]` state array. Sub-octave snapshot (`subOctActivePitch_[v]`) is updated inside the helper. This avoids implementing sub-octave twice and missing one path.
+**Why it happens:**
+Unsigned/ad-hoc-signed builds during development bypass hardened runtime checks. The problem only appears after proper code signing with hardened runtime enabled, which is the last step before distribution.
 
-**Phase:** Sub-octave implementation
+**How to avoid:**
+Create an entitlements `.plist` file that includes:
+```xml
+<key>com.apple.security.cs.disable-library-validation</key><true/>
+```
+For USB HID access (gamepads), add:
+```xml
+<key>com.apple.security.device.usb</key><true/>
+```
+For Bluetooth gamepads (PS4/PS5 via Bluetooth), add:
+```xml
+<key>com.apple.security.device.bluetooth</key><true/>
+```
+Pass this entitlements file to `codesign`: `codesign --force -s "$DEV_ID" --options runtime --entitlements entitlements.plist Plugin.vst3`.
+
+Test the signed build on a separate Mac (not the build Mac) to confirm gamepads are detected. The build Mac's development provisioning may mask the entitlement check.
+
+**Warning signs:**
+- `SDL_NumJoysticks()` returns 0 in notarized build, non-zero in unsigned build
+- No crash, no error message — gamepad feature silently non-functional
+- Console.app shows IOKit access denied messages for the plugin process
+
+**Phase to address:** Code signing phase — entitlements file must be defined before notarization attempt; test on clean Mac.
 
 ---
 
-### Pitfall 13: Arp `arpStep_` Not Reset When Circle Toggles Arp Off Then On
+### Pitfall 7: Notarization Rejection Due to Incorrect Signing Order in Nested Bundles
 
 **What goes wrong:**
-The arp disable path resets `arpPhase_ = 0.0` and `arpStep_ = 0` (lines 996–997). When arp is toggled off via Circle (Mode 1) and immediately re-enabled, the phase and step reset to 0. This is usually desirable (re-lock to beat grid on re-enable). However, if the user uses Circle to "skip a beat" mid-phrase, the step counter reset produces a different voice order than expected (always restarts from voice 0 of the sequence).
+A VST3 plugin is a bundle containing a binary. An AU `.component` is also a bundle. If the plugin bundle is signed before inner resources are signed, or if the outer bundle is signed with `--deep` (which Apple now discourages for complex bundles), Apple's notarization service rejects with "The signature of the binary is invalid" or "The binary was not signed with a valid Developer ID certificate."
 
-This is an intentional behavior tradeoff, not a bug. Document it: Circle toggles arp off → all state resets → next enable always starts from step 0 of the sequence. If "resume from current step" is desired, remove the `arpStep_ = 0` reset from the disable path — but this requires careful handling to avoid stale arpActivePitch_ state.
+The correct order: sign innermost binaries first, then sign the outer bundle without `--deep`. Using `--deep` on a bundle that contains another already-signed bundle re-signs the inner bundle and invalidates it.
 
-**Phase:** Gamepad Option Mode 1 (document the decision)
+**Why it happens:**
+The `--deep` flag looks like it handles nested signing automatically. It does not — it re-signs inner components, which breaks their signatures.
+
+**How to avoid:**
+Sign in leaf-to-root order:
+1. Sign any frameworks or dylibs inside the bundle.
+2. Sign the plugin binary itself (`MacOS/ChordJoystick`).
+3. Sign the outer bundle directory (`ChordJoystick.vst3`).
+4. Zip the signed bundle.
+5. Submit zip to `xcrun notarytool submit`.
+6. After Apple approves, `xcrun stapler staple ChordJoystick.vst3`.
+
+Do not use `--deep` in step 3. Verify each level with `codesign --verify --deep --strict ChordJoystick.vst3` after signing.
+
+The `.pkg` installer must also be signed with a Developer ID Installer certificate (separate from the Developer ID Application certificate used for plugin binaries) and notarized separately.
+
+**Warning signs:**
+- `notarytool log` shows `"The signature of the binary is invalid"`
+- `codesign --verify --deep --strict` shows "sealed resource modified"
+- Plugin is rejected by Gatekeeper on clean Mac even after notarization
+
+**Phase to address:** Code signing and notarization phase — this is its own dedicated phase due to the complexity of the signing pipeline.
 
 ---
 
-### Pitfall 14: Sub-Octave Note Sent on Looper Reset Without Matching Note-Off
+### Pitfall 8: Network Entitlement Missing for LemonSqueezy API Calls
 
 **What goes wrong:**
-On looper reset (`loopOut.looperReset = true`, lines 734–744), the processor iterates `looperActivePitch_[v]` and emits note-offs. If sub-octave is active, `subOctActivePitch_[v]` also needs a note-off in this path. The current reset handler only clears `looperActivePitch_[v]`; a sub-octave note sounding from a looper gate-on will not receive a note-off on reset.
+With hardened runtime enabled, outgoing network connections require the `com.apple.security.network.client` entitlement. Without it, `juce::URL::createInputStream()` (or any HTTP client) silently fails — the connection attempt returns null with no user-visible error. The license validation background thread receives a null stream, interprets it as "network unavailable," and may either fail open (grant access anyway) or fail closed (block the user permanently).
 
-**Prevention:**
-In the looper reset handler, also emit `noteOff(ch, subOctActivePitch_[v], 0)` for each voice where `subOctActivePitch_[v] >= 0`, then reset to -1. Apply the same logic to the DAW stop path (`loopOut.dawStopped`, lines 686–692 equivalent) and the looper stop path (lines 718–730).
+**Why it happens:**
+Network access works freely in development builds (no hardened runtime). The restriction is invisible until the notarized build is tested.
 
-**Phase:** Sub-octave implementation (include all note-off emission points in the audit)
+**How to avoid:**
+Add to the entitlements `.plist`:
+```xml
+<key>com.apple.security.network.client</key><true/>
+```
+Test the signed build's network access explicitly: validate a real license key against the LemonSqueezy API in the notarized build, on a machine that has never run the unsigned build.
 
----
+**Warning signs:**
+- License validation always fails in notarized build, always succeeds in dev build
+- `juce::URL::createInputStream()` returns `nullptr` with no exception
+- System log shows network sandbox denial for the plugin process
 
-## Phase-Specific Warnings
-
-| Phase Topic | Likely Pitfall | Mitigation |
-|---|---|---|
-| Looper start-position bug fix | Must be fixed before LFO recording | Capture `recordStartPpq_` at recording activation (Pitfall 5) |
-| Single-channel routing | Note collision when two voices share pitch | Per-pitch reference count `noteCount_[16][128]` (Pitfall 1) |
-| Single-channel + arp | Same-pitch adjacent steps stutter | Apply reference count to arp path too (Pitfall 9) |
-| Sub-octave note-on/off | Orphaned sub-oct on pitch change mid-hold | `subOctActivePitch_[v]` snapshot at note-on (Pitfall 2) |
-| Sub-octave + looper | Sub-oct missing from looper gate-on path | Single emission helper for both paths (Pitfall 12) |
-| Sub-octave on looper reset/DAW stop | Sub-oct note not cleared | Include `subOctActivePitch_[v]` in all note-off flush paths (Pitfall 14) |
-| LFO recording buffer | FIFO overflow on long loops | Separate ring buffer, not LooperEngine FIFO (Pitfall 4) |
-| LFO distortion during playback | Double-distortion on replay | Record pre-distortion waveform, apply distortion live (Pitfall 10) |
-| Left-stick modulation expansion | Flooding DAW automation via `setValueNotifyingHost` | Inline additive offset in processBlock (Pitfall 8) |
-| Option Mode 1 Circle = arp | Circle also fires `looperDelete_` unconditionally | Gate all face buttons behind `optionMode_ == 0` (Pitfall 6) |
-| Option Mode 1 RND Sync | `setValueNotifyingHost` from audio thread | Pending atomic + message-thread consume (Pitfall 11) |
-| R3 + pad sub-oct combo | 60 Hz frame misses simultaneous BT presses | `rightStickHeld_` + hold window in processBlock (Pitfall 7) |
-| PS4 BT reconnect crash | SDL handle invalid after rapid re-open | Deferred re-open (one-tick delay) + verify Attached after Open (Pitfall 3) |
+**Phase to address:** Code signing phase — entitlement must be in the entitlements file before any notarization attempt.
 
 ---
 
-## Implementation Order Recommendation
+## Technical Debt Patterns
 
-Based on pitfall dependencies:
+Shortcuts that seem reasonable but create long-term problems.
 
-1. **Fix looper start-position bug first** (Pitfall 5 poisons LFO recording phase if left unfixed)
-2. **Fix PS4 BT reconnect crash** (independent; unblocks gamepad testing for all other features)
-3. **Single-channel routing with reference count** (foundation; arp and sub-octave both depend on correct note counting)
-4. **Sub-octave** (requires reference count in place; implement note emission helper for both pad and looper paths)
-5. **LFO recording** (requires looper anchor bug fixed; use separate ring buffer)
-6. **Left-stick modulation expansion** (inline offsets only; no APVTS writes from audio thread)
-7. **Option Mode 1 + R3 combo** (last; builds on sub-octave and all gamepad atomics being stable)
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Ad-hoc signing for beta Mac builds | Skip Apple Developer account cost | Gatekeeper blocks distribution; every user must `xattr -rd com.apple.quarantine` manually | Beta testers only; never for public release |
+| Skipping `auval` and testing only in Logic | Faster AU validation loop | Logic's scanner is more permissive than `auval`; ships broken plugin | Never — `auval` before every AU release |
+| Storing license key in `~/Library/Preferences` plist in plaintext | Trivial implementation | License key is readable by any process with user access; trivially shared | Never — use macOS Keychain |
+| Synchronous LemonSqueezy validation at every plugin load | Simple implementation | Blocks message thread on slow network; plugin appears to hang in DAW | Never |
+| Single-arch (arm64-only) macOS build | Faster build, smaller binary | Excludes Intel Mac users (Rosetta works but adds compatibility matrix complexity) | Only if Intel support is explicitly out of scope |
+| Using `--deep` for bundle signing | Single codesign command | Re-signs inner bundles, invalidates their signatures, notarization fails | Never for complex plugin bundles |
+
+---
+
+## Integration Gotchas
+
+Common mistakes when connecting to external services.
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| LemonSqueezy Validate API | Call `/v1/licenses/validate` on every `processBlock` | Call once on first editor open, then re-validate at configurable interval (e.g., 24 hours) from a background thread |
+| LemonSqueezy Activate API | Activate a new instance every time the plugin loads | Activate once, store `instance_id` in Keychain alongside the key; use that `instance_id` for subsequent validates |
+| LemonSqueezy offline handling | Treat HTTP failure as license invalid, block user | Cache last-known-valid state with a timestamp; allow configurable offline grace period (e.g., 7 days) before restricting features |
+| macOS Keychain | Use `kSecAttrAccessibleAlways` for stored license key | Use `kSecAttrAccessibleAfterFirstUnlock` — works after device boot without user interaction, does not expose key before first unlock |
+| Apple notarytool | Submit using deprecated `altool` | Use `xcrun notarytool submit` — `altool` was removed in Xcode 14 |
+
+---
+
+## Performance Traps
+
+Patterns that work at small scale but fail as usage grows.
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Blocking license network call in `PluginProcessor` constructor | DAW scan hangs for the duration of DNS + TLS + HTTP round-trip (~200–2000ms) | Background thread with async result | Any network latency above ~50ms; especially noticeable during DAW plugin scan of all installed plugins |
+| Polling `juce::URL` on message thread in `timerCallback` | UI freezes during HTTP response | Non-blocking `juce::WebInputStream` with async notification or dedicated `juce::Thread` | Any response time above one timer tick (~30ms at 30 Hz) |
+| Re-signing entire bundle with `codesign --force --deep` in CI | Works when bundle is simple | Breaks nested bundle signatures; notarization fails | Any bundle with signed inner components |
+
+---
+
+## Security Mistakes
+
+Domain-specific security issues beyond general C++ advice.
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Storing LemonSqueezy license key in `UserDefaults` / plist | Key readable in plaintext by any process; easily copied to unlock pirated copies | macOS Keychain (`SecItemAdd` with `kSecClassGenericPassword`) |
+| Storing license key in the JUCE `ApplicationProperties` file | Same as plist — plaintext on disk in `~/Library/Preferences/` | macOS Keychain |
+| Embedding LemonSqueezy API secret key in plugin binary | API secret extractable with `strings` command; enables mass license generation | LemonSqueezy validation API is public — it does not require a secret key. Only use public Validate/Activate endpoints. Never embed a store API key. |
+| Fail-open on network error without grace-period limit | Any network failure permanently unlocks all features | Explicit grace period: store `lastValidatedTimestamp`; allow up to N days offline; after N days, restrict features until re-validated |
+| Not verifying LemonSqueezy response fields | Attacker returns spoofed `{"valid": true}` from a local proxy | Verify `license_key.status == "active"` and `meta.store_id` matches your store; do not trust only the top-level `valid` field |
+
+---
+
+## UX Pitfalls
+
+Common user experience mistakes in this domain.
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| Blocking the plugin UI while license validates on first launch | Plugin appears frozen; user force-quits DAW | Show "Checking license..." state immediately; validate in background; unlock UI when result arrives |
+| Showing license dialog in `PluginProcessor` constructor | Constructor may run during DAW plugin scan (headless); dialog in headless context crashes or blocks indefinitely | Show dialog only from `PluginEditor` constructor on the message thread |
+| Requiring online activation for beta testers who don't have a LemonSqueezy account | Beta testers cannot use the plugin | Issue beta license keys via LemonSqueezy's key generation, or add a separate "beta mode" flag |
+| Gatekeeper block on first launch with no user guidance | Users see "can't be opened because Apple cannot verify it" and abandon the product | Notarize the installer `.pkg` and the plugin bundles; staple the notarization ticket so Gatekeeper passes without network; include install instructions for quarantine removal if distributing unsigned beta builds |
+| AU preset format incompatible with VST3 presets | Users cannot move presets between formats | Document clearly that presets are format-specific; JUCE APVTS state is portable but AU/VST3 host preset containers are not |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+Things that appear complete but are missing critical pieces.
+
+- [ ] **Mac build compiles:** Verify `lipo -info ChordJoystick.vst3/Contents/MacOS/ChordJoystick` shows both `x86_64` and `arm64` — a single-arch build compiles without error
+- [ ] **AU format works:** Run `auval -v aumu [SUBT] [MANU]` — a plugin that loads in Logic may still fail `auval`
+- [ ] **Gamepad detected:** Test `SDL_NumJoysticks()` with a signed (hardened runtime) build — unsigned build always works
+- [ ] **License validation works:** Test the full validation flow in a notarized build on a clean Mac — dev builds bypass network entitlement checks
+- [ ] **Notarization stapled:** Run `xcrun stapler validate ChordJoystick.vst3` — notarization without stapling fails Gatekeeper offline
+- [ ] **Installer pkg signed:** Verify with `pkgutil --check-signature Installer.pkg` — plugin signing and installer signing are separate
+- [ ] **Offline grace period:** Disconnect Mac from network after validation, restart DAW — plugin must function for configured grace period
+- [ ] **License key in Keychain:** Run `security find-generic-password -a ChordJoystick` in Terminal — key must not appear in plaintext in any plist
+
+---
+
+## Recovery Strategies
+
+When pitfalls occur despite prevention, how to recover.
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| AU parameter IDs broken by parameter reorder | HIGH | Add version hints to all existing params (hint=1) and new params (hint=2); publish a migration note; user re-saves presets |
+| Notarization rejected (invalid signature) | MEDIUM | Re-sign in leaf-to-root order without `--deep`; re-submit to notarytool; budget ~30 min for re-sign + Apple processing time |
+| Hardened runtime breaks gamepad (missing entitlement) | LOW | Add entitlement to `.plist`; re-sign all bundles; re-notarize |
+| Network entitlement missing (LemonSqueezy fails silently) | LOW | Same as above — add `com.apple.security.network.client` to entitlements and re-notarize |
+| SDL2 fat binary missing arm64 | MEDIUM | Rebuild SDL2 for both arches; `lipo -create`; re-link plugin; rebuild universal binary |
+| Audio thread network call causing dropout | HIGH | Architectural fix required — move validation to background thread; cannot be patched with a flag |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+How roadmap phases should address these pitfalls.
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| Network call on audio thread (P1) | License implementation phase | Unit test: call `licenseCheck()` from a mock processBlock — must not block |
+| AU plugin type mapping wrong (P2) | Mac build phase | `auval -v aumu [SUBT] [MANU]` passes; Logic shows MIDI output |
+| AU parameter IDs break presets (P3) | Mac build phase | Set version hints before first AU user release; `auval` parameter retention tests pass |
+| Manufacturer code all-lowercase (P4) | Mac build phase | `auval` first run — fails immediately with explicit error |
+| SDL2 threading on macOS (P5) | Mac build phase | Plugin loads with editor closed and gamepad connected — no crash |
+| SDL2 fat binary missing arch (P5) | Mac build phase | `lipo -info libSDL2.a` shows both arches before linking |
+| Hardened runtime blocks gamepad (P6) | Code signing phase | Test notarized build with PS4/Xbox controller on clean Mac |
+| Incorrect bundle signing order (P7) | Code signing phase | `codesign --verify --deep --strict` passes; notarytool accepts submission |
+| Missing network entitlement (P8) | Code signing phase | LemonSqueezy validate call succeeds in notarized build on clean Mac |
+| License key in plaintext storage | License implementation phase | `security find-generic-password` returns key; no plaintext in `~/Library/Preferences/` |
 
 ---
 
 ## Sources
 
-All findings are HIGH confidence — derived from direct analysis of the v1.4 codebase:
-
-- `Source/PluginProcessor.cpp` lines 411–1150: processBlock note-on/off paths, arp state machine, LFO integration, looper gate emission
-- `Source/LooperEngine.cpp`: FIFO capacity constraints, `finaliseRecording()` anchor reset logic (lines 758–763)
-- `Source/LooperEngine.h`: `LOOPER_FIFO_CAPACITY = 2048`, event type definitions, threading invariants
-- `Source/GamepadInput.cpp`: timerCallback button dispatch order, SDL event loop, option mode gating, BT fallback poll
-- `Source/GamepadInput.h`: atomic layout, ButtonState pattern, held-state atomics
-- `Source/LfoEngine.h`: ProcessParams distortion field, phase accumulator, LCG PRNG
-- `Source/PluginProcessor.h`: `looperActivePitch_[]`, `arpActivePitch_`, `arpActiveVoice_`, all relevant state members
-- `.planning/PROJECT.md`: v1.5 requirements list, known bugs, architecture decisions
+- JUCE forum: AU parameter order and `JUCE_FORCE_USE_LEGACY_PARAM_IDS` — https://forum.juce.com/t/au-parameter-order-vs-vst-and-vst3-juce-force-use-legacy-param-ids/40555
+- JUCE forum: AU validation failures — https://forum.juce.com/t/validation-fail-on-au-plugin/27228
+- JUCE forum: AU auval manufacturer code uppercase requirement — https://forum.juce.com/t/au-validation-errors/15719
+- JUCE forum: `auval` + MIDI output for instrument plugins — https://forum.juce.com/t/audio-units-auval-and-midi/9954
+- JUCE forum: JUCE AU plugin "No types" (bus layout) — https://forum.juce.com/t/pluginval-au-plugins-returning-no-types-but-play-fine-in-logic/36687
+- JUCE forum: Universal binary CMake — https://forum.juce.com/t/cmake-plugin-and-os-11-universal-binary/41997
+- JUCE forum: AU universal binary Xcode 16.2 issue (Feb 2025) — https://forum.juce.com/t/au-universal-binary-macos-sequoia-and-xcode-16-2/65337
+- JUCE forum: Network connection from audio plugin — https://forum.juce.com/t/network-connection-from-audio-plugin/38105
+- JUCE forum: Checking license validation at plugin load — https://forum.juce.com/t/checking-license-validation-at-plugin-load/66298
+- JUCE forum: License key storage — https://forum.juce.com/t/license-key-storage/51046
+- JUCE forum: Message thread / audio thread deadlock — https://forum.juce.com/t/message-thread-and-audio-thread-stuck-waiting-for-eachother/32755
+- JUCE forum: Gatekeeper notarised distributables — https://forum.juce.com/t/apple-gatekeeper-notarised-distributables/29952
+- Melatonin blog: How to code sign and notarize macOS audio plugins in CI — https://melatonin.dev/blog/how-to-code-sign-and-notarize-macos-audio-plugins-in-ci/
+- Moonbase: Code signing audio plugins in 2025 — https://moonbase.sh/articles/code-signing-audio-plugins-in-2025-a-round-up/
+- Moonbase: Debugging AU plugin with auval — https://moonbase.sh/articles/debugging-your-audio-unit-plugin-with-auval-aka-auvaltool/
+- KVR Audio: HOWTO macOS notarization (plugins) — https://www.kvraudio.com/forum/viewtopic.php?t=531663
+- Apple Developer Docs: Resolving common notarization issues — https://developer.apple.com/documentation/security/resolving-common-notarization-issues
+- Apple Developer Docs: Disable Library Validation Entitlement — https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.cs.disable-library-validation
+- Syntheway: De-quarantine VST/AU plugins macOS — https://syntheway.com/fix-au-vst-vst3-macos.htm
+- SDL2 Wiki: macOS README — https://github.com/letoram/SDL2/blob/master/docs/README-macosx.md
+- SDL2 Discord/Forum: Compile macOS universal binary — https://discourse.libsdl.org/t/compile-macos-universal/28759
+- LemonSqueezy Docs: License API — https://docs.lemonsqueezy.com/api/license-api
+- LemonSqueezy Docs: Validate a License Key — https://docs.lemonsqueezy.com/api/license-api/validate-license-key
+- Reillyspitzfaden.com: Cross-Platform JUCE with CMake & GitHub Actions (2025) — https://reillyspitzfaden.com/posts/2025/08/plugins-for-everyone-crossplatform-juce-with-cmake-github-actions/
 
 ---
-*Pitfalls research for: ChordJoystick v1.5 — routing, sub-octave, LFO recording, arp gamepad control, left-stick modulation, Option Mode 1*
-*Researched: 2026-02-28*
-*All pitfalls derived from direct review of v1.4 source files. No speculative or generic pitfalls included.*
+*Pitfalls research for: ChordJoystick v2.0 — Windows-to-macOS port, AU format, LemonSqueezy licensing, code signing, notarization*
+*Researched: 2026-03-10*
