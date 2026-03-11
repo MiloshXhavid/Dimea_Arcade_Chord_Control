@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Cross-Platform Launch
 status: in_progress
-last_updated: "2026-03-11T14:05:15Z"
-last_activity: "2026-03-11 — Completed 46-03: universal Release build confirmed (x86_64 arm64) for VST3 and AU plugins"
+last_updated: "2026-03-11T17:30:00Z"
+last_activity: "2026-03-11 — Completed 46-04: auval passed (zero errors/warnings), all DAW smoke tests passed (Logic AU, Reaper VST3, Ableton VST3) — Phase 46 complete"
 progress:
   total_phases: 21
-  completed_phases: 18
+  completed_phases: 19
   total_plans: 44
   completed_plans: 44
 ---
@@ -15,13 +15,13 @@ progress:
 ## Current Position
 
 Phase: 46 — Mac Build Foundation
-Plan: 03 complete (next: 04)
+Plan: 04 complete (Phase 46 complete — next: Phase 47)
 Status: in_progress
-Last activity: 2026-03-11 — Completed 46-03: universal Release build confirmed (x86_64 arm64) for VST3 and AU plugins
+Last activity: 2026-03-11 — Completed 46-04: auval passed (zero errors/warnings), all DAW smoke tests passed (Logic AU, Reaper VST3, Ableton VST3) — Phase 46 complete
 
 ```
-v2.0 Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4 phases)
-Phase 46: [ ] Mac Build Foundation
+v2.0 Progress: [█████░░░░░░░░░░░░░░░] 25% (1/4 phases)
+Phase 46: [x] Mac Build Foundation
 Phase 47: [ ] License Key System
 Phase 48: [ ] Code Signing and Notarization
 Phase 49: [ ] macOS Distribution and GitHub Release
@@ -46,6 +46,8 @@ Phase 49: [ ] macOS Distribution and GitHub Release
 - cmake universal binary configure command: cmake -G Xcode -B build-mac -S . -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" — must be on command line, not just CMakeLists.txt CACHE STRING
 - Plugin product name must not contain shell-special characters — cmake Xcode generator escapes spaces but NOT parentheses in generated post-build sh scripts; product name is now "Arcade Chord Control Beta-Test"
 - SDL2 bakes x86-only SIMD flags (-mmmx/-msse/-msse2/-msse3) at configure time based on host CPU — only suppressed when cmake configure runs with CMAKE_OSX_ARCHITECTURES set; must wipe build-mac/ and reconfigure if architecture was previously missing
+- Logic Pro AU cache rescan required after plugin bundle rename — after product name change from "Arcade Chord Control (BETA-Test)" to "Arcade Chord Control Beta-Test", Logic did not find the plugin until AU cache was rescanned
+- MAC-04 gamepad test deferred (non-blocking) — MAC-02 and MAC-03 gates satisfied; gamepad verification pending during Phase 47/48 integration testing
 
 ### Pre-Phase Research Flags
 - Phase 47 (before implementation): Decide Keychain vs PropertiesFile for license key storage; run manual LemonSqueezy API test for deactivation endpoint behavior (LOW confidence)

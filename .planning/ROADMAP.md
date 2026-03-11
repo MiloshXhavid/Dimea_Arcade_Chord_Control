@@ -94,7 +94,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 ### v2.0 Cross-Platform Launch
 
-- [ ] **Phase 46: Mac Build Foundation** - Universal binary (arm64+x86_64) VST3+AU, auval clean pass, DAW smoke test, SDL2 gamepad on Mac
+- [x] **Phase 46: Mac Build Foundation** - Universal binary (arm64+x86_64) VST3+AU, auval clean pass, DAW smoke test, SDL2 gamepad on Mac (completed 2026-03-11)
 - [ ] **Phase 47: License Key System** - LemonSqueezy activate/validate, first-launch overlay, offline grace period, mute restriction, deactivate flow
 - [ ] **Phase 48: Code Signing and Notarization** - Entitlements plist, Developer ID Application signing, notarytool+staple, Windows OV/EV signing
 - [ ] **Phase 49: macOS Distribution and GitHub Release** - PKG installer, Developer ID Installer signing+notarize, GitHub v2.0 release with both platform assets
@@ -439,7 +439,7 @@ Plans:
 | 31–33.1 | v1.7 | Complete | 2026-03-05 |
 | 34–37, 44 | v1.8 | Complete | 2026-03-07 |
 | 38–45 | v1.9 | Complete | 2026-03-10 |
-| 46 | 3/4 | In Progress|  |
+| 46 | 4/4 | Complete   | 2026-03-11 |
 | 47 | v2.0 | Not started | — |
 | 48 | v2.0 | Not started | — |
 | 49 | v2.0 | Not started | — |
