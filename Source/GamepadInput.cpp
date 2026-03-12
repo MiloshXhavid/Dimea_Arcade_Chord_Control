@@ -103,12 +103,13 @@ bool GamepadInput::triggerPressed(int16_t axisValue) const
 
 void GamepadInput::timerCallback()
 {
-    // Deferred SDL init: wait kSdlInitDelayMs after construction before spawning the
-    // background thread.  This ensures SDL's DirectInput/XInput HID scan does not race
-    // with Ableton's WASAPI/ASIO audio init, which also scans the Windows HID tree and
-    // can soft-deadlock the DAW startup if both run concurrently.
     if (!sdlThreadSpawned_)
     {
+#if JUCE_WINDOWS
+        // On Windows: defer SDL init to a background thread so that SDL's
+        // DirectInput/XInput HID device scan does not race with Ableton's WASAPI/ASIO
+        // audio init — both enumerate the Windows HID tree concurrently and can
+        // soft-deadlock the DAW at startup if they run at the same time.
         const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - constructTime_).count();
         if (elapsedMs < kSdlInitDelayMs)
@@ -135,6 +136,35 @@ void GamepadInput::timerCallback()
             sdlReady_.store(true, std::memory_order_release);
         });
         return;  // SDL not ready this tick; will start polling on the next tick after init completes
+#else
+        // On macOS/Linux: initialise SDL directly on the message thread.
+        //
+        // macOS's DARWIN joystick driver (IOHIDManager) binds its IOHIDManager to the
+        // run loop of the thread that calls SDL_Init.  If SDL_Init runs on a background
+        // thread, that thread's run loop is destroyed when the thread exits; later,
+        // SDL_Quit (called from the plugin destructor on the message thread) calls
+        // IOHIDManagerUnscheduleFromRunLoop with the now-dead run loop reference, which
+        // triggers an Objective-C fatal error (_objc_fatal via CFEqual) and crashes
+        // Ableton's out-of-process PluginScanner — causing the plugin to be blacklisted.
+        //
+        // Initialising and quitting SDL on the same thread (the message thread) ensures
+        // the run loop reference remains valid for the lifetime of SDL.  The Windows HID
+        // scan race condition that motivated the background thread does not exist on macOS.
+        sdlThreadSpawned_ = true;
+        sdlInitialised_ = SdlContext::acquire();
+
+        if (!sdlInitialised_)
+        {
+            DBG("GamepadInput: SdlContext::acquire() failed — no gamepad support");
+        }
+        else
+        {
+            pendingReopenTick_.store(true, std::memory_order_release);
+        }
+
+        sdlReady_.store(true, std::memory_order_release);
+        return;  // Start polling next tick
+#endif
     }
 
     // SDL not ready yet (init is running on background thread) — skip this tick.
