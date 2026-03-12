@@ -12,8 +12,8 @@ A MIDI chord Generator VST3/AU plugin for Windows and macOS. Plug in any gamepad
 
 | Platform | File | Install |
 |----------|------|---------|
-| **Windows** | `DimeaArcade-ChordControl-v1.9.0-Setup.exe` | Run installer, rescan plugins in DAW |
-| **macOS** | `Arcade-Chord-Control-Beta-Test-macOS-v1.9.0.zip` | Unzip, copy to plugin folders (see below) |
+| **Windows** | `DimeaArcade-ChordControl-v1.9.1-Beta-Setup.exe` | Run installer, rescan plugins in DAW |
+| **macOS** | `Arcade-Chord-Control-Beta-Test-macOS-v1.9.1-Beta.zip` | Unzip, copy to plugin folders (see below) |
 
 **Windows requirements**
 - Windows 10 or 11, 64-bit
@@ -35,9 +35,20 @@ A MIDI chord Generator VST3/AU plugin for Windows and macOS. Plug in any gamepad
 3. Copy `Arcade Chord Control Beta-Test.component` → `~/Library/Audio/Plug-Ins/Components/`
 4. Restart your DAW
 
-> **Gatekeeper warning:** Right-click the file → Open, or go to System Settings → Privacy & Security → Allow Anyway. This is expected until code signing is set up in a future release.
->
-> **Optional (Terminal):** `sudo xattr -r -d com.apple.quarantine "/path/to/Arcade Chord Control Beta-Test.vst3"`
+### "Apple can't check for malware" — Fix
+
+macOS blocks unnotarized plugins by default. Do one of the following:
+
+**Option A — System Settings (easiest):**
+Go to **System Settings → Privacy & Security → scroll down → Allow Anyway**
+
+**Option B — Terminal (recommended):**
+```bash
+sudo xattr -dr com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/Arcade Chord Control Beta-Test.vst3" "/Library/Audio/Plug-Ins/Components/Arcade Chord Control Beta-Test.component" 2>/dev/null; sudo xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Arcade Chord Control Beta-Test.vst3" ~/Library/Audio/Plug-Ins/Components/"Arcade Chord Control Beta-Test.component" 2>/dev/null
+```
+Enter your Mac password when prompted, then restart your DAW.
+
+This warning is expected for beta releases. Code signing will be added in a future release.
 
 ---
 
@@ -117,7 +128,7 @@ This Plugin controls a MIDI capable soundsource like every DAW instrument does o
 
 ## Windows Installation
 
-1. Download `DimeaArcade-ChordControl-v1.9.0-Setup.exe` from the [releases page](https://github.com/MiloshXhavid/Dimea_Arcade_Chord_Control/releases/latest)
+1. Download `DimeaArcade-ChordControl-v1.9.1-Beta-Setup.exe` from the [releases page](https://github.com/MiloshXhavid/Dimea_Arcade_Chord_Control/releases/latest)
 2. Run it — Windows SmartScreen may warn on first run, click "More info → Run anyway"
 3. Admin privileges required (installs to `C:\Program Files\Common Files\VST3\`)
 4. Open your DAW and rescan VST3 plugins
